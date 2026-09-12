@@ -1,0 +1,43 @@
+# Local MEMENTO data: never commit personal recordings or derived content.
+/data/
+/raw/
+/exports/
+/backups/
+/logs/
+/local/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.wav
+*.flac
+*.mp3
+*.m4a
+*.ogg
+*.opus
+*.mp4
+*.mov
+*.jpg
+*.jpeg
+*.png
+
+# Credentials, local settings, and generated build output.
+.env
+.env.*
+!.env.example
+*.user
+*.suo
+bin/
+obj/
+build/
+dist/
+artifacts/
+
+# OS/editor noise.
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
