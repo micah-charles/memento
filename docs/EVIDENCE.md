@@ -13,7 +13,10 @@
 | Production runtime | Not created. |
 | Personal data | No real audio, transcript, export, backup, or credential created. |
 | Network/API calls | No OpenAI API call made; research used public documentation pages only. |
+| Git repository | Initialized on `main`; M00 checkpoint commit `b7049a5` (`docs: establish M00 research and architecture foundation`). |
+| Git remote | `origin` configured as `https://github.com/micah-charles/memento` for fetch/push; read-only `git ls-remote --heads origin` returned no refs, consistent with an empty/unpublished repository. |
 | Git push | Not performed. |
+| Working tree after checkpoint | Clean after the final verification commit; no generated or personal-data files present. |
 
 ## Source register
 
