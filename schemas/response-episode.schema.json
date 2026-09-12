@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/micah-charles/memento/blob/main/schemas/response-episode.schema.json",
+  "title": "MEMENTO Response Episode",
+  "description": "An observed stimulus/context, response, and optional follow-up grounded in original evidence. Hypothetical generated answers are not Response Episodes.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "record_type", "response_episode_id", "subject_person_id", "stimulus", "response_evidence_ids", "observed_behaviours", "created_at", "is_hypothetical"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.1-draft" },
+    "record_type": { "type": "string", "const": "response_episode" },
+    "response_episode_id": { "type": "string", "minLength": 1 },
+    "subject_person_id": { "type": "string", "minLength": 1 },
+    "stimulus": {
+      "type": "object",
+      "required": ["description", "evidence_ids"],
+      "properties": {
+        "description": { "type": "string", "minLength": 1 },
+        "category_tags": { "type": "array", "items": { "type": "string" } },
+        "evidence_ids": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "response_evidence_ids": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "observed_behaviours": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["description", "basis", "evidence_ids"],
+        "properties": {
+          "description": { "type": "string", "minLength": 1 },
+          "basis": { "type": "string", "enum": ["direct_response", "quoted_language", "tone_observation", "system_observation", "ai_interpretation"] },
+          "evidence_ids": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": true
+      }
+    },
+    "follow_up_evidence_ids": { "type": "array", "items": { "type": "string" } },
+    "temporal_validity": { "$ref": "memory-claim.schema.json#/$defs/temporal_validity" },
+    "derived_pattern_ids": { "type": "array", "items": { "type": "string" } },
+    "created_at": { "type": "string", "format": "date-time" },
+    "is_hypothetical": { "type": "boolean", "const": false },
+    "notes": { "type": ["string", "null"] }
+  }
+}

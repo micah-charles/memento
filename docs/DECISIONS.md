@@ -14,6 +14,10 @@
 | D-007 | Make `NORMAL`, `PRIVATE_CONVERSATION`, and `LOCAL_CAPTURE_ONLY` explicit privacy modes. | Proposed | [PRIVACY_MODEL.md](PRIVACY_MODEL.md) |
 | D-008 | Use FTS5 as the first local search index; any semantic index is derived and replaceable. | Proposed | [TECHNOLOGY_DECISIONS.md](TECHNOLOGY_DECISIONS.md) |
 | D-009 | Treat current external information as untrusted, time-bound data with no authority to mutate family memory. | Proposed | [SECURITY_MODEL.md](SECURITY_MODEL.md) |
+| D-010 | Separate Source, Evidence, Memory Claim, Response Episode, and Annotation into distinct durable concepts and portable record contracts. | Proposed | [ADR-005](adr/ADR-005-source-evidence-claim.md) |
+| D-011 | Keep speaker confirmation, family assessment, and admin annotation as independent attributed assertions; family support cannot become speaker confirmation. | Proposed | [ADR-005](adr/ADR-005-source-evidence-claim.md) |
+| D-012 | Give Memory Claims explicit temporal validity and preserve event time separately from Source recorded time. | Proposed | [ADR-005](adr/ADR-005-source-evidence-claim.md) |
+| D-013 | Treat Response Episode as a first-class observed domain object; derived behavioural patterns must remain linked inference. | Proposed | [ADR-005](adr/ADR-005-source-evidence-claim.md) |
 
 ## Decision hygiene
 

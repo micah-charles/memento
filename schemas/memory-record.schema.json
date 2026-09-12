@@ -1,87 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/micah-charles/memento/blob/main/schemas/memory-record.schema.json",
-  "title": "MEMENTO evidence record",
-  "description": "Documentation-level draft contract. It preserves evidence class, uncertainty, and a complete source chain. It does not promote AI inference to fact.",
-  "type": "object",
-  "additionalProperties": true,
-  "required": [
-    "schema_version",
-    "evidence_id",
-    "source_type",
-    "status",
-    "certainty",
-    "statement",
-    "session_id",
-    "turn_id",
-    "audio_asset_id",
-    "transcript_revision_id",
-    "created_at"
-  ],
-  "properties": {
-    "schema_version": { "type": "string", "minLength": 1 },
-    "evidence_id": { "type": "string", "minLength": 1 },
-    "subject_person_id": { "type": ["string", "null"] },
-    "record_type": { "type": "string" },
-    "source_type": {
-      "type": "string",
-      "enum": [
-        "direct_statement",
-        "confirmed_interpretation",
-        "ai_inference",
-        "system_observation",
-        "external_fact"
-      ]
-    },
-    "status": {
-      "type": "string",
-      "enum": ["candidate", "accepted", "rejected", "withdrawn", "superseded"]
-    },
-    "certainty": {
-      "type": "string",
-      "enum": [
-        "stated",
-        "uncertain",
-        "confirmed_by_speaker",
-        "corrected_by_speaker",
-        "contradictory",
-        "withdrawn"
-      ]
-    },
-    "statement": { "type": "string" },
-    "subject": { "type": ["string", "null"] },
-    "predicate": { "type": ["string", "null"] },
-    "object": {},
-    "original_expression": { "type": ["string", "null"] },
-    "session_id": { "type": "string", "minLength": 1 },
-    "turn_id": { "type": "string", "minLength": 1 },
-    "audio_asset_id": { "type": ["string", "null"] },
-    "audio_start_ms": { "type": ["integer", "null"], "minimum": 0 },
-    "audio_end_ms": { "type": ["integer", "null"], "minimum": 0 },
-    "transcript_revision_id": { "type": ["string", "null"] },
-    "transcript_span_id": { "type": ["string", "null"] },
-    "extraction_run_id": { "type": ["string", "null"] },
-    "provider": { "type": ["string", "null"] },
-    "model_id": { "type": ["string", "null"] },
-    "model_snapshot": { "type": ["string", "null"] },
-    "prompt_version": { "type": ["string", "null"] },
-    "model_confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
-    "created_at": { "type": "string", "format": "date-time" },
-    "supersedes_evidence_id": { "type": ["string", "null"] },
-    "contradicts_evidence_ids": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
-    "notes": { "type": ["string", "null"] }
-  },
-  "allOf": [
-    {
-      "if": { "properties": { "source_type": { "const": "ai_inference" } } },
-      "then": {
-        "properties": {
-          "status": { "enum": ["candidate", "accepted", "rejected", "withdrawn", "superseded"] }
-        }
-      }
-    }
+  "title": "MEMENTO durable record union",
+  "description": "Documentation-level entry point for the separate Source, Evidence, Memory Claim, Response Episode, and Annotation contracts. It is a compatibility name, not a claim that these records are one domain object.",
+  "oneOf": [
+    { "$ref": "source-record.schema.json" },
+    { "$ref": "evidence-record.schema.json" },
+    { "$ref": "memory-claim.schema.json" },
+    { "$ref": "response-episode.schema.json" },
+    { "$ref": "annotation-record.schema.json" }
   ]
 }

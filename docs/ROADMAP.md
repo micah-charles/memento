@@ -1,6 +1,6 @@
 # MEMENTO roadmap
 
-**Status:** M00 gate plan  
+**Status:** M00.1 gate plan
 **Last reviewed:** 2026-09-12
 
 Every milestone requires implementation, automated tests, manual verification, evidence, documentation, and a Git checkpoint. Passing compilation is not a gate. No milestone may weaken the evidence rules or privacy modes.
@@ -16,14 +16,16 @@ Every milestone requires implementation, automated tests, manual verification, e
 | M04 | Cantonese and mixed-language validation | A consented/redacted corpus measures Cantonese, Mandarin, mixed speech, names, English insertions, and uncertainty; the result is acceptable or scope is revised. |
 | M05 | Clarification protocol | The “阿貞/阿珍” flow preserves initial recognition, clarification, correction, entity resolution, and provenance without silently normalizing. |
 | M06 | Conversation persistence | The one-continuous-conversation UX maps to durable sessions/turns and supports offline queue/retry. |
-| M07 | Memory extraction | Structured candidate memories are produced asynchronously with schema validation and no automatic promotion of inference. |
-| M08 | Provenance | Every evidence record links to transcript revision, turn, session, audio span, checksum, and extraction metadata. |
-| M09 | Vocabulary and entities | People, aliases, corrections, relationships, and personal vocabulary improve future context without rewriting history. |
+| M07 | Memory extraction | Structured candidate Evidence and candidate Memory Claims are produced asynchronously with schema validation; extraction never conflates the two or automatically promotes inference. |
+| M08 | Provenance | Source → Evidence → Memory Claim is verifiable, with transcript revision, turn, session, audio span, checksum, relationship, and extraction metadata where applicable. |
+| M09 | Vocabulary and entities | People, aliases, corrections, relationships, and personal vocabulary improve future context; entity resolution can link multiple Evidence records to one Claim without rewriting history. |
 | M10 | Current-information tools | Weather/news/transport queries use an allowlisted search path with source URLs, retrieval time, untrusted-content handling, and no memory mutation. |
 | M11 | Family Admin | Authenticated review of candidates, uncertainty, corrections, contradictions, audio playback, and audit events. |
 | M12 | Export and backup | Self-contained JSONL/media export and encrypted, integrity-checked backup/restore work without proprietary software. |
 | M13 | Reliability and security testing | Threat model, crash recovery, secret handling, prompt-injection, backup, update, and privacy tests pass. |
 | M14 | Real-user pilot | One real participant uses the system safely with a documented support, consent, incident, and rollback plan. |
+
+Response Episode support is introduced incrementally: M07 may emit candidate episode links, M08 verifies stimulus/response provenance, M11 reviews episode labels and authority, and M12 exports episodes and supporting records. Derived behavioural patterns remain a later, rebuildable feature and must never be confused with observed episodes.
 
 ## Objective M01–M05 acceptance criteria
 
@@ -71,11 +73,18 @@ Every milestone requires implementation, automated tests, manual verification, e
 2. **Normal daily use:** current Hong Kong weather retrieval → natural answer → personal dislike of very hot weather may be stored as a direct statement, while today’s weather is not stored as personal memory.
 3. **Memory discovery:** appropriate follow-up after a typhoon discussion → resulting story captured as evidence without forcing an interview.
 
+### M00.1 architecture-level acceptance scenarios
+
+- **Multiple Evidence, one Claim:** three separate conversations about disliking heat remain three Sources and three Evidence records, while one possible Memory Claim links all three with `supports` relationships.
+- **Temporal change:** a historical red colour preference and a current-as-of-2030 blue preference remain queryable claims with different temporal scopes; they are not silently treated as corruption.
+- **Family support versus speaker confirmation:** a family member’s dated document may support an uncertain participant statement, but `speaker_confirmation` remains `none` until participant-grounded Evidence exists.
+- **Response Episode:** a music-competition stimulus and the participant’s recorded praise/question become an observed Response Episode. “Praise + practical follow-up” is a derived pattern only, linked back to the Episode.
+
 These tests are product requirements, not M00 implementation work.
 
 ## Exact next implementation step after review
 
-Build M01’s smallest vertical slice: a C#/.NET WinUI 3 shell with a local SQLite database, schema migration, session/turn/consent tables, and a fake in-process audio asset reference. Do not connect a cloud provider or capture real family audio until the M01 gate passes.
+After M00.1 architecture approval, build M01’s smallest vertical slice: a C#/.NET WinUI 3 shell with a local SQLite database, schema migration, session/turn/consent tables, and a fake in-process audio asset reference. M01 must not implement Source/Evidence/Claim extraction runtime beyond what is needed to prove the local schema boundary. Do not connect a cloud provider or capture real family audio until the M01 gate passes.
 
 ## Revisit triggers
 

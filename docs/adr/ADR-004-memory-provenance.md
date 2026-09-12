@@ -1,6 +1,6 @@
 # ADR-004: Memory provenance and evidence integrity
 
-**Status:** Proposed — awaiting M00 architecture review  
+**Status:** Proposed — awaiting M00.1 architecture review
 **Date:** 2026-09-12
 
 ## Context
@@ -15,9 +15,9 @@ The purpose of MEMENTO is to preserve a real person’s memories and conversatio
 
 ## Decision
 
-Use append-only/revisioned evidence records with explicit `source_type`: `direct_statement`, `confirmed_interpretation`, `ai_inference`, `system_observation`, or `external_fact`. Preserve original audio, raw transcript revisions, corrected transcript revisions, correction annotations, contradictions, uncertainty, and source spans. Every candidate must link to session, turn, transcript revision/span, audio asset/time range, and extraction/model metadata when applicable.
+Use append-only/revisioned Source and Evidence records with explicit Evidence type: `direct_statement`, `confirmed_interpretation`, `ai_inference`, `system_observation`, or `external_fact`. A separate Memory Claim aggregates one or more Evidence records through explicit relationships. Preserve original audio Sources, raw transcript revisions, corrected transcript revisions, correction annotations, contradictions, uncertainty, temporal expressions, and source spans. Every candidate must link to Source/Evidence IDs and to session, turn, transcript revision/span, audio asset/time range, and extraction/model metadata when applicable.
 
-AI inference can be accepted or rejected by an explicit family-admin action, but it is never automatically promoted to a direct statement. A summary or index is rebuildable and never replaces evidence.
+AI inference can be accepted or rejected as a workflow action by an explicit family-admin action, but it is never automatically promoted to a direct statement or speaker confirmation. Family support and admin annotation remain separately attributed. A summary or index is rebuildable and never replaces Source or Evidence.
 
 ## Reasoning
 
@@ -25,8 +25,8 @@ This is the product’s central ethical and engineering constraint. It makes “
 
 ## Consequences
 
-Positive: auditability, correction without history loss, safer future reconstruction, and durable export.  
-Negative: more records and UI complexity, a required review workflow, and careful retrieval/ranking so uncertainty and contradictions remain visible.
+Positive: auditability, correction without history loss, safer future reconstruction, one Claim supported by many Evidence records, and durable export.
+Negative: more records and UI complexity, a required review workflow, careful retrieval/ranking so uncertainty, temporal change, and contradictions remain visible, and a future UI that must explain authority levels.
 
 ## Revisit conditions
 

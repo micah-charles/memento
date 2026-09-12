@@ -1,7 +1,7 @@
 # MEMENTO evidence register
 
 **Research/access date:** 2026-09-12  
-**Scope:** M00 documentation and architecture only
+**Scope:** M00 and M00.1 documentation/schema architecture only
 
 ## Repository evidence
 
@@ -14,8 +14,8 @@
 | Personal data | No real audio, transcript, export, backup, or credential created. |
 | Network/API calls | No OpenAI API call made; research used public documentation pages only. |
 | Git repository | Initialized on `main`; M00 checkpoint commit `b7049a5` (`docs: establish M00 research and architecture foundation`). |
-| Git remote | `origin` configured as `https://github.com/micah-charles/memento` for fetch/push; read-only `git ls-remote --heads origin` returned no refs, consistent with an empty/unpublished repository. |
-| Git push | Not performed. |
+| Git remote | `origin` configured as `https://github.com/micah-charles/memento` for fetch/push. At the initial M00 checkpoint, read-only `git ls-remote --heads origin` returned no refs, consistent with an empty/unpublished repository. |
+| Git push | The M00 baseline was pushed to the configured public remote before this M00.1 correction; this correction has not been pushed by this task. |
 | Working tree after checkpoint | Clean after the final verification commit; no generated or personal-data files present. |
 
 ## Source register
@@ -75,3 +75,10 @@ Current or time-sensitive claims should be re-checked before implementation. The
 ## Evidence interpretation
 
 Research sources establish capabilities and constraints; they do not prove MEMENTO’s target-language accuracy, safety, cost, or user fit. Those claims require later test evidence, recorded in milestone-specific reports and never inferred from documentation alone.
+
+## M00.1 verification evidence
+
+- Five separate documentation-level JSON Schema contracts were added for Source, Evidence, Memory Claim, Response Episode, and Annotation; `memory-record.schema.json` remains a union entry point for portability.
+- The architecture now requires explicit Source → Evidence → Memory Claim links, independent speaker/family/admin authority, temporal validity, and evidence-backed Response Episodes.
+- The roadmap retains M01–M14 numbering and explicitly keeps M01 local-only; no WinUI code, SQLite runtime, microphone capture, OpenAI call, or application dependency was added by M00.1.
+- The acceptance package includes repeated Evidence → one Claim, temporal change, family support ≠ speaker confirmation, and observed Response Episode scenarios.

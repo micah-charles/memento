@@ -1,14 +1,14 @@
 # MEMENTO architecture
 
-**Milestone:** M00 — Research and Architecture Foundation  
-**Status:** Proposed for architecture review  
+**Milestone:** M00.1 — Architecture and schema refinement
+**Status:** Ready for architecture review
 **Research baseline:** 2026-09-12
 
 ## Architectural stance
 
 MEMENTO is a lightweight native Windows application with a local archive and cloud-assisted conversation. The first implementation should be one packaged desktop process with clear internal interfaces and background work queues, not a fleet of runtime services.
 
-The archive of record is local SQLite plus ordinary filesystem media. Cloud models may generate responses, transcripts, summaries, classifications, or candidate memories, but they do not own the family’s durable state.
+The archive of record is local SQLite plus ordinary filesystem media. Cloud models may generate responses, transcripts, summaries, classifications, candidate Evidence, candidate Memory Claims, or derived annotations, but they do not own the family’s durable state. The durable domain is explicitly separated into Source, Evidence, Memory Claim, Response Episode, and Annotation records.
 
 ```text
 Participant
@@ -73,19 +73,38 @@ search(query: SearchQuery) -> ExternalAnswer
 
 ### `MemoryExtractionProvider`
 
-This boundary can be implemented by the same model request as reasoning when practical. It emits candidate evidence records with type, uncertainty, source spans, and suggested links. It has no authority to promote a candidate to confirmed memory.
+This boundary can be implemented by the same model request as reasoning when practical. It emits provisional derived Evidence-class records with type, uncertainty, Source spans, and suggested links to existing or candidate Memory Claims. A model-produced record is not original Evidence: it must point to Source-backed material and must not be treated as a direct observation. It must not treat an AI summary as a Source, and it has no authority to promote a candidate to speaker-confirmed or family-supported state.
 
 ### `StorageProvider`
 
-Owns SQLite transactions, append-only revisions, media references, integrity hashes, recovery queue, schema migrations, local search indexes, and export/backup snapshots.
+Owns SQLite transactions, append-only revisions, immutable Source references, Evidence links, Memory Claim aggregation, Response Episode records, annotations, integrity hashes, recovery queue, schema migrations, local search indexes, and export/backup snapshots. These are conceptual boundaries for M00; they do not prescribe the M01 table layout.
 
 ```text
 append_session(session) -> PersistedSession
+append_source(source) -> SourceRecord
 append_transcript_revision(revision) -> PersistedTranscript
-append_evidence(candidate_or_direct) -> EvidenceRecord
+append_evidence(evidence) -> EvidenceRecord
+upsert_memory_claim(claim) -> MemoryClaim
+link_evidence_to_claim(evidence_id, claim_id, relation) -> EvidenceClaimLink
+append_response_episode(episode) -> ResponseEpisode
 append_annotation(annotation) -> Annotation
 export_archive(destination, policy) -> ExportManifest
 ```
+
+The names above are illustrative domain operations, not implementation requirements. A provider result may propose a link; the application policy and storage layer validate IDs, relationship type, temporal scope, and authority before persistence.
+
+## Domain write rules
+
+The application, not a model, decides whether a record may be written and how it is labelled:
+
+1. A finalized local audio asset is appended as a Source before cloud processing.
+2. A transcript span or observed turn may produce Evidence linked to that Source.
+3. A Memory Claim is an aggregation target and must retain one or more Evidence links.
+4. Evidence-to-claim links may `supports`, `weakens`, `contradicts`, `clarifies`, `supersedes`, `narrows`, `broadens`, or `contextualises` a claim. Similarity alone is not sufficient for automatic merging.
+5. A Response Episode must link stimulus and response Evidence. Its observed behaviours must say whether they are direct, quoted, tone-based, system-observed, or AI-interpreted.
+6. An Annotation is separately attributed and append-only. It may add family context, dispute, correction, or assessment; it cannot rewrite the participant’s certainty or make a family action appear to be speaker confirmation.
+7. `speaker_confirmation`, `family_assessment`, and `admin_annotation` are independent provenance concepts. A family administrator can support or dispute a claim, but cannot set `confirmed_by_speaker` unless the participant’s own confirming Evidence exists.
+8. AI output can create provisional derived Evidence-class records, candidate claims, candidate links, or derived patterns. It cannot create original Evidence, cannot create a Source, and cannot directly write canonical family state.
 
 ### `ExportProvider`
 
@@ -100,7 +119,7 @@ Writes a self-contained, documented export: `manifest.json`, JSONL records, huma
 5. On stop, crash recovery, or segment rotation, flush and close the audio file, compute SHA-256, atomically rename it into `/raw/audio/YYYY/MM/DD/`, and commit the audio asset metadata.
 6. Persist the provider events and raw transcript revision in a SQLite transaction.
 7. Queue durable transcription, extraction, and indexing work. Each job is retryable and idempotent.
-8. Store candidate memories as candidates. Only explicit participant confirmation or a documented family-admin action may change confirmation status.
+8. Store candidate Evidence and candidate Memory Claims with their independent authority assessments. Only participant-grounded Evidence may change speaker confirmation; family/admin actions remain separately attributed and cannot rewrite participant certainty.
 
 If the process or network fails, the local recording and recovery marker remain the source of truth. A failed provider job must not roll back the audio.
 
@@ -110,13 +129,14 @@ The context builder should select, in order:
 
 1. current turn and a small recent window;
 2. recent conversation summary, clearly labelled as derived;
-3. relevant direct statements and participant-confirmed interpretations;
-4. personal vocabulary and entity corrections;
-5. relevant uncertain or contradictory records, explicitly labelled;
-6. AI inferences only when needed and clearly marked;
-7. current external search results, clearly separated from personal memory.
+3. relevant direct Evidence and participant-confirmed interpretations;
+4. Memory Claims with their supporting/weakening/contradicting Evidence links and temporal scope;
+5. Response Episodes and personal vocabulary/entity corrections where relevant;
+6. uncertain or contradictory records, explicitly labelled;
+7. AI inferences only when needed and clearly marked;
+8. current external search results, clearly separated from personal memory.
 
-The complete archive is never sent by default. Retrieval must preserve record IDs so a response or admin view can explain which evidence was used.
+The complete archive is never sent by default. Retrieval must preserve Source, Evidence, Claim, and Episode IDs so a response or admin view can explain why a claim exists, which evidence supports it, what was family-annotated, and which tier a future reconstruction would use.
 
 ## Local storage layout
 
@@ -126,6 +146,7 @@ MemoryOfAPerson/
 ├── raw/audio/YYYY/MM/DD/<session-id>.wav
 ├── raw/audio/YYYY/MM/DD/<session-id>.sha256
 ├── derived/transcripts/<session-id>/<revision>.json
+├── derived/indexes/              # rebuildable search/summary/pattern indexes
 ├── exports/
 ├── backups/
 └── logs/                    # operational metadata only; no raw content by default
@@ -153,9 +174,9 @@ Use C#/.NET with WinUI 3 delivered through the Windows App SDK. Use Windows Core
 
 The Windows App SDK and WinUI recommendation, audio boundary, SQLite boundary, and OpenAI split are recorded in [ADR-001](adr/ADR-001-windows-framework.md), [ADR-002](adr/ADR-002-local-storage.md), and [ADR-003](adr/ADR-003-openai-voice.md).
 
-## What M00 does not decide
+## What M00/M00.1 does not decide
 
-M00 does not lock the exact SDK version, model alias, API transport, microphone brand, vector index, diarization policy, or installer channel. Those are implementation choices to be verified at the relevant milestone. The stable contracts are more important than freezing today’s vendor names.
+M00/M00.1 does not lock the exact SDK version, model alias, API transport, microphone brand, vector index, diarization policy, SQLite table layout, claim-aggregation threshold, or installer channel. Those are implementation choices to be verified at the relevant milestone. The stable contracts are more important than freezing today’s vendor names.
 
 ## Research sources
 

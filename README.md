@@ -2,9 +2,9 @@
 
 MEMENTO is a proposed Windows-first, Cantonese-friendly AI companion whose most important output is a trustworthy, family-owned archive of a living person’s memories and conversational behaviour.
 
-## Current status: M00 — Research and Architecture Foundation
+## Current status: M00.1 — Architecture and schema refinement
 
-This repository intentionally contains documentation and non-production scaffolding only. M00 establishes the evidence, privacy, storage, provider-boundary, security, cost, and milestone decisions that must be reviewed before application implementation begins.
+This repository intentionally contains documentation and non-production scaffolding only. M00.1 refines M00’s Source → Evidence → Memory Claim provenance, temporal semantics, authority model, and Response Episode contract before application implementation begins.
 
 The governing principle is:
 
@@ -25,9 +25,9 @@ The governing principle is:
 
 Project state is kept in [PROGRESS](docs/PROGRESS.md), [DECISIONS](docs/DECISIONS.md), [KNOWN_ISSUES](docs/KNOWN_ISSUES.md), and [EVIDENCE](docs/EVIDENCE.md).
 
-## Non-goals for M00
+## Non-goals for M00/M00.1
 
-M00 does not build a production application, call an AI API, capture audio, fine-tune a model, create a voice clone or avatar, require a local LLM/GPU, or create a cloud-hosted permanent family-memory database.
+M00/M00.1 does not build a production application, start WinUI or SQLite runtime code, call an AI API, capture real audio, fine-tune a model, create a voice clone or avatar, require a local LLM/GPU, or create a cloud-hosted permanent family-memory database. M01 remains a later local-only shell milestone.
 
 ## Repository shape
 

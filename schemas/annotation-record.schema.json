@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/micah-charles/memento/blob/main/schemas/annotation-record.schema.json",
+  "title": "MEMENTO Annotation record",
+  "description": "A separately attributed annotation, assessment, correction, dispute, or review. An annotation may add context but cannot rewrite its target Source or Evidence.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "record_type", "annotation_id", "annotation_type", "target_type", "target_id", "author_type", "content", "created_at"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.1-draft" },
+    "record_type": { "type": "string", "const": "annotation" },
+    "annotation_id": { "type": "string", "minLength": 1 },
+    "annotation_type": {
+      "type": "string",
+      "enum": ["admin_annotation", "speaker_confirmation", "family_assessment", "external_document_confirmation", "correction", "contradiction", "withdrawal", "derived_annotation"]
+    },
+    "target_type": { "type": "string", "enum": ["source", "evidence", "memory_claim", "response_episode", "transcript_revision"] },
+    "target_id": { "type": "string", "minLength": 1 },
+    "author_type": { "type": "string", "enum": ["participant", "family_admin", "external_source", "system", "provider"] },
+    "author_person_id": { "type": ["string", "null"] },
+    "content": { "type": "string", "minLength": 1 },
+    "assessment": { "type": ["string", "null"], "enum": ["supported", "disputed", "contextualised", "unknown", null] },
+    "source_ids": { "type": "array", "items": { "type": "string" } },
+    "evidence_ids": { "type": "array", "items": { "type": "string" } },
+    "created_at": { "type": "string", "format": "date-time" },
+    "notes": { "type": ["string", "null"] }
+  }
+}

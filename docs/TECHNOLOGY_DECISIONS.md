@@ -45,9 +45,9 @@ Use a temporary file, flush/close it, hash it, and atomically rename it into the
 
 ## Storage and search decision
 
-SQLite stores sessions, turns, transcript revisions, evidence, annotations, people, entities, vocabulary, jobs, source URLs, and media metadata. Audio/photo/video files stay in the filesystem and are linked by immutable asset ID, relative path, checksum, format, duration, and capture metadata.
+SQLite stores sessions, turns, transcript revisions, Sources, Evidence, Memory Claims, Evidence-to-Claim links, Response Episodes, annotations, people, entities, vocabulary, jobs, source URLs, and media metadata. Audio/photo/video files stay in the filesystem and are linked by immutable Source ID, relative path, checksum, format, duration, and capture metadata. The exact table layout and migration sequence remain an M01 implementation decision.
 
-Enable foreign keys on every connection, use explicit transactions, and use WAL mode with planned checkpoint/recovery policy. Use FTS5 for lexical search over transcripts and evidence. Add embeddings or a semantic index only as a rebuildable derived layer after lexical/provenance behaviour is proven.
+Enable foreign keys on every connection, use explicit transactions, and use WAL mode with planned checkpoint/recovery policy. Use FTS5 for lexical search over transcripts and Evidence, with IDs retained so a Claim or Response Episode can be explained. Add embeddings or a semantic index only as a rebuildable derived layer after lexical/provenance behaviour is proven.
 
 ## Open-source projects worth learning from
 

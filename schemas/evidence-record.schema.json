@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/micah-charles/memento/blob/main/schemas/evidence-record.schema.json",
+  "title": "MEMENTO Evidence record",
+  "description": "A meaningful observation grounded in one or more Sources. Evidence records what was said or observed; it does not by itself prove that a real-world proposition is objectively true.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "record_type", "evidence_id", "evidence_type", "statement", "source_refs", "created_at"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.1-draft" },
+    "record_type": { "type": "string", "const": "evidence" },
+    "evidence_id": { "type": "string", "minLength": 1 },
+    "evidence_type": {
+      "type": "string",
+      "enum": ["direct_statement", "confirmed_interpretation", "ai_inference", "system_observation", "external_fact"]
+    },
+    "record_status": {
+      "type": "string",
+      "enum": ["candidate", "accepted", "rejected", "withdrawn", "superseded"],
+      "default": "candidate"
+    },
+    "statement": { "type": "string", "minLength": 1 },
+    "original_expression": { "type": ["string", "null"] },
+    "subject_person_id": { "type": ["string", "null"] },
+    "speaker_id": { "type": ["string", "null"] },
+    "participant_certainty": {
+      "type": "string",
+      "enum": ["stated", "uncertain", "unknown", "not_applicable"]
+    },
+    "source_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["source_id"],
+        "properties": {
+          "source_id": { "type": "string", "minLength": 1 },
+          "audio_start_ms": { "type": ["integer", "null"], "minimum": 0 },
+          "audio_end_ms": { "type": ["integer", "null"], "minimum": 0 },
+          "transcript_revision_id": { "type": ["string", "null"] },
+          "transcript_span_id": { "type": ["string", "null"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "session_id": { "type": ["string", "null"] },
+    "turn_id": { "type": ["string", "null"] },
+    "speaker_confirmation": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "type": "string", "enum": ["none", "confirmed", "corrected"] },
+        "evidence_ids": { "type": "array", "items": { "type": "string" } },
+        "confirmed_at": { "type": ["string", "null"], "format": "date-time" }
+      },
+      "additionalProperties": true
+    },
+    "family_assessment": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "type": "string", "enum": ["unknown", "supported", "disputed", "contextualised"] },
+        "annotation_ids": { "type": "array", "items": { "type": "string" } },
+        "evidence_ids": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "external_assessment": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "type": "string", "enum": ["unknown", "supported", "disputed"] },
+        "source_ids": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "extraction_run_id": { "type": ["string", "null"] },
+    "provider": { "type": ["string", "null"] },
+    "model_id": { "type": ["string", "null"] },
+    "model_snapshot": { "type": ["string", "null"] },
+    "prompt_version": { "type": ["string", "null"] },
+    "model_confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "supersedes_evidence_id": { "type": ["string", "null"] },
+    "contradicts_evidence_ids": { "type": "array", "items": { "type": "string" } },
+    "notes": { "type": ["string", "null"] }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "evidence_type": { "const": "ai_inference" } } },
+      "then": { "properties": { "speaker_confirmation": { "not": {} } } }
+    }
+  ]
+}

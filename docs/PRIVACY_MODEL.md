@@ -1,7 +1,7 @@
 # MEMENTO privacy model
 
-**Milestone:** M00 — Research and Architecture Foundation  
-**Status:** Proposed for architecture review  
+**Milestone:** M00.1 — Architecture and schema refinement
+**Status:** Ready for architecture review
 **Research baseline:** 2026-09-12
 
 ## Privacy objective
@@ -24,11 +24,12 @@ The UI must show the active mode and a persistent recording indicator. A partici
 
 | Data | Local archive | May leave device | Conditions |
 |---|---:|---:|---|
-| Original microphone audio | Yes | Only in `NORMAL` and only for an enabled provider request | Never silently; retain local source first. |
+| Original microphone audio / Source | Yes | Only in `NORMAL` and only for an enabled provider request | Never silently; retain local Source first. |
 | Realtime input/output events | Yes, minimal operational copy | Yes in `NORMAL` | Do not rely on provider conversation state as the archive. |
 | Durable transcription input | Yes | Yes when transcription is queued and permitted | Use local audio reference and retryable job state. |
-| Raw and corrected transcripts | Yes | Selected excerpts only | Corrections are local evidence annotations. |
-| Retrieved memories | Yes | Only the selected, relevant context | Never send the entire archive by default. |
+| Raw and corrected transcripts / Evidence | Yes | Selected excerpts only | Corrections are append-only Evidence/Annotations; the original Source remains local. |
+| Memory Claims | Yes | Only the selected, relevant claims and linked Evidence | A claim is never sent without its authority and temporal labels where relevant. |
+| Response Episodes / derived patterns | Yes | Only selected episodes or derived results | Derived patterns must point to supporting episodes; hypothetical answers are never exported as observed episodes. |
 | API key/client credential | Local vault only | Sent only in TLS authorization headers by the SDK/network stack | Never log, export, or put in source. |
 | Current-information query | Local audit metadata | Yes when web search is enabled | Treat query and results as potentially sensitive and external. |
 | Operational telemetry | Local, redacted | Optional and off by default for content | No raw audio, transcript, prompts, or secrets. |
@@ -51,15 +52,21 @@ The ICO states that consent records should show who consented, when, what they w
 
 The client never embeds an API key in source, a public configuration file, a log, a crash report, an export, or a prompt. On Windows, store credentials in Windows Credential Manager or protect a locally persisted secret with DPAPI. The application should minimise time in memory, use TLS, and redact headers and error bodies. Realtime client-secret or brokered-token flows may be evaluated at M03; until then, a locally stored key is treated as a high-impact local secret with documented compromise consequences.
 
+## Layered privacy and authority
+
+Separating Source, Evidence, Memory Claim, Response Episode, and Annotation also separates privacy decisions. Raw audio Sources can contain substantially more sensitive information than a normalized Claim. A scoped export may include a Claim and its redacted Evidence while withholding the audio Source, but it must label the missing link rather than imply that the Source was exported. Deletion and withdrawal workflows must identify affected Sources, transcript revisions, Evidence, Claims, Episodes, derived indexes, exports, and backups.
+
+Authority is separate from privacy scope. A family administrator may be allowed to view or annotate a record without being allowed to make it `confirmed_by_speaker`. The export must preserve `speaker_confirmation`, `family_assessment`, `admin_annotation`, and any external assessment as separate attributed data.
+
 ## Local access and family roles
 
-The Windows user account and disk encryption protect the local archive at rest. MEMENTO adds an application lock and separates participant UI from Family Admin mode. Admin actions that accept, withdraw, export, restore, or delete evidence are authenticated and written to an audit log without duplicating sensitive content unnecessarily.
+The Windows user account and disk encryption protect the local archive at rest. MEMENTO adds an application lock and separates participant UI from Family Admin mode. Admin actions that accept, withdraw, export, restore, or delete Source, Evidence, Claim, Episode, or Annotation records are authenticated and written to an audit log without duplicating sensitive content unnecessarily. “Accept” is a workflow action on a candidate; it is not automatically speaker confirmation.
 
 The archive is family-owned, not provider-owned. A public Git repository may contain documentation and schemas, never recordings, real transcripts, backups, exports, or credentials.
 
 ## Deletion and withdrawal
 
-Deletion is a deliberate, authenticated workflow. It identifies the evidence record, derived indexes, exports, and backups affected; records a minimal audit tombstone; and confirms that removal from all backup copies may require a separate backup-retention operation. Local deletion cannot guarantee physical erasure from flash storage, snapshots, or previously shared exports, so the UI must state its scope plainly.
+Deletion is a deliberate, authenticated workflow. It identifies the Source material, transcript revisions, Evidence, Memory Claims, Response Episodes, derived indexes, exports, and backups affected; records a minimal audit tombstone; and confirms that removal from all backup copies may require a separate backup-retention operation. Local deletion cannot guarantee physical erasure from flash storage, snapshots, or previously shared exports, so the UI must state its scope plainly.
 
 Withdrawal from future AI use is distinct from deleting the historical record. A withdrawn record remains quarantined or tombstoned for audit purposes but is excluded from retrieval, extraction, and exports according to the chosen policy.
 
@@ -67,7 +74,7 @@ Withdrawal from future AI use is distinct from deleting the historical record. A
 
 Backups are optional, encrypted, and family-controlled. The backup manifest lists archive version, database checksum, media checksums, source count, and creation time. Restore is tested on a separate destination before a backup is trusted.
 
-Exports are explicit user actions and include only the selected scope. Export packages use ordinary JSONL, Markdown, and media formats. If an export is shared with another person or service, that is a new disclosure and must not happen automatically.
+Exports are explicit user actions and include only the selected scope. Export packages use ordinary JSONL, Markdown, and media formats. The conceptual record files are `sources.jsonl`, `evidence.jsonl`, `memory_claims.jsonl`, `response_episodes.jsonl`, and `annotations.jsonl`, plus the other person/transcript/index files needed by the selected scope. Each Claim retains links to its Evidence, and each Evidence retains links to permitted Source material. If an export is shared with another person or service, that is a new disclosure and must not happen automatically.
 
 ## Privacy-preserving observability
 

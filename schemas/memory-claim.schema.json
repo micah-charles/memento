@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/micah-charles/memento/blob/main/schemas/memory-claim.schema.json",
+  "title": "MEMENTO Memory Claim",
+  "description": "A structured proposition derived from one or more Evidence records. It is an aggregation target, not a replacement for its supporting evidence.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "record_type", "memory_claim_id", "subject_person_id", "predicate", "evidence_links", "temporal_validity", "created_at"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.1-draft" },
+    "record_type": { "type": "string", "const": "memory_claim" },
+    "memory_claim_id": { "type": "string", "minLength": 1 },
+    "subject_person_id": { "type": "string", "minLength": 1 },
+    "predicate": { "type": "string", "minLength": 1 },
+    "object": {},
+    "statement": { "type": ["string", "null"] },
+    "claim_status": { "type": "string", "enum": ["candidate", "active", "disputed", "withdrawn", "superseded"] },
+    "evidence_links": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["evidence_id", "relation"],
+        "properties": {
+          "evidence_id": { "type": "string", "minLength": 1 },
+          "relation": { "type": "string", "enum": ["supports", "weakens", "contradicts", "clarifies", "supersedes", "narrows", "broadens", "contextualises"] },
+          "note": { "type": ["string", "null"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "related_claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["memory_claim_id", "relation"],
+        "properties": {
+          "memory_claim_id": { "type": "string", "minLength": 1 },
+          "relation": { "type": "string", "enum": ["contradicts", "clarifies", "supersedes", "narrows", "broadens", "contextualises"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "temporal_validity": {
+      "description": "Event/claim time; distinct from the recorded_at value on the supporting Source.",
+      "$ref": "#/$defs/temporal_validity"
+    },
+    "speaker_confirmation": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "type": "string", "enum": ["none", "confirmed", "corrected"] },
+        "evidence_ids": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "family_assessment": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "type": "string", "enum": ["unknown", "supported", "disputed", "contextualised"] },
+        "annotation_ids": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "model_confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "notes": { "type": ["string", "null"] }
+  },
+  "$defs": {
+    "temporal_validity": {
+      "type": "object",
+      "required": ["scope", "precision", "temporal_expression", "certainty"],
+      "properties": {
+        "valid_from": { "type": ["string", "null"], "format": "date-time" },
+        "valid_to": { "type": ["string", "null"], "format": "date-time" },
+        "scope": { "type": "string", "minLength": 1 },
+        "precision": { "type": "string", "enum": ["exact", "month", "year", "period", "fuzzy", "unknown"] },
+        "temporal_expression": { "type": ["string", "null"] },
+        "possible_years": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+        "certainty": { "type": "string", "enum": ["stated", "uncertain", "unknown"] }
+      },
+      "additionalProperties": true
+    }
+  }
+}
