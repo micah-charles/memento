@@ -1,3 +1,3 @@
 # `tests/`
 
-`Memento.Core.Tests` contains the M01 local-storage gate tests. Integration, audio-recovery, export, and language acceptance tests remain future work described in [ROADMAP.md](../docs/ROADMAP.md).
+`Memento.Core.Tests` contains deterministic storage, audio-recovery, provider-boundary, language-validation, clarification, provenance, entity, review, export/backup, and health tests. Physical microphone, live provider, native-window, OS-authentication, and real-user acceptance tests remain target-machine work described in [ROADMAP.md](../docs/ROADMAP.md).

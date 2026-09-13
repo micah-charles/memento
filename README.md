@@ -2,9 +2,9 @@
 
 MEMENTO is a proposed Windows-first, Cantonese-friendly AI companion whose most important output is a trustworthy, family-owned archive of a living person’s memories and conversational behaviour.
 
-## Current status: M01 — Windows shell and local storage (blocked for manual GUI verification)
+## Current status: M13 foundations implemented (live and supervised gates pending)
 
-M00.1 architecture is approved for implementation. The repository now contains a minimal WinUI 3 shell and a local SQLite storage foundation with automated tests. M01 remains blocked until the shell is manually inspected on target Windows hardware; no audio capture or cloud AI has been added.
+M00.1 architecture is approved for implementation. The repository now contains a self-contained WinUI 3 shell, local SQLite archive, crash-safe PCM capture, provider boundaries, clarification and provenance layers, export/backup, and health checks. Live provider credentials, physical microphone/native-window observation, OS-backed admin authentication, and real-user pilot review remain explicit gates; see [PROGRESS](docs/PROGRESS.md).
 
 The governing principle is:
 
@@ -25,9 +25,20 @@ The governing principle is:
 
 Project state is kept in [PROGRESS](docs/PROGRESS.md), [DECISIONS](docs/DECISIONS.md), [KNOWN_ISSUES](docs/KNOWN_ISSUES.md), and [EVIDENCE](docs/EVIDENCE.md).
 
+## Start the Windows app
+
+From a Windows machine with the .NET 10 SDK and Windows App SDK build prerequisites installed:
+
+```powershell
+dotnet build .\src\Memento.App\Memento.App.csproj --configuration Release
+Start-Process .\src\Memento.App\bin\Release\net10.0-windows10.0.19041.0\win-x64\Memento.App.exe
+```
+
+The app is currently an unpackaged self-contained executable. It stores local data under `%LOCALAPPDATA%\MEMENTO`; an installer/MSIX package and Start Menu registration are still deployment work, not required for the current development build.
+
 ## Non-goals for M00/M00.1
 
-M00/M00.1 does not build a production application, start WinUI or SQLite runtime code, call an AI API, capture real audio, fine-tune a model, create a voice clone or avatar, require a local LLM/GPU, or create a cloud-hosted permanent family-memory database. M01 remains a later local-only shell milestone.
+M00/M00.1 did not build a production application, start WinUI or SQLite runtime code, call an AI API, capture real audio, fine-tune a model, create a voice clone or avatar, require a local LLM/GPU, or create a cloud-hosted permanent family-memory database. Later milestones now implement local capture and archive foundations while live integrations remain gated.
 
 ## Repository shape
 
