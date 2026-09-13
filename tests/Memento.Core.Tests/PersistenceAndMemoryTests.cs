@@ -299,6 +299,24 @@ public sealed class PersistenceAndMemoryTests
     }
 
     [Fact]
+    public void Memory_extraction_rejects_a_forged_privacy_mode_before_provider_call()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var persisted = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.PrivateConversation);
+        repository.AddConsent(persisted.SessionId, ConsentScope.CloudTranscription, PrivacyMode.PrivateConversation, true, "privacy-1");
+        var source = repository.AddSource(fixture.Source(persisted.SessionId, "source-forged-privacy"));
+        var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-forged-privacy", source.SourceId, null, 1, "initial", "private transcript", 1, null, DateTimeOffset.UtcNow));
+        var forged = persisted with { PrivacyMode = PrivacyMode.Normal };
+        var provider = new CountingMemoryExtractionProvider();
+
+        Assert.Throws<InvalidDataException>(() => new MemoryExtractionService(repository, provider.AsSynchronous()).ExtractAndPersist(forged, source, revision));
+
+        Assert.Equal(0, provider.Calls);
+    }
+
+    [Fact]
     public void Candidate_extraction_keeps_evidence_claim_and_link_separate()
     {
         using var fixture = new PersistenceFixture();
@@ -484,6 +502,19 @@ public sealed class PersistenceAndMemoryTests
         {
             Calls++;
             return Task.FromResult<IReadOnlyList<ExtractionCandidate>>([]);
+        }
+
+        public IMemoryExtractionProvider AsSynchronous() => new SynchronousAdapter(this);
+
+        private sealed class SynchronousAdapter(CountingMemoryExtractionProvider inner) : IMemoryExtractionProvider
+        {
+            public string Provider => inner.Provider;
+            public string Model => inner.Model;
+            public IReadOnlyList<ExtractionCandidate> Extract(TranscriptRevision revision)
+            {
+                inner.Calls++;
+                return [];
+            }
         }
     }
 

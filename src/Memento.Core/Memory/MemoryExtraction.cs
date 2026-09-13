@@ -55,6 +55,7 @@ public sealed class MemoryExtractionService
     {
         if (revision.SourceId != source.SourceId) throw new InvalidOperationException("Transcript revision and Source do not match.");
         if (source.SessionId != session.SessionId) throw new InvalidOperationException("Source and session do not match.");
+        session = EnsurePersistedSession(session);
         if (CloudNotPermittedException.IsBlocked(session.PrivacyMode) || !_repository.HasGrantedConsent(session.SessionId, ConsentScope.CloudTranscription))
             throw new CloudNotPermittedException();
         EnsureSourceAvailable(source);
@@ -63,6 +64,14 @@ public sealed class MemoryExtractionService
             throw new CloudNotPermittedException();
         EnsureSourceAvailable(_repository.GetSource(source.SourceId) ?? throw new InvalidDataException("The extraction Source was removed while the provider was running."));
         return MemoryExtractionPersistence.Persist(_repository, _provider.Provider, _provider.Model, session, source, revision, candidates);
+    }
+
+    private Session EnsurePersistedSession(Session supplied)
+    {
+        var persisted = _repository.GetSession(supplied.SessionId) ?? throw new InvalidDataException("The extraction session was not found.");
+        if (persisted.PrivacyMode != supplied.PrivacyMode)
+            throw new InvalidDataException("The supplied privacy mode does not match the persisted session.");
+        return persisted;
     }
 
     private void EnsureSourceAvailable(SourceMetadata source)
@@ -87,6 +96,7 @@ public sealed class AsyncMemoryExtractionService
     {
         if (revision.SourceId != source.SourceId) throw new InvalidOperationException("Transcript revision and Source do not match.");
         if (source.SessionId != session.SessionId) throw new InvalidOperationException("Source and session do not match.");
+        session = EnsurePersistedSession(session);
         if (CloudNotPermittedException.IsBlocked(session.PrivacyMode) || !_repository.HasGrantedConsent(session.SessionId, ConsentScope.CloudTranscription))
             throw new CloudNotPermittedException();
         if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) || string.Equals(_repository.GetSource(source.SourceId)?.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
@@ -98,12 +108,22 @@ public sealed class AsyncMemoryExtractionService
             throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
         return MemoryExtractionPersistence.Persist(_repository, _provider.Provider, _provider.Model, session, source, revision, candidates);
     }
+
+    private Session EnsurePersistedSession(Session supplied)
+    {
+        var persisted = _repository.GetSession(supplied.SessionId) ?? throw new InvalidDataException("The extraction session was not found.");
+        if (persisted.PrivacyMode != supplied.PrivacyMode)
+            throw new InvalidDataException("The supplied privacy mode does not match the persisted session.");
+        return persisted;
+    }
 }
 
 internal static class MemoryExtractionPersistence
 {
     public static ExtractionResult Persist(ArchiveRepository repository, string provider, string model, Session session, SourceMetadata source, TranscriptRevision revision, IEnumerable<ExtractionCandidate> candidates)
     {
+        if (CloudNotPermittedException.IsBlocked(session.PrivacyMode))
+            throw new CloudNotPermittedException();
         var evidence = new List<EvidenceRecord>();
         var claims = new List<MemoryClaim>();
         var links = new List<EvidenceClaimLink>();
