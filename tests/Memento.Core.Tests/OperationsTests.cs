@@ -169,6 +169,16 @@ public sealed class OperationsTests
         var maliciousBackup = Path.Combine(fixture.ExportRoot, "malicious.memento");
         ArchiveBackupProtector.EncryptFile(maliciousZip, maliciousBackup, "test-password");
         Assert.Throws<InvalidDataException>(() => ArchiveBackupProtector.DecryptDirectory(maliciousBackup, Path.Combine(fixture.ExportRoot, "malicious-restore"), "test-password"));
+
+        var duplicateZip = Path.Combine(fixture.ExportRoot, "duplicate.zip");
+        using (var zip = ZipFile.Open(duplicateZip, ZipArchiveMode.Create))
+        {
+            using (var first = new StreamWriter(zip.CreateEntry("archive.sqlite").Open())) first.Write("first");
+            using (var second = new StreamWriter(zip.CreateEntry("archive.sqlite").Open())) second.Write("second");
+        }
+        var duplicateBackup = Path.Combine(fixture.ExportRoot, "duplicate.memento");
+        ArchiveBackupProtector.EncryptFile(duplicateZip, duplicateBackup, "test-password");
+        Assert.Throws<InvalidDataException>(() => ArchiveBackupProtector.DecryptDirectory(duplicateBackup, Path.Combine(fixture.ExportRoot, "duplicate-restore"), "test-password"));
     }
 
     [Fact]

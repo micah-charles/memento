@@ -299,8 +299,12 @@ public static class ArchiveBackupProtector
     {
         var root = Path.GetFullPath(destinationDirectory).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         using var archive = ZipFile.OpenRead(zipPath);
+        var seenEntries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in archive.Entries)
         {
+            var normalizedEntryName = entry.FullName.Replace('\\', '/');
+            if (!seenEntries.Add(normalizedEntryName))
+                throw new InvalidDataException("Backup contains duplicate archive entries.");
             var target = Path.GetFullPath(Path.Combine(destinationDirectory, entry.FullName));
             if (!target.StartsWith(root, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("Backup contains an unsafe path.");
