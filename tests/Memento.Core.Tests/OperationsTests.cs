@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.IO.Compression;
 using Memento.Core.Audio;
 using Memento.Core.Admin;
 using Memento.Core.Conversation;
@@ -64,6 +65,23 @@ public sealed class OperationsTests
         ArchiveBackupProtector.EncryptFile(Path.Combine(result.ExportDirectory, "archive.sqlite"), encrypted, "test-password");
         ArchiveBackupProtector.DecryptFile(encrypted, restored, "test-password");
         Assert.Equal(SHA256.HashData(File.ReadAllBytes(Path.Combine(result.ExportDirectory, "archive.sqlite"))), SHA256.HashData(File.ReadAllBytes(restored)));
+
+        var encryptedBundle = Path.Combine(fixture.ExportRoot, "backup-bundle.memento");
+        var restoredBundle = Path.Combine(fixture.ExportRoot, "restored-bundle");
+        ArchiveBackupProtector.EncryptDirectory(result.ExportDirectory, encryptedBundle, "test-password");
+        var restoreReport = ArchiveBackupProtector.DecryptDirectory(encryptedBundle, restoredBundle, "test-password");
+        Assert.True(restoreReport.IntegrityOk);
+        Assert.Empty(restoreReport.Findings);
+        Assert.True(File.Exists(Path.Combine(restoredBundle, "archive.sqlite")));
+        Assert.True(File.Exists(Path.Combine(restoredBundle, "media", "recording.wav")));
+
+        var maliciousZip = Path.Combine(fixture.ExportRoot, "malicious.zip");
+        using (var zip = ZipFile.Open(maliciousZip, ZipArchiveMode.Create))
+        using (var writer = new StreamWriter(zip.CreateEntry("../escape.txt").Open()))
+            writer.Write("unsafe");
+        var maliciousBackup = Path.Combine(fixture.ExportRoot, "malicious.memento");
+        ArchiveBackupProtector.EncryptFile(maliciousZip, maliciousBackup, "test-password");
+        Assert.Throws<InvalidDataException>(() => ArchiveBackupProtector.DecryptDirectory(maliciousBackup, Path.Combine(fixture.ExportRoot, "malicious-restore"), "test-password"));
     }
 
     [Fact]

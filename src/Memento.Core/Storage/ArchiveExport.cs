@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.IO.Compression;
 using Microsoft.Data.Sqlite;
 
 namespace Memento.Core.Storage;
@@ -112,6 +113,8 @@ public static class ArchiveBackupProtector
         var tag = new byte[16];
         using var aes = new AesGcm(key, tag.Length);
         aes.Encrypt(nonce, plain, cipher, tag);
+        var destinationDirectory = Path.GetDirectoryName(Path.GetFullPath(destinationPath));
+        if (destinationDirectory is not null) Directory.CreateDirectory(destinationDirectory);
         using var stream = File.Create(destinationPath);
         stream.Write(Magic); stream.Write(salt); stream.Write(nonce); stream.Write(tag); stream.Write(cipher);
     }
@@ -129,6 +132,96 @@ public static class ArchiveBackupProtector
         var plain = new byte[cipher.Length];
         using var aes = new AesGcm(key, tag.Length);
         aes.Decrypt(nonce, cipher, tag, plain);
+        var destinationDirectory = Path.GetDirectoryName(Path.GetFullPath(destinationPath));
+        if (destinationDirectory is not null) Directory.CreateDirectory(destinationDirectory);
         File.WriteAllBytes(destinationPath, plain);
     }
+
+    public static void EncryptDirectory(string sourceDirectory, string destinationPath, string password)
+    {
+        if (string.IsNullOrWhiteSpace(sourceDirectory) || !Directory.Exists(sourceDirectory)) throw new DirectoryNotFoundException(sourceDirectory);
+        var temporaryZip = Path.Combine(Path.GetTempPath(), "memento-backup-" + Guid.NewGuid().ToString("N") + ".zip");
+        try
+        {
+            ZipFile.CreateFromDirectory(sourceDirectory, temporaryZip, CompressionLevel.Fastest, includeBaseDirectory: false);
+            EncryptFile(temporaryZip, destinationPath, password);
+        }
+        finally
+        {
+            if (File.Exists(temporaryZip)) File.Delete(temporaryZip);
+        }
+    }
+
+    public static ArchiveRestoreResult DecryptDirectory(string sourcePath, string destinationDirectory, string password)
+    {
+        if (string.IsNullOrWhiteSpace(destinationDirectory)) throw new ArgumentException("A restore directory is required.", nameof(destinationDirectory));
+        var destination = Path.GetFullPath(destinationDirectory);
+        Directory.CreateDirectory(destination);
+        var temporaryZip = Path.Combine(Path.GetTempPath(), "memento-restore-" + Guid.NewGuid().ToString("N") + ".zip");
+        try
+        {
+            DecryptFile(sourcePath, temporaryZip, password);
+            ExtractZipSafely(temporaryZip, destination);
+            return VerifyManifest(destination);
+        }
+        finally
+        {
+            if (File.Exists(temporaryZip)) File.Delete(temporaryZip);
+        }
+    }
+
+    private static void ExtractZipSafely(string zipPath, string destinationDirectory)
+    {
+        var root = Path.GetFullPath(destinationDirectory).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        using var archive = ZipFile.OpenRead(zipPath);
+        foreach (var entry in archive.Entries)
+        {
+            var target = Path.GetFullPath(Path.Combine(destinationDirectory, entry.FullName));
+            if (!target.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Backup contains an unsafe path.");
+            if (string.IsNullOrEmpty(entry.Name))
+            {
+                Directory.CreateDirectory(target);
+                continue;
+            }
+
+            var parent = Path.GetDirectoryName(target);
+            if (parent is not null) Directory.CreateDirectory(parent);
+            using var input = entry.Open();
+            using var output = File.Create(target);
+            input.CopyTo(output);
+        }
+    }
+
+    private static ArchiveRestoreResult VerifyManifest(string restoreDirectory)
+    {
+        var findings = new List<string>();
+        var manifestPath = Path.Combine(restoreDirectory, "manifest.json");
+        if (!File.Exists(manifestPath)) return new ArchiveRestoreResult(false, ["Backup manifest.json is missing."]);
+
+        using var document = JsonDocument.Parse(File.ReadAllText(manifestPath));
+        if (!document.RootElement.TryGetProperty("files", out var files) || files.ValueKind != JsonValueKind.Array)
+            return new ArchiveRestoreResult(false, ["Backup manifest has no files list."]);
+
+        var root = Path.GetFullPath(restoreDirectory).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        foreach (var file in files.EnumerateArray())
+        {
+            var relative = file.GetProperty("path").GetString() ?? string.Empty;
+            var expected = file.GetProperty("sha256").GetString() ?? string.Empty;
+            var candidate = Path.GetFullPath(Path.Combine(restoreDirectory, relative.Replace('/', Path.DirectorySeparatorChar)));
+            if (!candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !File.Exists(candidate))
+            {
+                findings.Add($"Missing backup file: {relative}");
+                continue;
+            }
+
+            var actual = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(candidate))).ToLowerInvariant();
+            if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
+                findings.Add($"Backup hash mismatch: {relative}");
+        }
+
+        return new ArchiveRestoreResult(findings.Count == 0, findings);
+    }
 }
+
+public sealed record ArchiveRestoreResult(bool IntegrityOk, IReadOnlyList<string> Findings);
