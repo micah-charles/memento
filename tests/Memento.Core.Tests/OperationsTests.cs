@@ -29,6 +29,7 @@ public sealed class OperationsTests
         using var archive = fixture.CreateArchive();
         var repository = new ArchiveRepository(archive);
         var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
         var source = repository.AddSource(fixture.Source(session.SessionId, "source-admin"));
         var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-admin", source.SourceId, null, 1, "initial", "我鍾意魚蛋", 0.8, null, DateTimeOffset.UtcNow));
         var extraction = new MemoryExtractionService(repository, new DeterministicMemoryExtractionProvider()).ExtractAndPersist(session, source, revision);
@@ -55,6 +56,7 @@ public sealed class OperationsTests
         using var archive = fixture.CreateArchive();
         var repository = new ArchiveRepository(archive);
         var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
         var source = repository.AddSource(fixture.Source(session.SessionId, "source-admin-stale"));
         var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-admin-stale", source.SourceId, null, 1, "initial", "我鍾意魚蛋", 0.8, null, DateTimeOffset.UtcNow));
         var extraction = new MemoryExtractionService(repository, new DeterministicMemoryExtractionProvider()).ExtractAndPersist(session, source, revision);
@@ -77,6 +79,7 @@ public sealed class OperationsTests
         using var archive = fixture.CreateArchive();
         var repository = new ArchiveRepository(archive);
         var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
         var source = repository.AddSource(fixture.Source(session.SessionId, "source-admin-authority"));
         var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-admin-authority", source.SourceId, null, 1, "initial", "我鍾意魚蛋", 0.8, null, DateTimeOffset.UtcNow));
         new MemoryExtractionService(repository, new DeterministicMemoryExtractionProvider()).ExtractAndPersist(session, source, revision);
