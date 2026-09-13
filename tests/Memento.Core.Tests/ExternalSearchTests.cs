@@ -65,6 +65,16 @@ public sealed class ExternalSearchTests
         await Assert.ThrowsAsync<ProviderRequestException>(() => provider.SearchAsync("香港今日天氣"));
     }
 
+    [Fact]
+    public async Task OpenAi_web_search_rejects_malformed_action_shapes()
+    {
+        var handler = new SearchHandler("{\"output\":[{\"action\":[]}]}");
+        using var http = new HttpClient(handler);
+        var provider = new OpenAiWebSearchProvider(http, new FixedCredentialProvider(), "gpt-test", ["hko.gov.hk"]);
+
+        await Assert.ThrowsAsync<ProviderRequestException>(() => provider.SearchAsync("香港今日天氣"));
+    }
+
     private sealed class FixedCredentialProvider : IApiCredentialProvider
     {
         public string? GetApiKey() => "test-key";

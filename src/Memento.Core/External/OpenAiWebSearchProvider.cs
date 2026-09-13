@@ -70,7 +70,7 @@ public sealed class OpenAiWebSearchProvider : ISearchProvider
             foreach (var item in output.EnumerateArray())
             {
                 if (item.ValueKind != JsonValueKind.Object) continue;
-                if (item.TryGetProperty("action", out var action) && action.TryGetProperty("sources", out var actionSources) && actionSources.ValueKind == JsonValueKind.Array)
+                if (item.TryGetProperty("action", out var action) && action.ValueKind == JsonValueKind.Object && action.TryGetProperty("sources", out var actionSources) && actionSources.ValueKind == JsonValueKind.Array)
                     AddSources(actionSources, sources, summary);
                 if (item.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.Array)
                 {
