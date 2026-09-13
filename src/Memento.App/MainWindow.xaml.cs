@@ -9,14 +9,18 @@ public sealed partial class MainWindow : Window
 {
     private readonly ArchiveRepository _repository;
     private readonly string _audioRoot;
+    private readonly int _recoverableAudioCount;
     private AudioCaptureController? _capture;
     private Session? _session;
 
-    public MainWindow(ArchiveRepository repository, string audioRoot)
+    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0)
     {
         _repository = repository;
         _audioRoot = audioRoot;
+        _recoverableAudioCount = recoverableAudioCount;
         InitializeComponent();
+        if (_recoverableAudioCount > 0)
+            StatusText.Text = $"有 {_recoverableAudioCount} 段未完成錄音，已保留待處理 · Local archive";
     }
 
     private void ConsentChanged(object sender, RoutedEventArgs e)

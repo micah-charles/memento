@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Memento.Core.Audio;
 using Memento.Core.Storage;
 
 namespace Memento.App;
@@ -22,7 +23,9 @@ public partial class App : Application
         Archive.Initialize();
         Repository = new ArchiveRepository(Archive);
 
-        _window = new MainWindow(Repository, Path.Combine(dataDirectory, "raw", "audio"));
+        var audioDirectory = Path.Combine(dataDirectory, "raw", "audio");
+        var recoverableAudioCount = AudioRecoveryScanner.Scan(audioDirectory).Count;
+        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount);
         _window.Activate();
     }
 }
