@@ -176,6 +176,26 @@ public sealed class ConversationTests
     }
 
     [Fact]
+    public async Task Retryable_transcription_failure_queues_a_durable_job_without_touching_source()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        File.WriteAllBytes(fixture.AudioPath, [1, 2]);
+        var source = repository.AddSource(new SourceMetadata("source-retry", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        var service = new BoundedVoiceConversationService(repository, new FailingTranscriptionProvider(), new DeterministicConversationProvider());
+
+        await Assert.ThrowsAsync<ProviderRequestException>(() => service.ExecuteAsync(new ConversationRequest(session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, SourceId: source.SourceId)));
+
+        var job = Assert.Single(repository.ListRetryableConversationJobs(DateTimeOffset.UtcNow.AddMinutes(1)));
+        Assert.Equal("durable_transcription", job.JobType);
+        Assert.Equal(source.SourceId, job.SourceId);
+        Assert.True(File.Exists(fixture.AudioPath));
+    }
+
+    [Fact]
     public async Task OpenAi_speech_adapter_returns_derived_audio_bytes_without_archive_side_effects()
     {
         var handler = new SpeechHttpHandler();
@@ -288,6 +308,14 @@ public sealed class ConversationTests
         public string Model => "inline-v1";
         public Task<TranscriptionResult> TranscribeAsync(string localAudioPath, string? language = null, CancellationToken cancellationToken = default)
             => Task.FromResult(new TranscriptionResult(Provider, Model, "inline-request", "synthetic yue transcript", DateTimeOffset.UtcNow));
+    }
+
+    private sealed class FailingTranscriptionProvider : ITranscriptionProvider
+    {
+        public string Provider => "failing-transcription";
+        public string Model => "failing-transcribe-v1";
+        public Task<TranscriptionResult> TranscribeAsync(string localAudioPath, string? language = null, CancellationToken cancellationToken = default)
+            => throw new ProviderRequestException("simulated network failure", 503);
     }
 
     private sealed class RecordingSpeechPlayback : ISpeechOutputPlayback

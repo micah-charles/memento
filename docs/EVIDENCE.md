@@ -141,6 +141,6 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - Added `FamilyAdminReviewService` with an `IAdminAuthorizer` boundary, candidate listing, attributed review annotations, and explicit candidate status transitions. The test authorizer is fixed and clearly a fixture; it is not production identity management.
 - Added `ArchiveExporter` JSONL/media/snapshot export with SHA-256 manifest entries and `ArchiveBackupProtector` AES-GCM password backup/restore.
 - Added `ArchiveHealthCheck` for SQLite integrity, schema version, recoverable audio, and due conversation jobs.
-- `dotnet test tests/Memento.Core.Tests/Memento.Core.Tests.csproj --configuration Release` passed **45/45**; full solution build passed with 0 warnings and 0 errors; the NuGet vulnerability scan reported no vulnerable packages.
+- `dotnet test tests/Memento.Core.Tests/Memento.Core.Tests.csproj --configuration Release` passed **46/46**; full solution build passed with 0 warnings and 0 errors; the NuGet vulnerability scan reported no vulnerable packages.
 - Gate status: **IMPLEMENTED / AUTOMATED TESTED**. Live search, real OS authentication, target-machine restore, and destructive reliability testing remain unverified.
 - `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Publish-Memento.ps1` completed successfully and produced the ignored local bundle `artifacts/MEMENTO-win-x64.zip` (106,392,218 bytes at the time of verification). The bundle is self-contained and portable; it is not a signed installer.

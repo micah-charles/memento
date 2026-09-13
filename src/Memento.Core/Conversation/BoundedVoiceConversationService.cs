@@ -49,6 +49,11 @@ public sealed class BoundedVoiceConversationService
         catch (Exception error)
         {
             _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, _transcription.Provider, "transcription", _transcription.Model, null, null, started, DateTimeOffset.UtcNow, null, null, false, error.GetType().Name, error.Message, DateTimeOffset.UtcNow));
+            if (request.SourceId is not null && IsRetryableProviderFailure(error))
+            {
+                var retryAt = DateTimeOffset.UtcNow.AddSeconds(30);
+                _repository.AddConversationJob(new ConversationJob(Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, request.SourceId, "durable_transcription", ConversationJobStatus.Failed, 0, retryAt, "transcription provider unavailable: " + error.GetType().Name, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            }
             throw;
         }
 
@@ -84,4 +89,7 @@ public sealed class BoundedVoiceConversationService
 
         return new BoundedVoiceConversationResult(transcript, conversation, speech, speechAsset);
     }
+
+    private static bool IsRetryableProviderFailure(Exception error)
+        => error is ProviderRequestException or HttpRequestException or TaskCanceledException;
 }
