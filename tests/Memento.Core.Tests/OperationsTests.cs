@@ -125,6 +125,24 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void Restore_rejects_a_manifest_that_omits_the_archive_snapshot()
+    {
+        using var fixture = new OperationsFixture();
+        var exportDirectory = Path.Combine(fixture.ExportRoot, "malformed-export");
+        Directory.CreateDirectory(exportDirectory);
+        File.WriteAllBytes(Path.Combine(exportDirectory, "archive.sqlite"), [1, 2, 3]);
+        File.WriteAllText(Path.Combine(exportDirectory, "manifest.json"), "{\"schema_version\":16,\"files\":[]}");
+        var backup = Path.Combine(fixture.ExportRoot, "malformed-manifest.memento");
+        var restore = Path.Combine(fixture.ExportRoot, "malformed-manifest-restore");
+
+        ArchiveBackupProtector.EncryptDirectory(exportDirectory, backup, "test-password");
+        var report = ArchiveBackupProtector.DecryptDirectory(backup, restore, "test-password");
+
+        Assert.False(report.IntegrityOk);
+        Assert.Contains(report.Findings, finding => finding.Contains("archive.sqlite", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Health_check_reports_recoverable_audio_and_due_jobs()
     {
         using var fixture = new OperationsFixture();

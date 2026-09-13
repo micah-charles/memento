@@ -346,29 +346,67 @@ public static class ArchiveBackupProtector
         var manifestPath = Path.Combine(restoreDirectory, "manifest.json");
         if (!File.Exists(manifestPath)) return new ArchiveRestoreResult(false, ["Backup manifest.json is missing."]);
 
-        using var document = JsonDocument.Parse(File.ReadAllText(manifestPath));
-        if (!document.RootElement.TryGetProperty("files", out var files) || files.ValueKind != JsonValueKind.Array)
-            return new ArchiveRestoreResult(false, ["Backup manifest has no files list."]);
-
-        var root = Path.GetFullPath(restoreDirectory).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        foreach (var file in files.EnumerateArray())
+        try
         {
-            var relative = file.GetProperty("path").GetString() ?? string.Empty;
-            var expected = file.GetProperty("sha256").GetString() ?? string.Empty;
-            var candidate = Path.GetFullPath(Path.Combine(restoreDirectory, relative.Replace('/', Path.DirectorySeparatorChar)));
-            if (!candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !File.Exists(candidate))
+            using var document = JsonDocument.Parse(File.ReadAllText(manifestPath));
+            if (!document.RootElement.TryGetProperty("files", out var files) || files.ValueKind != JsonValueKind.Array)
+                return new ArchiveRestoreResult(false, ["Backup manifest has no files list."]);
+
+            var root = Path.GetFullPath(restoreDirectory).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            var listed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var file in files.EnumerateArray())
             {
-                findings.Add($"Missing backup file: {relative}");
-                continue;
+                if (file.ValueKind != JsonValueKind.Object || !file.TryGetProperty("path", out var pathElement) || !file.TryGetProperty("sha256", out var hashElement))
+                {
+                    findings.Add("Backup manifest contains an invalid file entry.");
+                    continue;
+                }
+
+                var relative = pathElement.GetString() ?? string.Empty;
+                var expected = hashElement.GetString() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(relative) || !IsSha256(expected))
+                {
+                    findings.Add($"Backup manifest contains an invalid hash entry: {relative}");
+                    continue;
+                }
+                if (!listed.TryAdd(relative, expected))
+                {
+                    findings.Add($"Backup manifest contains a duplicate file entry: {relative}");
+                    continue;
+                }
+
+                var candidate = Path.GetFullPath(Path.Combine(restoreDirectory, relative.Replace('/', Path.DirectorySeparatorChar)));
+                if (!candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !File.Exists(candidate))
+                {
+                    findings.Add($"Missing backup file: {relative}");
+                    continue;
+                }
+
+                var actual = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(candidate))).ToLowerInvariant();
+                if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
+                    findings.Add($"Backup hash mismatch: {relative}");
             }
 
-            var actual = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(candidate))).ToLowerInvariant();
-            if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
-                findings.Add($"Backup hash mismatch: {relative}");
+            if (!listed.ContainsKey("archive.sqlite"))
+                findings.Add("Backup manifest does not include required archive.sqlite.");
+
+            foreach (var actualPath in Directory.EnumerateFiles(restoreDirectory, "*", SearchOption.AllDirectories))
+            {
+                var relative = Path.GetRelativePath(restoreDirectory, actualPath).Replace(Path.DirectorySeparatorChar, '/');
+                if (string.Equals(relative, "manifest.json", StringComparison.OrdinalIgnoreCase)) continue;
+                if (!listed.ContainsKey(relative)) findings.Add($"Backup contains an unlisted file: {relative}");
+            }
+        }
+        catch (JsonException error)
+        {
+            findings.Add($"Backup manifest is not valid JSON: {error.Message}");
         }
 
         return new ArchiveRestoreResult(findings.Count == 0, findings);
     }
+
+    private static bool IsSha256(string value)
+        => value.Length == 64 && value.All(Uri.IsHexDigit);
 }
 
 public sealed record ArchiveRestoreResult(bool IntegrityOk, IReadOnlyList<string> Findings);
