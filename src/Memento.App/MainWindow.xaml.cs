@@ -58,9 +58,9 @@ public sealed partial class MainWindow : Window
                     _session = _repository.EndSession(_session);
                 StatusText.Text = "已儲存本機錄音 · Local archive";
             }
-            catch (Exception error)
+            catch (Exception)
             {
-                StatusText.Text = $"錄音未能完成：{error.Message}";
+                StatusText.Text = "錄音未能完成，請檢查咪高風或 Windows 權限。";
             }
             finally
             {
