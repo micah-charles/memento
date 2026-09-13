@@ -34,12 +34,18 @@ dotnet build .\src\Memento.App\Memento.App.csproj --configuration Release
 Start-Process .\src\Memento.App\bin\Release\net10.0-windows10.0.19041.0\win-x64\Memento.App.exe
 ```
 
-The app is currently an unpackaged self-contained executable. It stores local data under `%LOCALAPPDATA%\MEMENTO`; an installer/MSIX package and Start Menu registration are still deployment work, not required for the current development build.
+The app is currently an unpackaged self-contained executable. It stores local data under `%LOCALAPPDATA%\MEMENTO`; a signed MSIX package and enterprise installer registration remain deployment work.
 
 To create a portable self-contained bundle:
 
 ```powershell
 .\scripts\Publish-Memento.ps1
+```
+
+To install that bundle for the current Windows user and create a Start Menu shortcut:
+
+```powershell
+.\scripts\Install-Memento.ps1
 ```
 
 ## Non-goals for M00/M00.1
