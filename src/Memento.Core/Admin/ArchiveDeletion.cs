@@ -39,7 +39,7 @@ public sealed class ArchiveDeletionService
         using (var transaction = connection.BeginTransaction())
         {
             string? sourcePath;
-            string sourceSessionId;
+            string? sourceSessionId;
             string? turnId;
             using (var source = connection.CreateCommand())
             {
@@ -49,7 +49,7 @@ public sealed class ArchiveDeletionService
                 using var reader = source.ExecuteReader();
                 if (!reader.Read()) throw new KeyNotFoundException($"Source '{sourceId}' was not found.");
                 sourcePath = reader.IsDBNull(0) ? null : reader.GetString(0);
-                sourceSessionId = reader.GetString(1);
+                sourceSessionId = reader.IsDBNull(1) ? null : reader.GetString(1);
                 turnId = reader.IsDBNull(2) ? null : reader.GetString(2);
             }
 
@@ -61,17 +61,19 @@ public sealed class ArchiveDeletionService
             var revisionIds = ReadIds(connection, transaction, "SELECT transcript_revision_id FROM transcript_revisions WHERE source_id = $source ORDER BY revision_number DESC", ("$source", sourceId));
             var personIds = ReadIds(connection, transaction, "SELECT DISTINCT person_entity_id FROM evidence_entity_links WHERE evidence_id IN (SELECT evidence_id FROM evidence_records WHERE source_id = $source) UNION SELECT DISTINCT person_entity_id FROM entity_aliases WHERE source_clarification_event_id IN (SELECT clarification_event_id FROM clarification_events WHERE source_id = $source)", ("$source", sourceId));
             var canDeleteTurnAssets = turnId is not null && CountRows(connection, transaction, "SELECT COUNT(*) FROM sources WHERE turn_id = $turn", ("$turn", turnId)) == 1;
-            var canDeleteSessionAssets = turnId is null && CountRows(connection, transaction, "SELECT COUNT(*) FROM sources WHERE session_id = $session AND turn_id IS NULL", ("$session", sourceSessionId)) == 1;
+            var canDeleteSessionAssets = turnId is null && sourceSessionId is not null && CountRows(connection, transaction, "SELECT COUNT(*) FROM sources WHERE session_id = $session AND turn_id IS NULL", ("$session", sourceSessionId)) == 1;
             var canDeleteDependentAssets = canDeleteTurnAssets || canDeleteSessionAssets;
             var derivedIds = canDeleteTurnAssets
                 ? ReadIds(connection, transaction, "SELECT derived_speech_asset_id FROM derived_speech_assets WHERE turn_id = $turn", ("$turn", turnId!))
                 : canDeleteSessionAssets
-                    ? ReadIds(connection, transaction, "SELECT derived_speech_asset_id FROM derived_speech_assets WHERE session_id = $session AND turn_id IS NULL", ("$session", sourceSessionId))
+                    ? ReadIds(connection, transaction, "SELECT derived_speech_asset_id FROM derived_speech_assets WHERE session_id = $session AND turn_id IS NULL", ("$session", sourceSessionId!))
                     : [];
             if (turnId is not null && !canDeleteTurnAssets)
                 findings.Add("Turn-level provider metadata and derived audio were retained because the turn has another Source.");
             if (turnId is null && !canDeleteSessionAssets)
-                findings.Add("Session-level provider metadata and derived audio were retained because the session has another Source without a turn.");
+                findings.Add(sourceSessionId is null
+                    ? "Session-level provider metadata and derived audio were retained because the Source has no session."
+                    : "Session-level provider metadata and derived audio were retained because the session has another Source without a turn.");
 
             counts["review_annotations"] = DeleteByIds(connection, transaction, "review_annotations", "target_id", evidenceIds.Concat(claimIds).Concat(responseEpisodeIds).Concat(clarificationIds).Concat(revisionIds).Concat(personIds).Concat(derivedIds).Concat([sourceId]).Distinct(StringComparer.Ordinal).ToArray());
             counts["response_episodes"] = DeleteByIds(connection, transaction, "response_episodes", "response_episode_id", responseEpisodeIds);
@@ -84,18 +86,18 @@ public sealed class ArchiveDeletionService
             counts["provider_interactions"] = canDeleteTurnAssets
                 ? DeleteByIds(connection, transaction, "provider_interactions", "turn_id", [turnId!])
                 : canDeleteSessionAssets
-                    ? DeleteSessionLevelRows(connection, transaction, "provider_interactions", sourceSessionId)
+                    ? DeleteSessionLevelRows(connection, transaction, "provider_interactions", sourceSessionId!)
                     : 0;
 
             if (canDeleteDependentAssets)
             {
                 var derivedPaths = canDeleteTurnAssets
                     ? ReadPaths(connection, transaction, "SELECT file_path FROM derived_speech_assets WHERE turn_id = $turn", ("$turn", turnId!))
-                    : ReadPaths(connection, transaction, "SELECT file_path FROM derived_speech_assets WHERE session_id = $session AND turn_id IS NULL", ("$session", sourceSessionId));
+                    : ReadPaths(connection, transaction, "SELECT file_path FROM derived_speech_assets WHERE session_id = $session AND turn_id IS NULL", ("$session", sourceSessionId!));
                 foreach (var path in derivedPaths) AddPath(mediaPaths, path);
                 counts["derived_speech_assets"] = canDeleteTurnAssets
                     ? DeleteByIds(connection, transaction, "derived_speech_assets", "turn_id", [turnId!])
-                    : DeleteSessionLevelRows(connection, transaction, "derived_speech_assets", sourceSessionId);
+                    : DeleteSessionLevelRows(connection, transaction, "derived_speech_assets", sourceSessionId!);
             }
             else
             {
