@@ -89,6 +89,16 @@ public sealed class ClarificationProtocol
             vocabulary = _repository.AddVocabularyEntry(new VocabularyEntry(Guid.NewGuid().ToString("N"), canonical, initialRevision.Text, context, true, clarification.ClarificationEventId, DateTimeOffset.UtcNow));
         }
 
+        // A corrected transcript is a new extraction input. Queue it only when the
+        // session has already granted cloud processing; the worker re-checks this
+        // policy before any provider call.
+        if (corrected is not null
+            && session.PrivacyMode != PrivacyMode.LocalCaptureOnly
+            && _repository.HasGrantedConsent(session.SessionId, ConsentScope.CloudTranscription))
+        {
+            new ConversationSessionWriter(_repository).QueueExtractionIfNeeded(session.SessionId, initialRevision.TurnId, initialRevision.SourceId, corrected.TranscriptRevisionId, now);
+        }
+
         return new ClarificationChain(initialRevision, clarification, corrected, vocabulary);
     }
 }

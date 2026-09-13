@@ -13,6 +13,7 @@ public sealed class ClarificationTests
         using var archive = fixture.CreateArchive();
         var repository = new ArchiveRepository(archive);
         var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
         var source = repository.AddSource(new SourceMetadata("source-name", "audio", session.SessionId, null, "raw/name.wav", "PCM WAV", 48000, 1, 16, 100, 1, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
         var protocol = new ClarificationProtocol(repository);
         var initial = protocol.AddInitialRevision(source.SourceId, null, "我細個有個friend叫阿珍", 0.97);
@@ -26,6 +27,7 @@ public sealed class ClarificationTests
         Assert.Equal("阿貞", chain.Vocabulary.CanonicalText);
         Assert.Equal(ClarificationOutcome.SpeakerConfirmed, chain.Event.Outcome);
         Assert.Equal(source.SourceId, chain.Event.SourceId);
+        Assert.True(repository.HasActiveConversationJob(session.SessionId, source.SourceId, "durable_extraction", chain.CorrectedRevision!.TranscriptRevisionId));
     }
 
     [Fact]
