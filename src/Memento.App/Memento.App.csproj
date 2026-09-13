@@ -8,6 +8,8 @@
     <Platforms>x64</Platforms>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <UseWinUI>true</UseWinUI>
+    <!-- Keep the supported launch path explicit: portable self-contained WinUI, no MSIX identity. -->
+    <WindowsPackageType>None</WindowsPackageType>
     <EnableMsixTooling>true</EnableMsixTooling>
     <!-- Ship the Windows App SDK runtime beside the unpackaged executable. -->
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
