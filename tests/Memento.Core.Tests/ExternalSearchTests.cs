@@ -16,7 +16,9 @@ public sealed class ExternalSearchTests
               "output": [
                 { "type": "web_search_call", "action": { "sources": [
                   { "type": "url", "title": "Hong Kong Observatory", "url": "https://www.hko.gov.hk/en/weather-forecast/weather-forecast-for-hong-kong.html" },
-                  { "type": "url", "title": "Untrusted", "url": "https://outside.example/news" }
+                  { "type": "url", "title": "Untrusted", "url": "https://outside.example/news" },
+                  { "type": "url", "title": "User info", "url": "https://user:secret@www.hko.gov.hk/private" },
+                  { "type": "url", "title": "Non-default port", "url": "https://www.hko.gov.hk:8443/private" }
                 ] } }
               ]
             }

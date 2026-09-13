@@ -108,6 +108,7 @@
 ## M10–M13 implementation attempt — 2026-09-13
 
 - M10 added an `ISearchProvider` boundary and an external-information result that carries provider, retrieval time, source URLs, and an explicit untrusted flag. `OpenAiWebSearchProvider` now sends an allowlisted Responses web-search request with `store=false`, filters returned URLs to HTTPS hosts in the same allowlist, and never exposes results to the archive mutation path.
+- External source filtering also rejects user-info URLs and non-default HTTPS ports, keeping displayed citations within the intended allowlisted web surface.
 - The WinUI shell now exposes a Cantonese-friendly current-information query for allowlisted weather, public-service, transport, and news domains. It requires the explicit cloud-consent control, blocks `LOCAL_CAPTURE_ONLY` sessions, displays returned sources as untrusted, and never writes the result into archive memory.
 - M11 added an authenticated-admin boundary, candidate claim review listing, attributed annotations, and explicit family assessment/admin rejection transitions. The repository does not treat family support as speaker confirmation.
 - Family Admin review now displays linked Evidence relationships, participant certainty, and speaker-confirmation state, and an authorized administrator can play the latest finalized PCM WAV Source only after length, SHA-256, and WAV validation.

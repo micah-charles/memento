@@ -112,6 +112,7 @@ public sealed class OpenAiWebSearchProvider : ISearchProvider
     private void AddSource(string? urlText, string? title, IDictionary<string, ExternalInformationSource> sources, string snippet)
     {
         if (!Uri.TryCreate(urlText, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps || !IsAllowed(uri.Host)) return;
+        if (!string.IsNullOrEmpty(uri.UserInfo) || !uri.IsDefaultPort) return;
         var sourceTitle = string.IsNullOrWhiteSpace(title) ? uri.Host : title.Trim();
         sources[uri.AbsoluteUri] = new ExternalInformationSource(sourceTitle, uri.AbsoluteUri, snippet.Trim());
     }

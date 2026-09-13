@@ -189,3 +189,4 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - The WinUI stop control now remains enabled while consent controls are locked during capture, preventing a started recording from becoming un-stoppable through the participant UI.
 - In-flight transcription and response operations re-check the current Source withdrawal state before persisting derived transcript/response metadata; deterministic tests prove withdrawn Sources cannot receive post-withdrawal revisions or successful provider records.
 - OpenAI response and extraction adapters wrap transcripts in `<memento-transcript>` markers and state that the content is untrusted data, while retaining `store=false` and local schema/provenance gates.
+- Current-information source parsing rejects allowlisted-host URLs that include user-info or a non-default HTTPS port; the external search regression response exercises both cases.
