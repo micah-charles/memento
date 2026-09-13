@@ -153,7 +153,8 @@ public sealed class ConversationTests
         File.WriteAllBytes(fixture.AudioPath, [1, 2]);
         var source = repository.AddSource(new SourceMetadata("source-derived", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
         var store = new DerivedAudioStore(repository, Path.Combine(fixture.DirectoryPath, "derived", "audio"));
-        var service = new BoundedVoiceConversationService(repository, new InlineTranscriptionProvider(), new DeterministicConversationProvider(), new DeterministicSpeechOutputProvider(), store);
+        var playback = new RecordingSpeechPlayback();
+        var service = new BoundedVoiceConversationService(repository, new InlineTranscriptionProvider(), new DeterministicConversationProvider(), new DeterministicSpeechOutputProvider(), store, playback);
 
         var result = await service.ExecuteAsync(new ConversationRequest(session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, SourceId: source.SourceId));
 
@@ -161,6 +162,7 @@ public sealed class ConversationTests
         var asset = result.SpeechAsset!;
         Assert.True(File.Exists(asset.FilePath));
         Assert.Equal(result.SpeechOutput!.AudioBytes, store.ReadVerified(asset));
+        Assert.Same(asset, playback.Asset);
         Assert.Single(repository.ListDerivedSpeechAssets(session.SessionId));
         using var connection = archive.OpenConnection();
         using var command = connection.CreateCommand();
@@ -285,6 +287,17 @@ public sealed class ConversationTests
         public string Model => "inline-v1";
         public Task<TranscriptionResult> TranscribeAsync(string localAudioPath, string? language = null, CancellationToken cancellationToken = default)
             => Task.FromResult(new TranscriptionResult(Provider, Model, "inline-request", "synthetic yue transcript", DateTimeOffset.UtcNow));
+    }
+
+    private sealed class RecordingSpeechPlayback : ISpeechOutputPlayback
+    {
+        public DerivedSpeechAsset? Asset { get; private set; }
+        public Task PlayAsync(DerivedSpeechAsset asset, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Asset = asset;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class ConversationFixture : IDisposable

@@ -13,14 +13,18 @@ public sealed class BoundedVoiceConversationService
     private readonly ConversationOrchestrator _conversation;
     private readonly ISpeechOutputProvider? _speechOutput;
     private readonly DerivedAudioStore? _speechStore;
+    private readonly ISpeechOutputPlayback? _speechPlayback;
 
-    public BoundedVoiceConversationService(ArchiveRepository repository, ITranscriptionProvider transcription, IConversationProvider conversation, ISpeechOutputProvider? speechOutput = null, DerivedAudioStore? speechStore = null)
+    public BoundedVoiceConversationService(ArchiveRepository repository, ITranscriptionProvider transcription, IConversationProvider conversation, ISpeechOutputProvider? speechOutput = null, DerivedAudioStore? speechStore = null, ISpeechOutputPlayback? speechPlayback = null)
     {
         _repository = repository;
         _transcription = transcription;
         _conversation = new ConversationOrchestrator(repository, conversation);
         _speechOutput = speechOutput;
         _speechStore = speechStore;
+        _speechPlayback = speechPlayback;
+        if (_speechPlayback is not null && _speechStore is null)
+            throw new ArgumentException("Speech playback requires a derived speech store.", nameof(speechPlayback));
     }
 
     public async Task<BoundedVoiceConversationResult> ExecuteAsync(ConversationRequest request, CancellationToken cancellationToken = default)
@@ -71,7 +75,11 @@ public sealed class BoundedVoiceConversationService
 
             _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, speech.Provider, "speech_output", speech.Model, null, speech.RequestId, speechStarted, speech.CompletedAt, null, null, true, null, null, DateTimeOffset.UtcNow));
             if (_speechStore is not null)
+            {
                 speechAsset = _speechStore.Store(request.SessionId, request.TurnId, speech);
+                if (_speechPlayback is not null)
+                    await _speechPlayback.PlayAsync(speechAsset, cancellationToken).ConfigureAwait(false);
+            }
         }
 
         return new BoundedVoiceConversationResult(transcript, conversation, speech, speechAsset);
