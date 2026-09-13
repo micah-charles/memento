@@ -2,7 +2,7 @@
 
 Scripts must not read or upload personal data by default.
 
-`Publish-Memento.ps1` creates a self-contained `win-x64` publish directory and a zip bundle under `artifacts/`. It does not sign or install an MSIX package; a production installer still requires an owner-selected publisher identity and certificate.
+`Publish-Memento.ps1` creates a self-contained `win-x64` publish directory, a zip bundle, and a SHA-256 sidecar under `artifacts/`. It does not sign or install an MSIX package; a production installer still requires an owner-selected publisher identity and certificate.
 
 `Install-Memento.ps1` installs that bundle under `%LOCALAPPDATA%\MEMENTO\App` and creates a per-user Start Menu shortcut without administrator access:
 
@@ -23,5 +23,12 @@ Scripts must not read or upload personal data by default.
 ```
 
 These helpers do not provide MSIX package identity, signing, or enterprise uninstall registration. Cloud features additionally require a Windows Credential Manager generic credential named `MEMENTO/OpenAI`.
+
+Before installing a copied bundle, verify its sidecar with:
+
+```powershell
+Get-FileHash .\artifacts\MEMENTO-win-x64.zip -Algorithm SHA256
+Get-Content .\artifacts\MEMENTO-win-x64.zip.sha256
+```
 
 Inside the app, `啟用本機錄音功能` is a persistent recording toggle. The shell also provides explicit health-check, media export, password-encrypted backup, disposable restore/manifest-verification, and Family Admin withdrawal actions; backups are written under `%LOCALAPPDATA%\MEMENTO\backups` and should be tested before pilot use. Withdrawing a Source preserves its local history and media but excludes it from future cloud processing, local search, and ordinary exports.
