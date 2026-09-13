@@ -1,6 +1,7 @@
 using Memento.Core.Audio;
 using Memento.Core.Domain;
 using Memento.Core.Storage;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 
 namespace Memento.App;
@@ -10,6 +11,7 @@ public sealed partial class MainWindow : Window
     private readonly ArchiveRepository _repository;
     private readonly string _audioRoot;
     private readonly int _recoverableAudioCount;
+    private readonly DispatcherQueue _dispatcherQueue;
     private AudioCaptureController? _capture;
     private Session? _session;
 
@@ -18,6 +20,7 @@ public sealed partial class MainWindow : Window
         _repository = repository;
         _audioRoot = audioRoot;
         _recoverableAudioCount = recoverableAudioCount;
+        _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
         InitializeComponent();
         Closed += MainWindow_Closed;
         if (_recoverableAudioCount > 0)
@@ -57,6 +60,7 @@ public sealed partial class MainWindow : Window
             _session = _repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.LocalCaptureOnly);
             _repository.AddConsent(_session.SessionId, ConsentScope.LocalCapture, PrivacyMode.LocalCaptureOnly, true, "privacy-1");
             _capture = new AudioCaptureController(_repository, _audioRoot);
+            _capture.CaptureFailed += CaptureFailed;
             _capture.Start(_session.SessionId, null, ConsentCheckBox.IsChecked == true, format => new WaveInAudioInput(format));
             StatusText.Text = "Listening… 本機錄音中";
             RecordButton.Content = "停止錄音";
@@ -83,5 +87,16 @@ public sealed partial class MainWindow : Window
             if (_session is not null)
                 _session = _repository.EndSession(_session);
         }
+    }
+
+    private void CaptureFailed(object? sender, Exception error)
+    {
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            StatusText.Text = $"錄音中斷，已保留暫存檔：{error.Message}";
+            RecordButton.Content = "開始錄音";
+            ConsentCheckBox.IsEnabled = true;
+            RecordButton.IsEnabled = ConsentCheckBox.IsChecked == true;
+        });
     }
 }

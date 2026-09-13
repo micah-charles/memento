@@ -101,11 +101,14 @@ public sealed class AudioTests
         var fake = new FakeAudioInput(new PcmWaveFormat(48000, 1, 16));
         var controller = new AudioCaptureController(repository, fixture.AudioRoot);
         controller.Start(session.SessionId, null, true, _ => fake);
+        Exception? raised = null;
+        controller.CaptureFailed += (_, error) => raised = error;
 
         fake.RaiseError(new IOException("microphone disconnected"));
 
         Assert.Equal(AudioCaptureState.Failed, controller.State);
         Assert.Contains("microphone disconnected", controller.Failure);
+        Assert.NotNull(raised);
         var recovered = Assert.Single(AudioRecoveryScanner.Scan(fixture.AudioRoot));
         Assert.True(recovered.IsValidPcm);
         Assert.True(fake.Disposed);

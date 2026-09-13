@@ -46,6 +46,7 @@ public sealed class AudioCaptureController
 
     public AudioCaptureState State { get; private set; } = AudioCaptureState.Idle;
     public string? Failure { get; private set; }
+    public event EventHandler<Exception>? CaptureFailed;
 
     public void Start(string sessionId, string? turnId, bool localCaptureConsent, Func<PcmWaveFormat, IAudioInput> inputFactory, DateTimeOffset? startedAt = null)
     {
@@ -112,6 +113,7 @@ public sealed class AudioCaptureController
 
     private void OnCaptureError(object? sender, Exception error)
     {
+        if (State == AudioCaptureState.Failed) return;
         Failure = error.Message;
         if (_input is not null)
         {
@@ -123,5 +125,6 @@ public sealed class AudioCaptureController
         _writer?.Dispose();
         _writer = null;
         State = AudioCaptureState.Failed;
+        CaptureFailed?.Invoke(this, error);
     }
 }
