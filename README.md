@@ -48,6 +48,14 @@ To install that bundle for the current Windows user and create a Start Menu shor
 .\scripts\Install-Memento.ps1
 ```
 
+To remove the installed app while preserving the local archive by default:
+
+```powershell
+.\scripts\Uninstall-Memento.ps1
+```
+
+Pass `-RemoveData` only when the `%LOCALAPPDATA%\MEMENTO` archive has been backed up and should also be deleted. The in-app `啟用本機錄音功能` control independently enables or disables future recording; uninstalling does not silently delete the archive.
+
 ## Non-goals for M00/M00.1
 
 M00/M00.1 did not build a production application, start WinUI or SQLite runtime code, call an AI API, capture real audio, fine-tune a model, create a voice clone or avatar, require a local LLM/GPU, or create a cloud-hosted permanent family-memory database. Later milestones now implement local capture and archive foundations while live integrations remain gated.
