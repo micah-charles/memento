@@ -193,6 +193,35 @@ public sealed class OperationsTests
         Assert.Equal(1, tampered.InvalidDerivedSpeechAssetCount);
     }
 
+    [Fact]
+    public void Health_check_ignores_fresh_processing_jobs_but_reports_stale_jobs()
+    {
+        using var fixture = new OperationsFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.Parse("2026-09-13T10:00:00Z"), PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-health-processing"));
+        var processing = new ConversationJob(
+            "job-health-processing",
+            session.SessionId,
+            null,
+            source.SourceId,
+            "durable_transcription",
+            ConversationJobStatus.Processing,
+            1,
+            null,
+            null,
+            DateTimeOffset.Parse("2026-09-13T09:59:00Z"),
+            DateTimeOffset.Parse("2026-09-13T09:59:00Z"));
+        repository.AddConversationJob(processing);
+
+        var fresh = ArchiveHealthCheck.Run(archive, fixture.AudioRoot, DateTimeOffset.Parse("2026-09-13T10:03:00Z"));
+        var stale = ArchiveHealthCheck.Run(archive, fixture.AudioRoot, DateTimeOffset.Parse("2026-09-13T10:05:00Z"));
+
+        Assert.Equal(0, fresh.PendingConversationJobs);
+        Assert.Equal(1, stale.PendingConversationJobs);
+    }
+
     private sealed class OperationsFixture : IDisposable
     {
         public OperationsFixture()

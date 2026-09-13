@@ -14,11 +14,14 @@ public static class ArchiveHealthCheck
         var recoverable = Audio.AudioRecoveryScanner.Scan(audioRootDirectory).Count;
         if (recoverable > 0) findings.Add($"{recoverable} recoverable audio capture(s) require review.");
         var pending = 0;
+        var clock = (now ?? DateTimeOffset.UtcNow).ToUniversalTime();
+        var staleBefore = clock - TimeSpan.FromMinutes(5);
         using (var connection = archive.OpenConnection())
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT COUNT(*) FROM conversation_jobs WHERE (status IN ('Pending', 'Processing') AND (next_attempt_at IS NULL OR next_attempt_at <= $now)) OR (status = 'Failed' AND next_attempt_at IS NOT NULL AND next_attempt_at <= $now)";
-            command.Parameters.AddWithValue("$now", (now ?? DateTimeOffset.UtcNow).ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+            command.CommandText = "SELECT COUNT(*) FROM conversation_jobs WHERE (status = 'Pending' AND (next_attempt_at IS NULL OR next_attempt_at <= $now)) OR (status = 'Failed' AND next_attempt_at IS NOT NULL AND next_attempt_at <= $now) OR (status = 'Processing' AND updated_at <= $staleBefore)";
+            command.Parameters.AddWithValue("$now", clock.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+            command.Parameters.AddWithValue("$staleBefore", staleBefore.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
             pending = Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
         }
         if (pending > 0) findings.Add($"{pending} conversation job(s) are due for processing.");
