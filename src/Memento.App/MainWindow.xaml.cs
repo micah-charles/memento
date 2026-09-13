@@ -318,10 +318,13 @@ public sealed partial class MainWindow : Window
         {
             var progress = new Progress<ConversationWorkerRunResult>(result =>
             {
-                if (result.Succeeded > 0)
-                    StatusText.Text = $"背景重試完成：{result.Succeeded} 項工作已處理。";
-                else if (result.Failed > 0)
-                    StatusText.Text = "背景重試暫時未完成；會按重試時間再試。";
+                _dispatcherQueue.TryEnqueue(() =>
+                {
+                    if (result.Succeeded > 0)
+                        StatusText.Text = $"背景重試完成：{result.Succeeded} 項工作已處理。";
+                    else if (result.Failed > 0)
+                        StatusText.Text = "背景重試暫時未完成；會按重試時間再試。";
+                });
             });
             await _retryWorker!.RunUntilCancelledAsync(TimeSpan.FromSeconds(30), cancellationToken, progress);
         }
