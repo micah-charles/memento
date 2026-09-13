@@ -125,6 +125,7 @@
 - `scripts/Start-Memento.ps1` now resolves the installed executable first and otherwise starts the repository publish output, making the supported launch path explicit.
 - `scripts/Uninstall-Memento.ps1` removes that app install and Start Menu shortcut with a guarded per-user path; it preserves `%LOCALAPPDATA%\\MEMENTO` archive data unless `-RemoveData` is explicitly passed.
 - Installer updates now stage a clean app tree beside the install directory and swap it into place, so removed files cannot survive an update; a failed swap restores the previous app tree while leaving archive data untouched.
+- Post-swap installer failures, including Start Menu shortcut creation errors, now move the failed tree aside and restore the previous app tree before cleanup; this rollback path was exercised against a disposable install root.
 - The published bundle has been installed and launch-smoke-tested from `%LOCALAPPDATA%\\MEMENTO\\App`; the Start Menu shortcut exists and the app remains installed for supervised GUI/microphone verification.
 - A persistent `recording_enabled` setting now gives the participant an explicit enable/disable control independent of per-session consent.
 - Optional TTS now completes the turn-based pipeline as local WAV → transcription → text response → verified derived speech storage → optional NAudio WAV playback. The WinUI shell can replay the latest stored assistant output; real output-device playback and Realtime/WebRTC transport remain deployment work.
