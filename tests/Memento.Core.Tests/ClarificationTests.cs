@@ -113,6 +113,11 @@ public sealed class ClarificationTests
         var fabricated = persisted with { TranscriptRevisionId = "missing-revision" };
         Assert.Throws<InvalidOperationException>(() => protocol.RecordOutcome(sourceSession, fabricated, ClarificationEntityKind.PersonName, "係咪阿珍？", "唔係，係阿貞。", ClarificationOutcome.SpeakerConfirmed, "阿貞"));
         Assert.Single(repository.ListTranscriptRevisions(source.SourceId));
+
+        var sessionlessSource = repository.AddSource(new SourceMetadata("source-sessionless", "audio", null, null, null, null, null, null, null, null, null, null, null, null, "not_applicable", DateTimeOffset.UtcNow));
+        var sessionlessInitial = protocol.AddInitialRevision(sessionlessSource.SourceId, null, "阿珍", 0.4);
+        Assert.Throws<InvalidOperationException>(() => protocol.RecordOutcome(sourceSession, sessionlessInitial, ClarificationEntityKind.PersonName, "係咪阿珍？", "唔係，係阿貞。", ClarificationOutcome.SpeakerConfirmed, "阿貞"));
+        Assert.Single(repository.ListTranscriptRevisions(sessionlessSource.SourceId));
     }
 
     private sealed class ClarificationFixture : IDisposable
