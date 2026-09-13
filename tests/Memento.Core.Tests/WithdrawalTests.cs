@@ -22,6 +22,7 @@ public sealed class WithdrawalTests
         var evidence = repository.AddEvidence(new EvidenceRecord("evidence-withdrawal", EvidenceKind.DirectStatement, source.SourceId, session.SessionId, null, revision.TranscriptRevisionId, revision.Text, revision.Text, ParticipantCertainty.Stated, false, DateTimeOffset.UtcNow));
         var claim = repository.AddMemoryClaim(new MemoryClaim("claim-withdrawal", "Participant likes fish balls", null, "likes", "fish balls", ClaimStatus.Candidate, DateTimeOffset.UtcNow));
         repository.AddEvidenceClaimLink(new EvidenceClaimLink(evidence.EvidenceId, claim.MemoryClaimId, "supports", DateTimeOffset.UtcNow));
+        repository.AddConversationJob(new ConversationJob("job-withdrawal", session.SessionId, null, source.SourceId, "durable_transcription", ConversationJobStatus.Pending, 0, DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
 
         var service = new ArchiveWithdrawalService(repository, new FixedTestAdminAuthorizer("admin-1"));
         Assert.Throws<UnauthorizedAccessException>(() => service.WithdrawSource("wrong", source.SourceId, "participant request"));
@@ -29,6 +30,7 @@ public sealed class WithdrawalTests
         var result = service.WithdrawSource("admin-1", source.SourceId, "participant request");
 
         Assert.True(result.Changed);
+        Assert.Equal(1, result.BlockedJobCount);
         Assert.Equal("withdrawn", repository.GetSource(source.SourceId)!.RecoveryStatus);
         Assert.True(File.Exists(source.FilePath));
         using (var connection = archive.OpenConnection())
@@ -45,6 +47,12 @@ public sealed class WithdrawalTests
         var writer = new ConversationSessionWriter(repository);
         Assert.Throws<CloudNotPermittedException>(() => writer.QueueTranscription(session, null, source));
         Assert.Null(writer.QueueExtractionIfNeeded(session.SessionId, null, source.SourceId, revision.TranscriptRevisionId));
+        using (var jobConnection = archive.OpenConnection())
+        using (var jobCommand = jobConnection.CreateCommand())
+        {
+            jobCommand.CommandText = "SELECT status FROM conversation_jobs WHERE conversation_job_id = 'job-withdrawal'";
+            Assert.Equal("Failed", jobCommand.ExecuteScalar()?.ToString());
+        }
         var transcriptionJob = new ConversationJob("transcription-withdrawal", session.SessionId, null, source.SourceId, "durable_transcription", ConversationJobStatus.Pending, 0, DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
         await Assert.ThrowsAsync<CloudNotPermittedException>(() => new DurableTranscriptionJobProcessor(repository, new FailingTranscriptionProvider()).ProcessAsync(transcriptionJob));
         var extractionJob = new ConversationJob("extraction-withdrawal", session.SessionId, null, source.SourceId, "durable_extraction", ConversationJobStatus.Pending, 0, DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, revision.TranscriptRevisionId);

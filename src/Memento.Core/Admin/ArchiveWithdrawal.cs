@@ -2,7 +2,7 @@ using Memento.Core.Storage;
 
 namespace Memento.Core.Admin;
 
-public sealed record ArchiveWithdrawalResult(string SourceId, string ActorId, bool Changed, string AnnotationId, DateTimeOffset OccurredAt);
+public sealed record ArchiveWithdrawalResult(string SourceId, string ActorId, bool Changed, string AnnotationId, DateTimeOffset OccurredAt, int BlockedJobCount = 0);
 
 /// <summary>Quarantines a Source from future AI use while retaining its historical records.</summary>
 public sealed class ArchiveWithdrawalService
@@ -25,6 +25,7 @@ public sealed class ArchiveWithdrawalService
         var annotationId = Guid.NewGuid().ToString("N");
         var timestamp = occurredAt ?? DateTimeOffset.UtcNow;
         var changed = false;
+        var blockedJobCount = 0;
         using var connection = _repository.Archive.OpenConnection();
         using var transaction = connection.BeginTransaction();
         using (var source = connection.CreateCommand())
@@ -44,6 +45,15 @@ public sealed class ArchiveWithdrawalService
             }
         }
 
+        using (var jobs = connection.CreateCommand())
+        {
+            jobs.Transaction = transaction;
+            jobs.CommandText = "UPDATE conversation_jobs SET status = 'Failed', next_attempt_at = NULL, last_error = 'Source withdrawn from future cloud processing.', updated_at = $updated WHERE source_id = $source AND status IN ('Pending', 'Failed')";
+            jobs.Parameters.AddWithValue("$source", sourceId);
+            jobs.Parameters.AddWithValue("$updated", timestamp.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+            blockedJobCount = jobs.ExecuteNonQuery();
+        }
+
         using (var annotation = connection.CreateCommand())
         {
             annotation.Transaction = transaction;
@@ -57,7 +67,7 @@ public sealed class ArchiveWithdrawalService
         }
 
         transaction.Commit();
-        return new ArchiveWithdrawalResult(sourceId, actorId, changed, annotationId, timestamp);
+        return new ArchiveWithdrawalResult(sourceId, actorId, changed, annotationId, timestamp, blockedJobCount);
     }
 
     private void DemandAuthorization(string actorId)
