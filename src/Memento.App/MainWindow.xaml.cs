@@ -54,7 +54,7 @@ public sealed partial class MainWindow : Window
     {
         UpdateRecordControl();
         if (_session is not null && ConsentCheckBox.IsChecked != true)
-            _repository.AddConsent(_session.SessionId, ConsentScope.LocalCapture, PrivacyMode.LocalCaptureOnly, false, "privacy-1");
+            _repository.AddConsent(_session.SessionId, ConsentScope.LocalCapture, _session.PrivacyMode, false, "privacy-1");
     }
 
     private void RecordingEnabledChanged(object sender, RoutedEventArgs e)
