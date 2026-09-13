@@ -90,7 +90,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - `dotnet test Memento.slnx --configuration Release --no-restore` passed 5/5 tests.
 - `dotnet list tests/Memento.Core.Tests/Memento.Core.Tests.csproj package --vulnerable --include-transitive` reported no vulnerable packages after the native SQLite provider pin.
 - The initial framework-dependent launch failed with a Windows “This application could not be started” window. After enabling self-contained Windows App SDK deployment, a direct launch produced a `MEMENTO` main window title and created the local database. Native-window visual/manual verification remains unavailable, so M01 is recorded as BLOCKED rather than PASS. Full details: [evidence/M01.md](evidence/M01.md).
-- Implementation commit: `0cbf9fa` (`feat: establish M01 local storage foundation`); this is not a passing M01 checkpoint.
+- Implementation commit: `6419f48` (`feat: establish M01 local storage foundation`); this is not a passing M01 checkpoint.
 
 ## M02 implementation evidence — 2026-09-13
 

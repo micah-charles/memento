@@ -39,7 +39,7 @@ Positive: repeated Evidence can support one durable Claim without duplication; c
 
 Negative: there are more IDs and relationships to display; claim aggregation needs cautious identity/meaning rules; a future admin UI must explain authority and temporal labels clearly.
 
-M01 implementation impact is minimal. Implementation has not started, so the change affects the planned schema boundary and migration design, not an existing runtime. M01 remains a local WinUI + SQLite shell with session/turn/consent and a fake media reference; it does not start cloud processing, real capture, or extraction.
+The implementation now preserves this boundary in the runtime: local Sources, transcript revisions, Evidence, Memory Claims, Response Episodes, and annotations remain separate concepts. The M01–M13 foundation adds only candidate and provenance paths; it does not promote AI inference to a reviewed claim automatically.
 
 ## Revisit conditions
 

@@ -96,4 +96,4 @@
 
 ## Next action
 
-Run the built app on target Windows hardware with native GUI observation and a real microphone, then verify start/stop, permission failure, recovery after interruption, and the local Source record. After that, re-evaluate the M02 gate before implementing cloud voice.
+Run the built app on target Windows hardware with native GUI observation and a real microphone, then verify start/stop, permission failure, recovery after interruption, the local Source record, live provider choice, admin authentication, and export/restore. Keep the current partial/automated status until those gates have real evidence; M14 pilot work should begin only after supervised review.
