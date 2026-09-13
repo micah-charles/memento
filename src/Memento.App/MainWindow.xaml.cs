@@ -708,7 +708,7 @@ public sealed partial class MainWindow : Window
         ProcessButton.IsEnabled = !_processing && _sourcePlaybackCancellation is null && _voiceConversation is not null && _capture?.State != AudioCaptureState.Capturing && _lastSource?.FilePath is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) && _session?.EndedAt is not null && _session.PrivacyMode != PrivacyMode.LocalCaptureOnly && CloudConsentCheckBox.IsChecked == true;
         PlaySpeechButton.IsEnabled = !_processing && _sourcePlaybackCancellation is null && _latestSpeechAsset is not null && _speechPlayback is not null;
         var adminIdle = !_processing && _capture?.State != AudioCaptureState.Capturing && _sourcePlaybackCancellation is null;
-        SearchCurrentInformationButton.IsEnabled = !_processing && _currentInfoCancellation is null && _currentInformation is not null;
+        SearchCurrentInformationButton.IsEnabled = !_processing && _currentInfoCancellation is null && _sourcePlaybackCancellation is null && _capture?.State != AudioCaptureState.Capturing && _currentInformation is not null;
         AdminReviewButton.IsEnabled = _adminReview is not null && _deletion is not null;
         DeleteLatestSourceButton.IsEnabled = adminIdle && _deletion is not null && _lastSource is not null;
         WithdrawLatestSourceButton.IsEnabled = adminIdle && _withdrawal is not null && _lastSource is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase);
