@@ -52,11 +52,13 @@ public sealed record LanguageValidationResult(
     bool CodeSwitchPreserved,
     bool UncertaintyPreserved,
     long LatencyMs,
-    string? FailureReason);
+    string? FailureReason,
+    bool CorrectionRequired = false);
 
 public sealed record LanguageValidationReport(IReadOnlyList<LanguageValidationResult> Results)
 {
     public int Count(ValidationDisposition disposition) => Results.Count(result => result.Disposition == disposition);
+    public int CorrectionRequiredCount => Results.Count(result => result.CorrectionRequired);
 }
 
 public static partial class LanguageValidationHarness
@@ -97,7 +99,8 @@ public static partial class LanguageValidationHarness
             failure = "Transcript differs from the synthetic expected wording.";
         }
 
-        return new LanguageValidationResult(testCase.CaseId, testCase.Category, disposition, similarity, entityAccuracy, codeSwitch, uncertainty, observation.LatencyMs, failure);
+        var correctionRequired = disposition is ValidationDisposition.Weak or ValidationDisposition.AcceptableWithClarification;
+        return new LanguageValidationResult(testCase.CaseId, testCase.Category, disposition, similarity, entityAccuracy, codeSwitch, uncertainty, observation.LatencyMs, failure, correctionRequired);
     }
 
     public static LanguageValidationReport Evaluate(IEnumerable<(LanguageValidationCase Case, LanguageValidationObservation Observation)> samples)

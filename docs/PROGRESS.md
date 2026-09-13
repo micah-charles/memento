@@ -75,6 +75,7 @@
 
 - Added a reproducible language-validation harness with explicit Hong Kong Cantonese, colloquial Cantonese, Mandarin, mixed-language, names, places, dates, numbers, hesitations, repetitions, uncertainty, and product-name categories.
 - The harness reports transcript similarity, entity/name accuracy, code-switch preservation, uncertainty preservation, latency, and a case-level disposition (`PASS`, `ACCEPTABLE_WITH_CLARIFICATION`, `WEAK`, `FAIL`, or `NOT_TESTED`). Name/entity accuracy is measured separately because a fluent sentence with a wrong person name is unsafe.
+- Each result now exposes a machine-readable `CorrectionRequired` flag, and reports count cases that need participant clarification instead of inferring it from display text.
 - Fixtures are synthetic and contain no family recordings or private transcripts.
 - M04 is **PARTIAL/BLOCKED**: 18 deterministic tests pass cumulatively, but no real provider corpus or credentialed Cantonese measurement has been run. See [M04 evidence](evidence/M04.md).
 

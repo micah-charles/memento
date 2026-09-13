@@ -248,6 +248,7 @@ public sealed class PersistenceAndMemoryTests
         using var archive = fixture.CreateArchive();
         var repository = new ArchiveRepository(archive);
         var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
         var source = repository.AddSource(fixture.Source(session.SessionId, "source-memory"));
         var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-memory", source.SourceId, null, 1, "initial", "我鍾意食魚蛋", 0.93, null, DateTimeOffset.UtcNow));
         var result = new MemoryExtractionService(repository, new DeterministicMemoryExtractionProvider()).ExtractAndPersist(session, source, revision);
@@ -267,6 +268,7 @@ public sealed class PersistenceAndMemoryTests
         using var archive = fixture.CreateArchive();
         var repository = new ArchiveRepository(archive);
         var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
         var source = repository.AddSource(fixture.Source(session.SessionId, "source-unknown-entity"));
         var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-unknown-entity", source.SourceId, null, 1, "initial", "我識阿貞", 0.93, null, DateTimeOffset.UtcNow));
 

@@ -55,8 +55,14 @@ public sealed class MemoryExtractionService
     {
         if (revision.SourceId != source.SourceId) throw new InvalidOperationException("Transcript revision and Source do not match.");
         if (source.SessionId != session.SessionId) throw new InvalidOperationException("Source and session do not match.");
+        if (session.PrivacyMode == PrivacyMode.LocalCaptureOnly || !_repository.HasGrantedConsent(session.SessionId, ConsentScope.CloudTranscription))
+            throw new CloudNotPermittedException();
         EnsureSourceAvailable(source);
-        return MemoryExtractionPersistence.Persist(_repository, _provider.Provider, _provider.Model, session, source, revision, _provider.Extract(revision));
+        var candidates = _provider.Extract(revision);
+        if (!_repository.HasGrantedConsent(session.SessionId, ConsentScope.CloudTranscription))
+            throw new CloudNotPermittedException();
+        EnsureSourceAvailable(_repository.GetSource(source.SourceId) ?? throw new InvalidDataException("The extraction Source was removed while the provider was running."));
+        return MemoryExtractionPersistence.Persist(_repository, _provider.Provider, _provider.Model, session, source, revision, candidates);
     }
 
     private void EnsureSourceAvailable(SourceMetadata source)

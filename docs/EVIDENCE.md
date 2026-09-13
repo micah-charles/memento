@@ -119,6 +119,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - Metrics include transcript similarity, entity accuracy, code-switch preservation, uncertainty preservation, and latency. Case classifications deliberately keep weak entity recognition separate from ordinary wording variance.
 - `dotnet test tests/Memento.Core.Tests/Memento.Core.Tests.csproj --configuration Release` passed **18/18** after M04 additions.
 - No real family data or real provider corpus was used. Gate decision: **PARTIAL/BLOCKED** pending empirical provider measurement.
+- The validation result now records and aggregates whether participant correction is required; the name-mismatch and report tests cover this metric.
 
 ## M05 implementation evidence — 2026-09-13
 

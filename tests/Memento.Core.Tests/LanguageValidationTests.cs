@@ -23,6 +23,7 @@ public sealed class LanguageValidationTests
 
         Assert.Equal(ValidationDisposition.Weak, result.Disposition);
         Assert.Equal(0d, result.EntityAccuracy);
+        Assert.True(result.CorrectionRequired);
     }
 
     [Fact]
@@ -51,6 +52,7 @@ public sealed class LanguageValidationTests
         Assert.Equal(2, report.Results.Count);
         Assert.Equal(1, report.Count(ValidationDisposition.Pass));
         Assert.Equal(1, report.Count(ValidationDisposition.AcceptableWithClarification));
+        Assert.Equal(1, report.CorrectionRequiredCount);
         Assert.Equal(120, report.Results[1].LatencyMs);
     }
 }
