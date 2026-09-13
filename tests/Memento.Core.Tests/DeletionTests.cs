@@ -104,6 +104,26 @@ public sealed class DeletionTests
     }
 
     [Fact]
+    public void Source_deletion_retains_media_still_referenced_by_another_record()
+    {
+        using var fixture = new DeletionFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-shared-delete"));
+        var remaining = repository.AddSource(fixture.Source(session.SessionId, "source-shared-remaining"));
+
+        var result = new ArchiveDeletionService(repository, new FixedTestAdminAuthorizer("admin-1"))
+            .DeleteSource("admin-1", source.SourceId, "remove one duplicate reference");
+
+        Assert.False(result.MediaRemoved);
+        Assert.Contains(result.Findings, finding => finding.Contains("another archive record", StringComparison.Ordinal));
+        Assert.Null(repository.GetSource(source.SourceId));
+        Assert.NotNull(repository.GetSource(remaining.SourceId));
+        Assert.True(File.Exists(fixture.SourcePath));
+    }
+
+    [Fact]
     public void Session_level_source_deletion_retains_ambiguous_session_assets_with_finding()
     {
         using var fixture = new DeletionFixture();

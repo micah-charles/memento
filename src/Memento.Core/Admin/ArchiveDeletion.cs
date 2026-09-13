@@ -128,9 +128,16 @@ public sealed class ArchiveDeletionService
         }
 
         var mediaRemoved = true;
+        using var remainingReferences = _repository.Archive.OpenConnection();
         foreach (var path in mediaPaths)
         {
             if (!File.Exists(path)) continue;
+            if (IsMediaPathReferenced(remainingReferences, path))
+            {
+                mediaRemoved = false;
+                findings.Add($"Media asset '{Path.GetFileName(path)}' was retained because another archive record still references the same path.");
+                continue;
+            }
             try
             {
                 File.Delete(path);
@@ -157,6 +164,20 @@ public sealed class ArchiveDeletionService
         }
 
         return new ArchiveDeletionResult(tombstoneId, sourceId, counts, mediaRemoved, findings);
+    }
+
+    private static bool IsMediaPathReferenced(SqliteConnection connection, string path)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT EXISTS(
+                SELECT 1 FROM sources WHERE file_path IS NOT NULL AND lower(file_path) = lower($path)
+                UNION ALL
+                SELECT 1 FROM derived_speech_assets WHERE file_path IS NOT NULL AND lower(file_path) = lower($path)
+            )
+            """;
+        command.Parameters.AddWithValue("$path", path);
+        return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) == 1;
     }
 
     private void DemandAuthorization(string actorId)
