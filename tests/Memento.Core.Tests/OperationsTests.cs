@@ -79,6 +79,10 @@ public sealed class OperationsTests
         {
             writer.Append(new byte[320]);
         }
+        var derivedPath = Path.Combine(fixture.DirectoryPath, "derived.wav");
+        var derivedBytes = new byte[] { 1, 2, 3 };
+        File.WriteAllBytes(derivedPath, derivedBytes);
+        repository.AddDerivedSpeechAsset(new DerivedSpeechAsset("derived-health", session.SessionId, null, derivedPath, "wav", derivedBytes.LongLength, Convert.ToHexString(SHA256.HashData(derivedBytes)).ToLowerInvariant(), "deterministic-test", "fake-tts-v1", "test", "request", DateTimeOffset.UtcNow));
 
         var report = ArchiveHealthCheck.Run(archive, fixture.AudioRoot);
 
@@ -86,7 +90,12 @@ public sealed class OperationsTests
         Assert.Equal(13, report.SchemaVersion);
         Assert.Equal(1, report.RecoverableAudioCount);
         Assert.Equal(1, report.PendingConversationJobs);
+        Assert.Equal(0, report.InvalidDerivedSpeechAssetCount);
         Assert.NotEmpty(report.Findings);
+
+        File.AppendAllBytes(derivedPath, [99]);
+        var tampered = ArchiveHealthCheck.Run(archive, fixture.AudioRoot);
+        Assert.Equal(1, tampered.InvalidDerivedSpeechAssetCount);
     }
 
     private sealed class OperationsFixture : IDisposable
