@@ -213,3 +213,22 @@ public sealed record EvidenceEntityLink(
     string PersonEntityId,
     string Role,
     DateTimeOffset CreatedAt);
+
+public sealed record ExternalInformationSource(string Title, string Url, string Snippet);
+
+public sealed record ExternalInformationResult(
+    string Query,
+    string Provider,
+    DateTimeOffset RetrievedAt,
+    IReadOnlyList<ExternalInformationSource> Sources,
+    bool IsUntrustedExternalInformation);
+
+public sealed record ReviewAnnotation(
+    string AnnotationId,
+    string TargetType,
+    string TargetId,
+    string ActorId,
+    string AnnotationType,
+    string Body,
+    string? Assessment,
+    DateTimeOffset CreatedAt);

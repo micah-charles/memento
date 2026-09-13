@@ -314,6 +314,44 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return link;
     }
 
+    public IReadOnlyList<MemoryClaim> ListCandidateClaims()
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT memory_claim_id, statement, subject_person_id, predicate, object, status, created_at FROM memory_claims WHERE status = 'Candidate' ORDER BY created_at";
+        using var reader = command.ExecuteReader();
+        var claims = new List<MemoryClaim>();
+        while (reader.Read()) claims.Add(new MemoryClaim(reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetString(3), reader.GetString(4), Enum.Parse<ClaimStatus>(reader.GetString(5)), DateTimeOffset.Parse(reader.GetString(6), null, System.Globalization.DateTimeStyles.RoundtripKind)));
+        return claims;
+    }
+
+    public void UpdateMemoryClaimStatus(string claimId, ClaimStatus status)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE memory_claims SET status = $status WHERE memory_claim_id = $id";
+        command.Parameters.AddWithValue("$status", status.ToString());
+        command.Parameters.AddWithValue("$id", claimId);
+        if (command.ExecuteNonQuery() != 1) throw new InvalidOperationException("Memory claim was not found.");
+    }
+
+    public ReviewAnnotation AddReviewAnnotation(ReviewAnnotation annotation)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO review_annotations(annotation_id, target_type, target_id, actor_id, annotation_type, body, assessment, created_at) VALUES ($id, $type, $target, $actor, $annotation, $body, $assessment, $created)";
+        command.Parameters.AddWithValue("$id", annotation.AnnotationId);
+        command.Parameters.AddWithValue("$type", annotation.TargetType);
+        command.Parameters.AddWithValue("$target", annotation.TargetId);
+        command.Parameters.AddWithValue("$actor", annotation.ActorId);
+        command.Parameters.AddWithValue("$annotation", annotation.AnnotationType);
+        command.Parameters.AddWithValue("$body", annotation.Body);
+        command.Parameters.AddWithValue("$assessment", (object?)annotation.Assessment ?? DBNull.Value);
+        command.Parameters.AddWithValue("$created", Format(annotation.CreatedAt));
+        command.ExecuteNonQuery();
+        return annotation;
+    }
+
     private static string NewId() => Guid.NewGuid().ToString("N");
     private static string Format(DateTimeOffset timestamp) => timestamp.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture);
 }

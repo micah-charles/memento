@@ -323,6 +323,19 @@ internal static class Migrations
             );
             CREATE INDEX ix_entity_aliases_alias ON entity_aliases(alias);
             """))
+        ,new(9, (connection, transaction) => SqliteArchive.Execute(connection, transaction, """
+            CREATE TABLE review_annotations (
+                annotation_id TEXT PRIMARY KEY,
+                target_type TEXT NOT NULL,
+                target_id TEXT NOT NULL,
+                actor_id TEXT NOT NULL,
+                annotation_type TEXT NOT NULL CHECK (annotation_type IN ('admin_annotation', 'family_assessment', 'speaker_confirmation', 'withdrawal')),
+                body TEXT NOT NULL,
+                assessment TEXT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX ix_review_annotations_target ON review_annotations(target_type, target_id, created_at);
+            """))
     ];
 
     internal sealed record Migration(int Version, Action<SqliteConnection, SqliteTransaction> Apply);

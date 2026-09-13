@@ -134,3 +134,12 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - `EntityResolutionService` adds people, speaker-confirmed aliases, and explicit Evidence links. Existing transcript and audio records remain unchanged.
 - `dotnet test tests/Memento.Core.Tests/Memento.Core.Tests.csproj --configuration Release` passed **27/27** after M06–M09 additions; `dotnet build Memento.slnx --configuration Release --no-restore` passed with 0 warnings and 0 errors.
 - Gate status: **IMPLEMENTED / AUTOMATED TESTED**, with live worker scheduling, real provider extraction, and admin UI still unverified.
+
+## M10–M13 implementation evidence — 2026-09-13
+
+- Added the `ISearchProvider`/`CurrentInformationService` boundary. Results include retrieval time, source URLs, and `IsUntrustedExternalInformation=true`; no service method writes personal memory.
+- Added `FamilyAdminReviewService` with an `IAdminAuthorizer` boundary, candidate listing, attributed review annotations, and explicit candidate status transitions. The test authorizer is fixed and clearly a fixture; it is not production identity management.
+- Added `ArchiveExporter` JSONL/media/snapshot export with SHA-256 manifest entries and `ArchiveBackupProtector` AES-GCM password backup/restore.
+- Added `ArchiveHealthCheck` for SQLite integrity, schema version, recoverable audio, and due conversation jobs.
+- `dotnet test tests/Memento.Core.Tests/Memento.Core.Tests.csproj --configuration Release` passed **31/31**; full solution build passed with 0 warnings and 0 errors; the NuGet vulnerability scan reported no vulnerable packages.
+- Gate status: **IMPLEMENTED / AUTOMATED TESTED**. Live search, real OS authentication, target-machine restore, and destructive reliability testing remain unverified.

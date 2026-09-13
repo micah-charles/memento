@@ -1,7 +1,7 @@
 # MEMENTO progress
 
-**Current milestone:** M09 — Vocabulary and entities
-**Status:** IMPLEMENTED / AUTOMATED TESTED; live provider, hardware, and supervised UX gates remain pending
+**Current milestone:** M13 — Reliability and security foundations
+**Status:** IMPLEMENTED / AUTOMATED TESTED; live provider, hardware, authenticated admin UX, and pilot gates remain pending
 **Last updated:** 2026-09-13
 
 ## Completed in M00
@@ -81,6 +81,18 @@
 - M08 added `ProvenanceGraph.Validate`, which checks Source → transcript revision → Evidence → Claim links, allowed relationships, and blocks an unconfirmed AI inference from silently becoming a reviewed claim.
 - M09 added person entities, speaker-confirmed aliases, and Evidence-to-entity links. Alias history is additive and does not rewrite transcript or Source records.
 - The cumulative suite now passes **27/27** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while real offline restart workers, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
+
+## M10–M13 implementation attempt — 2026-09-13
+
+- M10 added an `ISearchProvider` boundary and an external-information result that carries provider, retrieval time, source URLs, and an explicit untrusted flag. Search results have no archive mutation path.
+- M11 added an authenticated-admin boundary, candidate claim review listing, attributed annotations, and explicit family assessment/admin rejection transitions. The repository does not treat family support as speaker confirmation.
+- M12 added self-contained JSONL table exports, an SQLite snapshot, optional media copies, per-file SHA-256 manifest entries, and password-based AES-GCM backup/restore.
+- M13 added an archive health check for SQLite integrity, schema version, recoverable audio, and due conversation jobs; security scans and package vulnerability checks remain clean.
+- The cumulative suite now passes **31/31** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, OS-backed admin authentication, encrypted backup restore on target hardware, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
+
+## M14 status
+
+- Real-user pilot work has not started. The app still requires supervised consent, microphone, provider, admin, export/restore, and incident/rollback review before pilot use.
 
 ## Next action
 

@@ -24,6 +24,9 @@ These are deliberately visible. They are not reasons to invent a confident answe
 | K-016 | M06 stores retryable jobs but does not yet include a background worker, power-loss restart test, or backoff policy beyond persisted timestamps. | Medium: offline sessions need reliable eventual processing. | Add an idempotent worker and verify restart/retry behaviour on target Windows hardware. |
 | K-017 | M07 extraction is a deterministic contract fixture; no live model quality or schema-validation corpus has been run. | High: candidate claims must remain reviewable and useful. | Add a credentialed provider adapter and redacted evaluation corpus before promotion workflows. |
 | K-018 | M09 entity resolution currently records explicit entities and aliases but does not perform fuzzy matching or multi-speaker diarization. | Medium: similar names and guests need stronger identity handling. | Keep automatic matching conservative and design supervised resolution in M11. |
+| K-019 | M10 uses a deterministic search provider only; no live allowlisted search transport or current-information source verification is configured. | Medium: external answers need fresh sources without memory mutation. | Add a reviewed search adapter and test source freshness/timeout handling. |
+| K-020 | M11's authorizer is an interface plus fixed test implementation; Windows account/credential-backed admin authentication and UI review are not implemented. | High: family review and export are privileged operations. | Integrate OS-backed authentication and supervised Family Admin UX. |
+| K-021 | M12 backup encryption is implemented with password-derived AES-GCM, but key recovery, rotation, restore of media, and target-machine power-loss testing remain open. | High: an unrecoverable password or partial backup can harm a decades-long archive. | Define family-owned key recovery and run restore/power-loss drills before pilot. |
 
 ## M00 limitations
 
