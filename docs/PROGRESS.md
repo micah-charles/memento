@@ -1,7 +1,7 @@
 # MEMENTO progress
 
-**Current milestone:** M13 — Reliability and security foundations
-**Status:** IMPLEMENTED / AUTOMATED TESTED; live provider, hardware, authenticated admin UX, and pilot gates remain pending
+**Current milestone:** M14 — Portable deployment and supervised pilot readiness
+**Status:** PARTIAL / AUTOMATED TESTED; live provider, hardware, authenticated admin UX, target restore, and pilot gates remain pending
 **Last updated:** 2026-09-13
 
 ## Completed in M00
