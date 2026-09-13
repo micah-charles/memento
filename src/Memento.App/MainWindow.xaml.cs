@@ -134,7 +134,7 @@ public sealed partial class MainWindow : Window
 
     private async void ProcessButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_voiceConversation is null || _lastSource?.FilePath is null || _session is null || _session.PrivacyMode == PrivacyMode.LocalCaptureOnly || CloudConsentCheckBox.IsChecked != true || _processing)
+        if (_voiceConversation is null || _lastSource?.FilePath is null || _session is null || _session.EndedAt is null || _capture?.State == AudioCaptureState.Capturing || _session.PrivacyMode == PrivacyMode.LocalCaptureOnly || CloudConsentCheckBox.IsChecked != true || _processing)
             return;
 
         _processing = true;
@@ -272,7 +272,7 @@ public sealed partial class MainWindow : Window
     private void UpdateRecordControl()
     {
         RecordButton.IsEnabled = _recordingEnabled && ConsentCheckBox.IsChecked == true && ConsentCheckBox.IsEnabled && !_processing;
-        ProcessButton.IsEnabled = !_processing && _voiceConversation is not null && _lastSource?.FilePath is not null && _session?.PrivacyMode != PrivacyMode.LocalCaptureOnly && CloudConsentCheckBox.IsChecked == true;
+        ProcessButton.IsEnabled = !_processing && _voiceConversation is not null && _capture?.State != AudioCaptureState.Capturing && _lastSource?.FilePath is not null && _session?.EndedAt is not null && _session.PrivacyMode != PrivacyMode.LocalCaptureOnly && CloudConsentCheckBox.IsChecked == true;
         PlaySpeechButton.IsEnabled = !_processing && _latestSpeechAsset is not null && _speechPlayback is not null;
     }
 }
