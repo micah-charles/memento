@@ -94,7 +94,7 @@
 - Added a Windows-only `WindowsAdministratorAuthorizer` that binds the actor ID to the current account and requires the Windows Administrators role; the fixed authorizer remains test-only and no automatic family allowlist is inferred. The WinUI shell now exposes a simple candidate review dialog with attributed support/rejection actions.
 - M12 added self-contained JSONL table exports, an SQLite snapshot, optional collision-safe media copies, per-file SHA-256 manifest entries, and password-based AES-GCM backup/restore. Repeated exports get unique directories and do not overwrite an earlier snapshot.
 - M13 added an archive health check for SQLite integrity, schema version, recoverable audio, due conversation jobs, and tampered/missing finalized source or derived speech assets; security scans and package vulnerability checks remain clean.
-- The WinUI shell now exposes the M12/M13 health-check, media export, and encrypted-backup operations with plain Cantonese status messages; these actions still require supervised native UI verification.
+- The WinUI shell now exposes the M12/M13 health-check, media export, encrypted-backup, and disposable restore/verification operations with plain Cantonese status messages; these actions still require supervised native UI verification.
 - The cumulative suite now passes **58/58** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
 
 ## M14 status

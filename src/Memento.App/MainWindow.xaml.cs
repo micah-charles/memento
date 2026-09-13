@@ -321,6 +321,54 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async void RestoreButton_Click(object sender, RoutedEventArgs e)
+    {
+        var backupPath = new TextBox { PlaceholderText = "輸入 .memento 備份檔案路徑", MinWidth = 360 };
+        var passwordBox = new PasswordBox { PlaceholderText = "輸入備份密碼", MinWidth = 360 };
+        var panel = new StackPanel { Spacing = 12 };
+        panel.Children.Add(new TextBlock { Text = "備份檔案" });
+        panel.Children.Add(backupPath);
+        panel.Children.Add(new TextBlock { Text = "備份密碼" });
+        panel.Children.Add(passwordBox);
+        var dialog = new ContentDialog
+        {
+            XamlRoot = RootGrid.XamlRoot,
+            Title = "驗證及還原加密備份",
+            Content = panel,
+            PrimaryButtonText = "還原到新資料夾",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            StatusText.Text = "已取消備份還原。";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(backupPath.Text) || string.IsNullOrWhiteSpace(passwordBox.Password))
+        {
+            StatusText.Text = "請輸入備份檔案路徑及密碼。";
+            return;
+        }
+
+        var restoreRoot = Path.Combine(_dataRoot, "restores", "memento-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var result = ArchiveBackupProtector.DecryptDirectory(backupPath.Text.Trim(), restoreRoot, passwordBox.Password);
+            StatusText.Text = result.IntegrityOk
+                ? $"備份已還原並通過完整性驗證：{restoreRoot}"
+                : $"備份已還原，但完整性驗證發現問題：{string.Join("；", result.Findings)}";
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "未能還原備份；目前 archive 沒有被覆蓋。";
+        }
+        finally
+        {
+            passwordBox.Password = string.Empty;
+        }
+    }
+
     private async Task ShowAdminMessageAsync(string title, string message, string closeText)
     {
         var dialog = new ContentDialog
