@@ -96,6 +96,25 @@ public sealed class ClarificationTests
         Assert.True(ClarificationPolicy.Decide(new ClarificationCandidate("???", ClarificationEntityKind.None, 0.2, false, false)).ShouldAsk);
     }
 
+    [Fact]
+    public void Clarification_rejects_cross_session_or_unpersisted_initial_revision_before_writing()
+    {
+        using var fixture = new ClarificationFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var sourceSession = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var otherSession = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(sourceSession.SessionId, "source-ownership"));
+        var protocol = new ClarificationProtocol(repository);
+        var persisted = protocol.AddInitialRevision(source.SourceId, null, "阿珍", 0.4);
+
+        Assert.Throws<InvalidOperationException>(() => protocol.RecordOutcome(otherSession, persisted, ClarificationEntityKind.PersonName, "係咪阿珍？", "唔係，係阿貞。", ClarificationOutcome.SpeakerConfirmed, "阿貞"));
+
+        var fabricated = persisted with { TranscriptRevisionId = "missing-revision" };
+        Assert.Throws<InvalidOperationException>(() => protocol.RecordOutcome(sourceSession, fabricated, ClarificationEntityKind.PersonName, "係咪阿珍？", "唔係，係阿貞。", ClarificationOutcome.SpeakerConfirmed, "阿貞"));
+        Assert.Single(repository.ListTranscriptRevisions(source.SourceId));
+    }
+
     private sealed class ClarificationFixture : IDisposable
     {
         private readonly string _directory = Path.Combine(Path.GetTempPath(), "memento-clarification-tests", Guid.NewGuid().ToString("N"));

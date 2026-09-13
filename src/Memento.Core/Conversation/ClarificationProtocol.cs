@@ -74,6 +74,17 @@ public sealed class ClarificationProtocol
         if (outcome is ClarificationOutcome.SpeakerConfirmed or ClarificationOutcome.CorrectedPreviousCorrection && string.IsNullOrWhiteSpace(correctedText))
             throw new ArgumentException("A speaker-confirmed outcome requires corrected wording.", nameof(correctedText));
 
+        var source = _repository.GetSource(initialRevision.SourceId)
+            ?? throw new InvalidOperationException("The clarification Source was not found.");
+        if (source.SessionId is not null && !string.Equals(source.SessionId, session.SessionId, StringComparison.Ordinal))
+            throw new InvalidOperationException("The clarification Source does not belong to the supplied session.");
+        if (initialRevision.TurnId is not null && source.TurnId is not null && !string.Equals(initialRevision.TurnId, source.TurnId, StringComparison.Ordinal))
+            throw new InvalidOperationException("The clarification transcript turn does not match the Source turn.");
+        var persistedInitial = _repository.ListTranscriptRevisions(initialRevision.SourceId)
+            .FirstOrDefault(revision => string.Equals(revision.TranscriptRevisionId, initialRevision.TranscriptRevisionId, StringComparison.Ordinal));
+        if (persistedInitial is null)
+            throw new InvalidOperationException("The initial transcript revision was not found for the clarification Source.");
+
         var now = occurredAt ?? DateTimeOffset.UtcNow;
         TranscriptRevision? corrected = null;
         if (!string.IsNullOrWhiteSpace(correctedText))
