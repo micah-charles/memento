@@ -385,6 +385,19 @@ internal static class Migrations
             ALTER TABLE conversation_jobs ADD COLUMN transcript_revision_id TEXT NULL REFERENCES transcript_revisions(transcript_revision_id) ON DELETE RESTRICT;
             CREATE INDEX ix_conversation_jobs_revision ON conversation_jobs(source_id, job_type, transcript_revision_id);
             """))
+        ,new(15, (connection, transaction) => SqliteArchive.Execute(connection, transaction, """
+            CREATE TABLE deletion_tombstones (
+                deletion_tombstone_id TEXT PRIMARY KEY,
+                target_type TEXT NOT NULL,
+                target_id TEXT NOT NULL,
+                actor_id TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                removed_counts_json TEXT NOT NULL,
+                media_removed INTEGER NOT NULL CHECK (media_removed IN (0, 1)),
+                occurred_at TEXT NOT NULL
+            );
+            CREATE INDEX ix_deletion_tombstones_target ON deletion_tombstones(target_type, target_id, occurred_at);
+            """))
     ];
 
     internal sealed record Migration(int Version, Action<SqliteConnection, SqliteTransaction> Apply);

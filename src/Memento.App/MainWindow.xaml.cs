@@ -19,6 +19,7 @@ public sealed partial class MainWindow : Window
     private readonly BoundedVoiceConversationService? _voiceConversation;
     private readonly ISpeechOutputPlayback? _speechPlayback;
     private readonly FamilyAdminReviewService? _adminReview;
+    private readonly ArchiveDeletionService? _deletion;
     private readonly string? _adminActorId;
     private readonly ConversationJobWorker? _retryWorker;
     private readonly Func<bool>? _credentialAvailable;
@@ -31,7 +32,7 @@ public sealed partial class MainWindow : Window
     private CancellationTokenSource? _retryCancellation;
     private Task? _retryTask;
 
-    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null, ConversationJobWorker? retryWorker = null, Func<bool>? credentialAvailable = null, string? dataRoot = null)
+    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null, ConversationJobWorker? retryWorker = null, Func<bool>? credentialAvailable = null, string? dataRoot = null, ArchiveDeletionService? deletion = null)
     {
         _repository = repository;
         _audioRoot = audioRoot;
@@ -41,6 +42,7 @@ public sealed partial class MainWindow : Window
         _voiceConversation = voiceConversation;
         _speechPlayback = speechPlayback;
         _adminReview = adminReview;
+        _deletion = deletion;
         _adminActorId = adminActorId;
         _retryWorker = retryWorker;
         _credentialAvailable = credentialAvailable;
@@ -255,6 +257,44 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async void DeleteLatestSourceButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_deletion is null || string.IsNullOrWhiteSpace(_adminActorId) || _lastSource is null || _capture?.State == AudioCaptureState.Capturing || _processing)
+            return;
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = RootGrid.XamlRoot,
+            Title = "刪除最近本機錄音？",
+            Content = new TextBlock
+            {
+                Text = "這會刪除最近錄音及其 transcript、候選記憶、derived audio 和相關 provider metadata。只保留最小刪除 audit tombstone，動作不能復原。",
+                TextWrapping = TextWrapping.Wrap
+            },
+            PrimaryButtonText = "確認刪除",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Close
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+        try
+        {
+            var sourceId = _lastSource.SourceId;
+            var result = _deletion.DeleteSource(_adminActorId, sourceId, "participant requested deletion");
+            _lastSource = null;
+            _session = null;
+            _latestSpeechAsset = _repository.GetLatestDerivedSpeechAsset();
+            StatusText.Text = result.MediaRemoved
+                ? "最近錄音及相關資料已刪除；已保留最小 audit tombstone。"
+                : "資料已刪除，但有 media 檔案未能移除，請交由管理員檢查。";
+            UpdateRecordControl();
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "未能刪除最近錄音；原有資料仍然保留。";
+        }
+    }
+
     private void HealthCheckButton_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -410,6 +450,7 @@ public sealed partial class MainWindow : Window
         RecordButton.IsEnabled = _recordingEnabled && ConsentCheckBox.IsChecked == true && ConsentCheckBox.IsEnabled && !_processing;
         ProcessButton.IsEnabled = !_processing && _voiceConversation is not null && _capture?.State != AudioCaptureState.Capturing && _lastSource?.FilePath is not null && _session?.EndedAt is not null && _session.PrivacyMode != PrivacyMode.LocalCaptureOnly && CloudConsentCheckBox.IsChecked == true;
         PlaySpeechButton.IsEnabled = !_processing && _latestSpeechAsset is not null && _speechPlayback is not null;
+        DeleteLatestSourceButton.IsEnabled = !_processing && _deletion is not null && !string.IsNullOrWhiteSpace(_adminActorId) && _lastSource is not null && _capture?.State != AudioCaptureState.Capturing;
     }
 
     private void StartRetryWorkerIfAvailable()

@@ -9,7 +9,7 @@ public sealed record ArchiveExportResult(string ExportDirectory, string Manifest
 
 public static class ArchiveExporter
 {
-    private static readonly string[] Tables = ["sessions", "turns", "consent_events", "sources", "provider_interactions", "transcript_revisions", "clarification_events", "vocabulary_entries", "conversation_jobs", "evidence_records", "memory_claims", "evidence_claim_links", "person_entities", "entity_aliases", "evidence_entity_links", "review_annotations", "response_episodes", "derived_speech_assets"];
+    private static readonly string[] Tables = ["sessions", "turns", "consent_events", "sources", "provider_interactions", "transcript_revisions", "clarification_events", "vocabulary_entries", "conversation_jobs", "evidence_records", "memory_claims", "evidence_claim_links", "person_entities", "entity_aliases", "evidence_entity_links", "review_annotations", "response_episodes", "derived_speech_assets", "deletion_tombstones"];
 
     public static ArchiveExportResult Export(SqliteArchive archive, string destinationDirectory, bool includeMedia = false)
     {

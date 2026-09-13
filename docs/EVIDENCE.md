@@ -128,7 +128,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 
 ## M06–M09 implementation evidence — 2026-09-13
 
-- Added migrations 6–8 for retryable conversation jobs, separate Evidence/Memory Claim/link records, and person/entity/alias links; migration 14 links extraction jobs to the exact transcript revision they must process.
+- Added migrations 6–8 for retryable conversation jobs, separate Evidence/Memory Claim/link records, and person/entity/alias links; migration 14 links extraction jobs to the exact transcript revision they must process; migration 15 records authenticated deletion tombstones.
 - `ConversationSessionWriter` persists session/turn/source work and supports retry state transitions without deleting the local Source.
 - `MemoryExtractionService` writes candidate Evidence and candidate Claims separately, with an explicit supports/weakens/contradicts/clarifies/contextualises link. `ProvenanceGraph.Validate` rejects mismatched source chains and unconfirmed AI inference promotion.
 - `EntityResolutionService` adds people, speaker-confirmed aliases, and explicit Evidence links. Existing transcript and audio records remain unchanged.
@@ -143,6 +143,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - Export directories now use unique run IDs, and duplicate media basenames are preserved with collision-safe names instead of aborting an export.
 - Added `ArchiveHealthCheck` for SQLite integrity, schema version, recoverable audio, and due conversation jobs.
 - The WinUI shell now exposes explicit local health-check, media export, password-encrypted backup, and disposable restore/manifest-verification actions; backup snapshots are staged under a temporary directory and removed after encryption, while restore never overwrites the active archive.
-- `dotnet test tests/Memento.Core.Tests/Memento.Core.Tests.csproj --configuration Release` passed **58/58**; full solution build passed with 0 warnings and 0 errors; the NuGet vulnerability scan reported no vulnerable packages.
+- Family Admin now has an explicit confirmation flow for deleting the latest finalized Source and its dependent evidence chain; the service records a minimal tombstone and reports media-removal failures.
+- `dotnet test tests/Memento.Core.Tests/Memento.Core.Tests.csproj --configuration Release` passed **60/60**; full solution build passed with 0 warnings and 0 errors; the NuGet vulnerability scan reported no vulnerable packages.
 - Gate status: **IMPLEMENTED / AUTOMATED TESTED**. Live search, real OS authentication, target-machine restore, and destructive reliability testing remain unverified.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Publish-Memento.ps1` completed successfully and produced the ignored local bundle `artifacts/MEMENTO-win-x64.zip` (106,428,276 bytes at the time of verification). The bundle is self-contained and portable; it is not a signed installer.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Publish-Memento.ps1` completed successfully and produced the ignored local bundle `artifacts/MEMENTO-win-x64.zip` (106,434,277 bytes at the time of verification). The bundle is self-contained and portable; it is not a signed installer.
