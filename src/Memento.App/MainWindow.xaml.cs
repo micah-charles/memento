@@ -145,6 +145,10 @@ public sealed partial class MainWindow : Window
                     try { _session = _repository.EndSession(_session); } catch { }
                 }
                 EndActiveTurnSafely();
+                // Do not leave a failed new session paired with the previous
+                // Source; that mismatch could expose a confusing retry action.
+                _session = null;
+                _lastSource = null;
             }
             finally
             {
@@ -188,6 +192,8 @@ public sealed partial class MainWindow : Window
                 try { _session = _repository.EndSession(_session); } catch { }
             }
             EndActiveTurnSafely();
+            _session = null;
+            _lastSource = null;
             RecordButton.Content = "開始錄音";
             ConsentCheckBox.IsEnabled = true;
             CloudConsentCheckBox.IsEnabled = true;
@@ -715,6 +721,8 @@ public sealed partial class MainWindow : Window
                 try { _session = _repository.EndSession(_session); } catch { }
             }
             EndActiveTurnSafely();
+            _session = null;
+            _lastSource = null;
             StatusText.Text = "錄音中斷，已保留暫存檔；請檢查咪高風或 Windows 權限。";
             RecordButton.Content = "開始錄音";
             ConsentCheckBox.IsEnabled = true;

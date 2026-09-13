@@ -51,6 +51,7 @@
 - Capture writes a `.capture.tmp` file, flushes each append, validates the WAV, computes SHA-256, atomically renames the file, and only then registers finalized `SourceMetadata`.
 - Added a provider-neutral `IAudioInput` boundary and a Windows NAudio `WaveInEvent` adapter. The UI now requires an explicit local-recording checkbox and exposes large start/stop controls.
 - Capture failures now end the in-progress session in the WinUI shell while leaving the `.capture.tmp` recovery marker available for inspection.
+- If a new capture fails, the shell clears its active session/Source pairing so a previous recording cannot be accidentally processed with the failed session's identity.
 - If WAV finalization succeeds but SQLite Source registration fails, the finalized file is moved back to its `.capture.tmp` marker so restart recovery can surface intact audio instead of leaving an untracked orphan file.
 - The shell reloads the latest finalized local Source and Session after restart, so a consented normal session can be processed later without losing its local provenance.
 - Added deterministic tests for consent gating, normal finalization, checksum and metadata registration, recoverable partial files, and corrupt partial preservation. These tests use a fake input; physical microphone, permission, disconnect, disk-full, and crash tests remain unverified.
