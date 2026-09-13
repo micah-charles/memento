@@ -349,14 +349,14 @@ public static class ArchiveBackupProtector
         try
         {
             using var document = JsonDocument.Parse(File.ReadAllText(manifestPath));
-            if (!document.RootElement.TryGetProperty("files", out var files) || files.ValueKind != JsonValueKind.Array)
+            if (document.RootElement.ValueKind != JsonValueKind.Object || !document.RootElement.TryGetProperty("files", out var files) || files.ValueKind != JsonValueKind.Array)
                 return new ArchiveRestoreResult(false, ["Backup manifest has no files list."]);
 
             var root = Path.GetFullPath(restoreDirectory).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
             var listed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var file in files.EnumerateArray())
             {
-                if (file.ValueKind != JsonValueKind.Object || !file.TryGetProperty("path", out var pathElement) || !file.TryGetProperty("sha256", out var hashElement))
+                if (file.ValueKind != JsonValueKind.Object || !file.TryGetProperty("path", out var pathElement) || !file.TryGetProperty("sha256", out var hashElement) || pathElement.ValueKind != JsonValueKind.String || hashElement.ValueKind != JsonValueKind.String)
                 {
                     findings.Add("Backup manifest contains an invalid file entry.");
                     continue;

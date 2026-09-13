@@ -143,6 +143,24 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void Restore_reports_manifest_entries_with_non_string_fields()
+    {
+        using var fixture = new OperationsFixture();
+        var exportDirectory = Path.Combine(fixture.ExportRoot, "invalid-entry-export");
+        Directory.CreateDirectory(exportDirectory);
+        File.WriteAllBytes(Path.Combine(exportDirectory, "archive.sqlite"), [1, 2, 3]);
+        File.WriteAllText(Path.Combine(exportDirectory, "manifest.json"), "{\"schema_version\":16,\"files\":[{\"path\":123,\"sha256\":true}]}");
+        var backup = Path.Combine(fixture.ExportRoot, "invalid-entry-manifest.memento");
+        var restore = Path.Combine(fixture.ExportRoot, "invalid-entry-manifest-restore");
+
+        ArchiveBackupProtector.EncryptDirectory(exportDirectory, backup, "test-password");
+        var report = ArchiveBackupProtector.DecryptDirectory(backup, restore, "test-password");
+
+        Assert.False(report.IntegrityOk);
+        Assert.Contains(report.Findings, finding => finding.Contains("invalid file entry", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Health_check_reports_recoverable_audio_and_due_jobs()
     {
         using var fixture = new OperationsFixture();
