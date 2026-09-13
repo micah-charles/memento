@@ -37,6 +37,14 @@ public sealed class ArchiveSearchTests
             }
             Assert.True(search.Rebuild() >= 3);
             Assert.Contains(search.Search("魚蛋"), hit => hit.RecordId == revision.TranscriptRevisionId);
+            Assert.Equal(0, ArchiveHealthCheck.Run(archive, directory).InvalidSearchIndexCount);
+            using (var connection = archive.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "DELETE FROM memory_search";
+                command.ExecuteNonQuery();
+            }
+            Assert.Equal(3, ArchiveHealthCheck.Run(archive, directory).InvalidSearchIndexCount);
         }
         finally
         {

@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 
 namespace Memento.Core.Storage;
 
-public sealed record ArchiveHealthReport(bool IntegrityOk, int SchemaVersion, int RecoverableAudioCount, int PendingConversationJobs, IReadOnlyList<string> Findings, int InvalidDerivedSpeechAssetCount = 0, int InvalidSourceAssetCount = 0);
+public sealed record ArchiveHealthReport(bool IntegrityOk, int SchemaVersion, int RecoverableAudioCount, int PendingConversationJobs, IReadOnlyList<string> Findings, int InvalidDerivedSpeechAssetCount = 0, int InvalidSourceAssetCount = 0, int InvalidSearchIndexCount = 0);
 
 public static class ArchiveHealthCheck
 {
@@ -22,6 +22,21 @@ public static class ArchiveHealthCheck
             pending = Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
         }
         if (pending > 0) findings.Add($"{pending} conversation job(s) are due for processing.");
+        var invalidSearchIndex = 0;
+        using (var connection = archive.OpenConnection())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT (SELECT COUNT(*) FROM memory_search), (SELECT COUNT(*) FROM transcript_revisions) + (SELECT COUNT(*) FROM evidence_records) + (SELECT COUNT(*) FROM memory_claims)";
+            using var reader = command.ExecuteReader();
+            if (reader.Read())
+            {
+                var actual = reader.GetInt64(0);
+                var expected = reader.GetInt64(1);
+                if (actual != expected)
+                    invalidSearchIndex = checked((int)Math.Abs(actual - expected));
+            }
+        }
+        if (invalidSearchIndex > 0) findings.Add($"Search index is missing or has {invalidSearchIndex} unexpected row(s); run ArchiveSearchService.Rebuild().");
         var invalidSources = 0;
         var invalidDerived = 0;
         using (var connection = archive.OpenConnection())
@@ -58,7 +73,7 @@ public static class ArchiveHealthCheck
         }
 
         if (invalidDerived > 0) findings.Add($"{invalidDerived} derived speech asset(s) failed integrity verification.");
-        return new ArchiveHealthReport(integrity, archive.CurrentSchemaVersion, recoverable, pending, findings, invalidDerived, invalidSources);
+        return new ArchiveHealthReport(integrity, archive.CurrentSchemaVersion, recoverable, pending, findings, invalidDerived, invalidSources, invalidSearchIndex);
     }
 
     private static bool IsFileMatching(string path, long expectedLength, string? expectedHash)
