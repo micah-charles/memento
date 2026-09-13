@@ -88,12 +88,13 @@
 - M11 added an authenticated-admin boundary, candidate claim review listing, attributed annotations, and explicit family assessment/admin rejection transitions. The repository does not treat family support as speaker confirmation.
 - M12 added self-contained JSONL table exports, an SQLite snapshot, optional media copies, per-file SHA-256 manifest entries, and password-based AES-GCM backup/restore.
 - M13 added an archive health check for SQLite integrity, schema version, recoverable audio, and due conversation jobs; security scans and package vulnerability checks remain clean.
-- The cumulative suite now passes **37/37** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, OS-backed admin authentication, encrypted backup restore on target hardware, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
+- The cumulative suite now passes **38/38** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, OS-backed admin authentication, encrypted backup restore on target hardware, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
 
 ## M14 status
 
 - Real-user pilot work has not started. A supervised checklist is documented in [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md); the app still requires consent, microphone, provider, admin, export/restore, and incident/rollback review before pilot use.
 - A publish script now produces a self-contained `artifacts/MEMENTO-win-x64.zip`; MSIX generation remains separate because it requires a publisher identity, certificate, and package manifest.
+- A persistent `recording_enabled` setting now gives the participant an explicit enable/disable control independent of per-session consent.
 
 ## Next action
 

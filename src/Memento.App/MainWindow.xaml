@@ -13,6 +13,7 @@
         <StackPanel Grid.Row="1" VerticalAlignment="Center" Spacing="16">
             <TextBlock Text="今日想傾啲乜？" FontSize="28" HorizontalAlignment="Center" />
             <TextBlock Text="本機錄音會儲存在呢部電腦，唔會自動上載。" FontSize="18" HorizontalAlignment="Center" TextWrapping="Wrap" />
+            <CheckBox x:Name="RecordingEnabledCheckBox" Content="啟用本機錄音功能" HorizontalAlignment="Center" Checked="RecordingEnabledChanged" Unchecked="RecordingEnabledChanged" />
             <CheckBox x:Name="ConsentCheckBox" Content="我同意本機錄音" HorizontalAlignment="Center" Checked="ConsentChanged" Unchecked="ConsentChanged" />
             <Button x:Name="RecordButton" Content="開始錄音" IsEnabled="False" Click="RecordButton_Click" HorizontalAlignment="Center" Padding="28,10" />
             <TextBlock x:Name="StatusText" Text="Recording is off · Local archive" FontSize="16" HorizontalAlignment="Center" TextWrapping="Wrap" />

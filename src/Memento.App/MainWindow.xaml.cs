@@ -14,6 +14,7 @@ public sealed partial class MainWindow : Window
     private readonly DispatcherQueue _dispatcherQueue;
     private AudioCaptureController? _capture;
     private Session? _session;
+    private bool _recordingEnabled;
 
     public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0)
     {
@@ -23,12 +24,24 @@ public sealed partial class MainWindow : Window
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
         InitializeComponent();
         Closed += MainWindow_Closed;
+        _recordingEnabled = !string.Equals(_repository.GetSetting("recording_enabled"), "0", StringComparison.Ordinal);
+        RecordingEnabledCheckBox.IsChecked = _recordingEnabled;
+        UpdateRecordControl();
         if (_recoverableAudioCount > 0)
             StatusText.Text = $"有 {_recoverableAudioCount} 段未完成錄音，已保留待處理 · Local archive";
     }
 
     private void ConsentChanged(object sender, RoutedEventArgs e)
-        => RecordButton.IsEnabled = ConsentCheckBox.IsChecked == true;
+        => UpdateRecordControl();
+
+    private void RecordingEnabledChanged(object sender, RoutedEventArgs e)
+    {
+        _recordingEnabled = RecordingEnabledCheckBox.IsChecked == true;
+        _repository.SetSetting("recording_enabled", _recordingEnabled ? "1" : "0");
+        UpdateRecordControl();
+        if (!_recordingEnabled)
+            StatusText.Text = "本機錄音已停用。";
+    }
 
     private void RecordButton_Click(object sender, RoutedEventArgs e)
     {
@@ -49,7 +62,8 @@ public sealed partial class MainWindow : Window
             {
                 RecordButton.Content = "開始錄音";
                 ConsentCheckBox.IsEnabled = true;
-                RecordButton.IsEnabled = ConsentCheckBox.IsChecked == true;
+                RecordingEnabledCheckBox.IsEnabled = true;
+                UpdateRecordControl();
             }
 
             return;
@@ -65,6 +79,7 @@ public sealed partial class MainWindow : Window
             StatusText.Text = "Listening… 本機錄音中";
             RecordButton.Content = "停止錄音";
             ConsentCheckBox.IsEnabled = false;
+            RecordingEnabledCheckBox.IsEnabled = false;
         }
         catch (ConsentRequiredException)
         {
@@ -75,7 +90,8 @@ public sealed partial class MainWindow : Window
             StatusText.Text = $"無法使用咪高風：{error.Message}";
             RecordButton.Content = "開始錄音";
             ConsentCheckBox.IsEnabled = true;
-            RecordButton.IsEnabled = ConsentCheckBox.IsChecked == true;
+            RecordingEnabledCheckBox.IsEnabled = true;
+            UpdateRecordControl();
         }
     }
 
@@ -96,7 +112,11 @@ public sealed partial class MainWindow : Window
             StatusText.Text = $"錄音中斷，已保留暫存檔：{error.Message}";
             RecordButton.Content = "開始錄音";
             ConsentCheckBox.IsEnabled = true;
-            RecordButton.IsEnabled = ConsentCheckBox.IsChecked == true;
+            RecordingEnabledCheckBox.IsEnabled = true;
+            UpdateRecordControl();
         });
     }
+
+    private void UpdateRecordControl()
+        => RecordButton.IsEnabled = _recordingEnabled && ConsentCheckBox.IsChecked == true && ConsentCheckBox.IsEnabled;
 }

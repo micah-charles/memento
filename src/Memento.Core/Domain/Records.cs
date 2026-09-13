@@ -242,3 +242,5 @@ public sealed record ResponseEpisode(
     string ObservedDetails,
     string ObservationBasis,
     DateTimeOffset CreatedAt);
+
+public sealed record AppSetting(string Key, string Value, DateTimeOffset UpdatedAt);

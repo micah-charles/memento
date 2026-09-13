@@ -15,7 +15,7 @@ public sealed class ArchiveTests
         archive.Initialize();
 
         Assert.True(File.Exists(fixture.DatabasePath));
-        Assert.Equal(10, archive.CurrentSchemaVersion);
+        Assert.Equal(11, archive.CurrentSchemaVersion);
         Assert.True(archive.IsIntegrityCheckClean());
         using var connection = archive.OpenConnection();
         Assert.Equal("1", Scalar(connection, "PRAGMA foreign_keys"));
@@ -33,9 +33,9 @@ public sealed class ArchiveTests
         using var reopened = new SqliteArchive(fixture.DatabasePath);
         reopened.Initialize();
 
-        Assert.Equal(10, reopened.CurrentSchemaVersion);
+        Assert.Equal(11, reopened.CurrentSchemaVersion);
         using var connection = reopened.OpenConnection();
-        Assert.Equal(10L, Convert.ToInt64(Scalar(connection, "SELECT COUNT(*) FROM schema_migrations")));
+        Assert.Equal(11L, Convert.ToInt64(Scalar(connection, "SELECT COUNT(*) FROM schema_migrations")));
         Assert.True(reopened.IsIntegrityCheckClean());
     }
 
@@ -102,6 +102,22 @@ public sealed class ArchiveTests
 
         Assert.Equal(started.AddMinutes(1), ended.EndedAt);
         Assert.Throws<ArgumentOutOfRangeException>(() => repository.EndSession(session, started.AddSeconds(-1)));
+    }
+
+    [Fact]
+    public void Recording_setting_defaults_enabled_and_persists_disable()
+    {
+        using var fixture = new ArchiveFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+
+        Assert.Equal("1", repository.GetSetting("recording_enabled"));
+        repository.SetSetting("recording_enabled", "0");
+
+        using var reopened = new SqliteArchive(fixture.DatabasePath);
+        reopened.Initialize();
+        Assert.Equal("0", new ArchiveRepository(reopened).GetSetting("recording_enabled"));
     }
 
     private static string Scalar(SqliteConnection connection, string sql)

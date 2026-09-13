@@ -83,7 +83,7 @@ public sealed class OperationsTests
         var report = ArchiveHealthCheck.Run(archive, fixture.AudioRoot);
 
         Assert.True(report.IntegrityOk);
-        Assert.Equal(10, report.SchemaVersion);
+        Assert.Equal(11, report.SchemaVersion);
         Assert.Equal(1, report.RecoverableAudioCount);
         Assert.Equal(1, report.PendingConversationJobs);
         Assert.NotEmpty(report.Findings);

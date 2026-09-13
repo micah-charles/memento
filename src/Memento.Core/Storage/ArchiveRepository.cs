@@ -403,6 +403,29 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return episode;
     }
 
+    public AppSetting SetSetting(string key, string value)
+    {
+        if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("A setting key is required.", nameof(key));
+        var setting = new AppSetting(key, value ?? string.Empty, DateTimeOffset.UtcNow);
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO app_settings(setting_key, setting_value, updated_at) VALUES ($key, $value, $updated) ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = excluded.updated_at";
+        command.Parameters.AddWithValue("$key", setting.Key);
+        command.Parameters.AddWithValue("$value", setting.Value);
+        command.Parameters.AddWithValue("$updated", Format(setting.UpdatedAt));
+        command.ExecuteNonQuery();
+        return setting;
+    }
+
+    public string? GetSetting(string key)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT setting_value FROM app_settings WHERE setting_key = $key";
+        command.Parameters.AddWithValue("$key", key);
+        return command.ExecuteScalar()?.ToString();
+    }
+
     private static string NewId() => Guid.NewGuid().ToString("N");
     private static string Format(DateTimeOffset timestamp) => timestamp.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture);
 }

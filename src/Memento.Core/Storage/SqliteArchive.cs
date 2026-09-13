@@ -350,6 +350,14 @@ internal static class Migrations
             );
             CREATE INDEX ix_response_episodes_session ON response_episodes(session_id, created_at);
             """))
+        ,new(11, (connection, transaction) => SqliteArchive.Execute(connection, transaction, """
+            CREATE TABLE app_settings (
+                setting_key TEXT PRIMARY KEY,
+                setting_value TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            INSERT INTO app_settings(setting_key, setting_value, updated_at) VALUES ('recording_enabled', '1', CURRENT_TIMESTAMP);
+            """))
     ];
 
     internal sealed record Migration(int Version, Action<SqliteConnection, SqliteTransaction> Apply);
