@@ -9,7 +9,8 @@ public sealed record ConversationRequest(
     string LocalAudioPath,
     PrivacyMode PrivacyMode,
     bool CloudConsent,
-    DateTimeOffset RequestedAt);
+    DateTimeOffset RequestedAt,
+    string? TranscriptText = null);
 
 public sealed record ConversationResponse(
     string Provider,

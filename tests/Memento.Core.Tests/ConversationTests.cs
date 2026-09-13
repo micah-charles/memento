@@ -99,6 +99,46 @@ public sealed class ConversationTests
     }
 
     [Fact]
+    public async Task OpenAi_responses_adapter_sends_transcript_with_store_disabled()
+    {
+        using var fixture = new ConversationFixture();
+        File.WriteAllBytes(fixture.AudioPath, [1]);
+        var handler = new ResponseHttpHandler();
+        using var http = new HttpClient(handler);
+        var provider = new OpenAiResponsesProvider(http, new DelegateApiCredentialProvider(() => "test-key"), "gpt-test");
+        var request = new ConversationRequest("session", null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, "我今日去飲茶");
+
+        var result = await provider.SendAsync(request);
+
+        Assert.Equal("回覆內容", result.Text);
+        Assert.Contains("input_text", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("\"store\":false", handler.Body, StringComparison.Ordinal);
+        Assert.Equal("v1/responses", handler.RequestUri!.AbsolutePath.Trim('/'));
+    }
+
+    [Fact]
+    public async Task Bounded_pipeline_persists_transcription_then_response_metadata()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        File.WriteAllBytes(fixture.AudioPath, [1, 2]);
+        var service = new BoundedVoiceConversationService(repository, new InlineTranscriptionProvider(), new DeterministicConversationProvider());
+
+        var result = await service.ExecuteAsync(new ConversationRequest(session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow));
+
+        Assert.Equal("synthetic yue transcript", result.Transcription.Text);
+        Assert.NotNull(result.Conversation.Response);
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM provider_interactions WHERE session_id = $session AND succeeded = 1";
+        command.Parameters.AddWithValue("$session", session.SessionId);
+        Assert.Equal(2L, Convert.ToInt64(command.ExecuteScalar()));
+    }
+
+    [Fact]
     public async Task Provider_failure_is_recorded_without_removing_local_audio()
     {
         using var fixture = new ConversationFixture();
@@ -158,6 +198,29 @@ public sealed class ConversationTests
                 Content = new StringContent("{\"text\":\"阿貞\"}", System.Text.Encoding.UTF8, "application/json")
             };
         }
+    }
+
+    private sealed class ResponseHttpHandler : HttpMessageHandler
+    {
+        public Uri? RequestUri { get; private set; }
+        public string Body { get; private set; } = string.Empty;
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            RequestUri = request.RequestUri;
+            Body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"output_text\":\"回覆內容\"}", System.Text.Encoding.UTF8, "application/json")
+            };
+        }
+    }
+
+    private sealed class InlineTranscriptionProvider : ITranscriptionProvider
+    {
+        public string Provider => "inline-transcription";
+        public string Model => "inline-v1";
+        public Task<TranscriptionResult> TranscribeAsync(string localAudioPath, string? language = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(new TranscriptionResult(Provider, Model, "inline-request", "synthetic yue transcript", DateTimeOffset.UtcNow));
     }
 
     private sealed class ConversationFixture : IDisposable

@@ -59,6 +59,7 @@
 - Added append-only `provider_interactions` metadata with provider, capability, model, snapshot, request ID, timestamps, usage, success, and redacted error fields. Provider failures are recorded without deleting or changing local audio.
 - Added a deterministic provider for offline contract tests. No OpenAI credential or live network call is present in the repository.
 - M03 is **PARTIAL/BLOCKED**: 14 automated tests pass at that checkpoint, but a live bounded voice interaction and target-machine microphone path remain unverified. See [M03 evidence](evidence/M03.md).
+- A turn-based fallback is now available through optional OpenAI transcription and Responses adapters: finalized local WAV → transcription → text response, with `store=false` and provider metadata. Tests use HTTP handlers only; no live credentialed request was made.
 
 ## M04 implementation attempt — 2026-09-13
 
@@ -88,7 +89,7 @@
 - M11 added an authenticated-admin boundary, candidate claim review listing, attributed annotations, and explicit family assessment/admin rejection transitions. The repository does not treat family support as speaker confirmation.
 - M12 added self-contained JSONL table exports, an SQLite snapshot, optional media copies, per-file SHA-256 manifest entries, and password-based AES-GCM backup/restore.
 - M13 added an archive health check for SQLite integrity, schema version, recoverable audio, and due conversation jobs; security scans and package vulnerability checks remain clean.
-- The cumulative suite now passes **38/38** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, OS-backed admin authentication, encrypted backup restore on target hardware, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
+- The cumulative suite now passes **40/40** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, OS-backed admin authentication, encrypted backup restore on target hardware, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
 
 ## M14 status
 
