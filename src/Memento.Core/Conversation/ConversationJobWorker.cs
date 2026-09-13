@@ -59,4 +59,15 @@ public sealed class ConversationJobWorker
 
         return new ConversationWorkerRunResult(jobs.Count, succeeded, failed, errors);
     }
+
+    public async Task RunUntilCancelledAsync(TimeSpan interval, CancellationToken cancellationToken = default)
+    {
+        if (interval <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(interval));
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await RunOnceAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+            await Task.Delay(interval, cancellationToken).ConfigureAwait(false);
+        }
+    }
 }

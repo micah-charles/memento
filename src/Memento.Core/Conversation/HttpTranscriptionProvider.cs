@@ -49,7 +49,7 @@ public sealed class OpenAiTranscriptionProvider : ITranscriptionProvider
         form.Add(new StringContent(Model), "model");
         form.Add(new StringContent("json"), "response_format");
         if (!string.IsNullOrWhiteSpace(language)) form.Add(new StringContent(language), "language");
-        using var request = new HttpRequestMessage(HttpMethod.Post, "v1/audio/transcriptions") { Content = form };
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri("https://api.openai.com/v1/audio/transcriptions")) { Content = form };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         var requestId = response.Headers.TryGetValues("x-request-id", out var values) ? values.FirstOrDefault() : null;
