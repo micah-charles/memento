@@ -124,6 +124,47 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return interaction;
     }
 
+    public DerivedSpeechAsset AddDerivedSpeechAsset(DerivedSpeechAsset asset)
+    {
+        if (asset.ByteLength <= 0) throw new ArgumentOutOfRangeException(nameof(asset), "Derived speech output must contain bytes.");
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO derived_speech_assets(derived_speech_asset_id, session_id, turn_id, file_path, format, byte_length, sha256, provider, model, voice, request_id, created_at)
+            VALUES ($id, $session, $turn, $path, $format, $length, $sha256, $provider, $model, $voice, $request, $created)
+            """;
+        command.Parameters.AddWithValue("$id", asset.DerivedSpeechAssetId);
+        command.Parameters.AddWithValue("$session", asset.SessionId);
+        command.Parameters.AddWithValue("$turn", (object?)asset.TurnId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$path", asset.FilePath);
+        command.Parameters.AddWithValue("$format", asset.Format);
+        command.Parameters.AddWithValue("$length", asset.ByteLength);
+        command.Parameters.AddWithValue("$sha256", asset.Sha256);
+        command.Parameters.AddWithValue("$provider", asset.Provider);
+        command.Parameters.AddWithValue("$model", asset.Model);
+        command.Parameters.AddWithValue("$voice", asset.Voice);
+        command.Parameters.AddWithValue("$request", (object?)asset.RequestId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$created", Format(asset.CreatedAt));
+        command.ExecuteNonQuery();
+        return asset;
+    }
+
+    public IReadOnlyList<DerivedSpeechAsset> ListDerivedSpeechAssets(string sessionId)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT derived_speech_asset_id, session_id, turn_id, file_path, format, byte_length, sha256, provider, model, voice, request_id, created_at FROM derived_speech_assets WHERE session_id = $session ORDER BY created_at";
+        command.Parameters.AddWithValue("$session", sessionId);
+        using var reader = command.ExecuteReader();
+        var assets = new List<DerivedSpeechAsset>();
+        while (reader.Read())
+        {
+            assets.Add(new DerivedSpeechAsset(reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetInt64(5), reader.GetString(6), reader.GetString(7), reader.GetString(8), reader.GetString(9), reader.IsDBNull(10) ? null : reader.GetString(10), DateTimeOffset.Parse(reader.GetString(11), null, System.Globalization.DateTimeStyles.RoundtripKind)));
+        }
+
+        return assets;
+    }
+
     public TranscriptRevision AddTranscriptRevision(TranscriptRevision revision)
     {
         using var connection = archive.OpenConnection();

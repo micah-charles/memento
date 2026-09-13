@@ -139,7 +139,37 @@ public sealed class ConversationTests
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT COUNT(*) FROM provider_interactions WHERE session_id = $session AND succeeded = 1";
         command.Parameters.AddWithValue("$session", session.SessionId);
-        Assert.Equal(2L, Convert.ToInt64(command.ExecuteScalar()));
+        Assert.Equal(3L, Convert.ToInt64(command.ExecuteScalar()));
+    }
+
+    [Fact]
+    public async Task Derived_speech_is_atomically_stored_and_verified_separately_from_source_audio()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        File.WriteAllBytes(fixture.AudioPath, [1, 2]);
+        var source = repository.AddSource(new SourceMetadata("source-derived", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        var store = new DerivedAudioStore(repository, Path.Combine(fixture.DirectoryPath, "derived", "audio"));
+        var service = new BoundedVoiceConversationService(repository, new InlineTranscriptionProvider(), new DeterministicConversationProvider(), new DeterministicSpeechOutputProvider(), store);
+
+        var result = await service.ExecuteAsync(new ConversationRequest(session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, SourceId: source.SourceId));
+
+        Assert.NotNull(result.SpeechAsset);
+        var asset = result.SpeechAsset!;
+        Assert.True(File.Exists(asset.FilePath));
+        Assert.Equal(result.SpeechOutput!.AudioBytes, store.ReadVerified(asset));
+        Assert.Single(repository.ListDerivedSpeechAssets(session.SessionId));
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM provider_interactions WHERE session_id = $session AND capability = 'speech_output' AND succeeded = 1";
+        command.Parameters.AddWithValue("$session", session.SessionId);
+        Assert.Equal(1L, Convert.ToInt64(command.ExecuteScalar()));
+
+        File.AppendAllBytes(asset.FilePath, [99]);
+        Assert.Throws<InvalidDataException>(() => store.ReadVerified(asset));
     }
 
     [Fact]

@@ -60,6 +60,7 @@
 - Added a deterministic provider for offline contract tests. No OpenAI credential or live network call is present in the repository.
 - M03 is **PARTIAL/BLOCKED**: 14 automated tests pass at that checkpoint, but a live bounded voice interaction and target-machine microphone path remain unverified. See [M03 evidence](evidence/M03.md).
 - A turn-based fallback is now available through optional OpenAI transcription and Responses adapters: finalized local WAV → transcription → text response, with `store=false` and provider metadata. Tests use HTTP handlers only; no live credentialed request was made.
+- Optional speech output now records a `speech_output` provider interaction and `DerivedAudioStore` persists generated audio with an atomic rename, SHA-256 verification, and a separate `derived_speech_assets` table; derived audio is never registered as participant evidence.
 
 ## M04 implementation attempt — 2026-09-13
 
@@ -89,14 +90,14 @@
 - M11 added an authenticated-admin boundary, candidate claim review listing, attributed annotations, and explicit family assessment/admin rejection transitions. The repository does not treat family support as speaker confirmation.
 - M12 added self-contained JSONL table exports, an SQLite snapshot, optional media copies, per-file SHA-256 manifest entries, and password-based AES-GCM backup/restore.
 - M13 added an archive health check for SQLite integrity, schema version, recoverable audio, and due conversation jobs; security scans and package vulnerability checks remain clean.
-- The cumulative suite now passes **43/43** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, OS-backed admin authentication, encrypted backup restore on target hardware, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
+- The cumulative suite now passes **44/44** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, OS-backed admin authentication, encrypted backup restore on target hardware, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
 
 ## M14 status
 
 - Real-user pilot work has not started. A supervised checklist is documented in [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md); the app still requires consent, microphone, provider, admin, export/restore, and incident/rollback review before pilot use.
 - A publish script now produces a self-contained `artifacts/MEMENTO-win-x64.zip`; MSIX generation remains separate because it requires a publisher identity, certificate, and package manifest.
 - A persistent `recording_enabled` setting now gives the participant an explicit enable/disable control independent of per-session consent.
-- Optional TTS now completes the turn-based pipeline as local WAV → transcription → text response → derived speech bytes; playback and Realtime/WebRTC transport remain deployment work.
+- Optional TTS now completes the turn-based pipeline as local WAV → transcription → text response → verified derived speech storage; playback and Realtime/WebRTC transport remain deployment work.
 
 ## Next action
 

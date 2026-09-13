@@ -364,6 +364,23 @@ internal static class Migrations
             ALTER TABLE evidence_records ADD COLUMN extraction_provider TEXT NULL;
             ALTER TABLE evidence_records ADD COLUMN extraction_model TEXT NULL;
             """))
+        ,new(13, (connection, transaction) => SqliteArchive.Execute(connection, transaction, """
+            CREATE TABLE derived_speech_assets (
+                derived_speech_asset_id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL REFERENCES sessions(session_id) ON DELETE RESTRICT,
+                turn_id TEXT NULL REFERENCES turns(turn_id) ON DELETE RESTRICT,
+                file_path TEXT NOT NULL,
+                format TEXT NOT NULL,
+                byte_length INTEGER NOT NULL CHECK (byte_length > 0),
+                sha256 TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                model TEXT NOT NULL,
+                voice TEXT NOT NULL,
+                request_id TEXT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX ix_derived_speech_assets_session ON derived_speech_assets(session_id, created_at);
+            """))
     ];
 
     internal sealed record Migration(int Version, Action<SqliteConnection, SqliteTransaction> Apply);

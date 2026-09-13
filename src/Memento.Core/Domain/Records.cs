@@ -78,6 +78,20 @@ public sealed record ProviderInteraction(
     string? ErrorMessage,
     DateTimeOffset CreatedAt);
 
+public sealed record DerivedSpeechAsset(
+    string DerivedSpeechAssetId,
+    string SessionId,
+    string? TurnId,
+    string FilePath,
+    string Format,
+    long ByteLength,
+    string Sha256,
+    string Provider,
+    string Model,
+    string Voice,
+    string? RequestId,
+    DateTimeOffset CreatedAt);
+
 public enum ClarificationOutcome
 {
     SpeakerConfirmed,

@@ -8,7 +8,7 @@ public sealed record ArchiveExportResult(string ExportDirectory, string Manifest
 
 public static class ArchiveExporter
 {
-    private static readonly string[] Tables = ["sessions", "turns", "consent_events", "sources", "provider_interactions", "transcript_revisions", "clarification_events", "vocabulary_entries", "conversation_jobs", "evidence_records", "memory_claims", "evidence_claim_links", "person_entities", "entity_aliases", "evidence_entity_links", "review_annotations"];
+    private static readonly string[] Tables = ["sessions", "turns", "consent_events", "sources", "provider_interactions", "transcript_revisions", "clarification_events", "vocabulary_entries", "conversation_jobs", "evidence_records", "memory_claims", "evidence_claim_links", "person_entities", "entity_aliases", "evidence_entity_links", "review_annotations", "response_episodes", "derived_speech_assets"];
 
     public static ArchiveExportResult Export(SqliteArchive archive, string destinationDirectory, bool includeMedia = false)
     {
@@ -39,18 +39,37 @@ public static class ArchiveExporter
         {
             var mediaDirectory = Path.Combine(exportDirectory, "media");
             Directory.CreateDirectory(mediaDirectory);
-            using var sources = connection.CreateCommand();
-            sources.CommandText = "SELECT file_path FROM sources WHERE file_path IS NOT NULL";
-            using var reader = sources.ExecuteReader();
-            while (reader.Read())
+            using (var sources = connection.CreateCommand())
             {
-                var sourcePath = reader.GetString(0);
-                if (!File.Exists(sourcePath)) continue;
-                var filename = Path.GetFileName(sourcePath);
-                if (string.IsNullOrWhiteSpace(filename)) continue;
-                var target = Path.Combine(mediaDirectory, filename);
-                File.Copy(sourcePath, target, overwrite: false);
-                hashes[Path.Combine("media", filename).Replace('\\', '/')] = Hash(target);
+                sources.CommandText = "SELECT file_path FROM sources WHERE file_path IS NOT NULL";
+                using var reader = sources.ExecuteReader();
+                while (reader.Read())
+                {
+                    var sourcePath = reader.GetString(0);
+                    if (!File.Exists(sourcePath)) continue;
+                    var filename = Path.GetFileName(sourcePath);
+                    if (string.IsNullOrWhiteSpace(filename)) continue;
+                    var target = Path.Combine(mediaDirectory, filename);
+                    File.Copy(sourcePath, target, overwrite: false);
+                    hashes[Path.Combine("media", filename).Replace('\\', '/')] = Hash(target);
+                }
+            }
+
+            using (var derived = connection.CreateCommand())
+            {
+                derived.CommandText = "SELECT file_path FROM derived_speech_assets";
+                using var reader = derived.ExecuteReader();
+                while (reader.Read())
+                {
+                    var sourcePath = reader.GetString(0);
+                    if (!File.Exists(sourcePath)) continue;
+                    var filename = Path.GetFileName(sourcePath);
+                    if (string.IsNullOrWhiteSpace(filename)) continue;
+                    var exportName = "derived-" + filename;
+                    var target = Path.Combine(mediaDirectory, exportName);
+                    File.Copy(sourcePath, target, overwrite: false);
+                    hashes[Path.Combine("media", exportName).Replace('\\', '/')] = Hash(target);
+                }
             }
         }
 

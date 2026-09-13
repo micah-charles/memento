@@ -15,7 +15,7 @@ public sealed class ArchiveTests
         archive.Initialize();
 
         Assert.True(File.Exists(fixture.DatabasePath));
-        Assert.Equal(12, archive.CurrentSchemaVersion);
+        Assert.Equal(13, archive.CurrentSchemaVersion);
         Assert.True(archive.IsIntegrityCheckClean());
         using var connection = archive.OpenConnection();
         Assert.Equal("1", Scalar(connection, "PRAGMA foreign_keys"));
@@ -33,9 +33,9 @@ public sealed class ArchiveTests
         using var reopened = new SqliteArchive(fixture.DatabasePath);
         reopened.Initialize();
 
-        Assert.Equal(12, reopened.CurrentSchemaVersion);
+        Assert.Equal(13, reopened.CurrentSchemaVersion);
         using var connection = reopened.OpenConnection();
-        Assert.Equal(12L, Convert.ToInt64(Scalar(connection, "SELECT COUNT(*) FROM schema_migrations")));
+        Assert.Equal(13L, Convert.ToInt64(Scalar(connection, "SELECT COUNT(*) FROM schema_migrations")));
         Assert.True(reopened.IsIntegrityCheckClean());
     }
 

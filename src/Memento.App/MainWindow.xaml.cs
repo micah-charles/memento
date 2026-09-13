@@ -89,9 +89,9 @@ public sealed partial class MainWindow : Window
         {
             StatusText.Text = "請先同意本機錄音。";
         }
-        catch (Exception error)
+        catch (Exception)
         {
-            StatusText.Text = $"無法使用咪高風：{error.Message}";
+            StatusText.Text = "無法使用咪高風，請檢查 Windows 權限或接駁。";
             if (_session is not null && _session.EndedAt is null)
                 _session = _repository.EndSession(_session);
             RecordButton.Content = "開始錄音";
@@ -115,7 +115,7 @@ public sealed partial class MainWindow : Window
     {
         _dispatcherQueue.TryEnqueue(() =>
         {
-            StatusText.Text = $"錄音中斷，已保留暫存檔：{error.Message}";
+            StatusText.Text = "錄音中斷，已保留暫存檔；請檢查咪高風或 Windows 權限。";
             RecordButton.Content = "開始錄音";
             ConsentCheckBox.IsEnabled = true;
             RecordingEnabledCheckBox.IsEnabled = true;
