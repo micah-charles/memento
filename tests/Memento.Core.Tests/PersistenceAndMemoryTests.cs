@@ -57,7 +57,9 @@ public sealed class PersistenceAndMemoryTests
         var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
         var source = repository.AddSource(fixture.Source(session.SessionId, "source-stale-processing"));
         var queued = new ConversationSessionWriter(repository).QueueTranscription(session, null, source, DateTimeOffset.Parse("2026-09-13T10:00:00Z"));
-        new ConversationSessionWriter(repository).BeginAttempt(queued, DateTimeOffset.Parse("2026-09-13T10:00:01Z"));
+        var writer = new ConversationSessionWriter(repository);
+        writer.BeginAttempt(queued, DateTimeOffset.Parse("2026-09-13T10:00:01Z"));
+        Assert.Null(writer.TryBeginAttempt(queued, DateTimeOffset.Parse("2026-09-13T10:00:02Z")));
         var processor = new RecordingJobProcessor();
         var worker = new ConversationJobWorker(repository, processor);
 

@@ -176,6 +176,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - Bounded cloud processing now rechecks the latest persisted cloud consent before transcription, response, and speech output, and rejects a Source that belongs to another session.
 - OpenAI transcription, Responses, memory-extraction, and web-search adapters now reject malformed non-object/field shapes as bounded provider errors instead of leaking parser exceptions.
 - The retry worker now reclaims `Processing` jobs whose five-minute lease expired, covering crash/restart recovery without retrying an actively running job.
+- Conversation job claiming now uses an atomic persisted-state compare-and-set; the stale-worker regression also confirms a previously claimed job cannot be claimed twice from its old record.
 - Archive health checks now count only stale `Processing` jobs as due, so active work is not reported as overdue while crashed work remains visible for recovery.
 - Clarification outcomes now verify Source/session ownership and the persisted initial transcript revision before writing corrected revisions, preventing cross-session or orphaned provenance records.
 - Clarification ownership is checked before corrected-revision insertion, and a sessionless-Source regression confirms no partial correction chain is written.

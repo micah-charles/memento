@@ -389,6 +389,25 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         if (command.ExecuteNonQuery() != 1) throw new InvalidOperationException("Conversation job was not found.");
     }
 
+    public bool TryUpdateConversationJob(ConversationJob expected, ConversationJob updated)
+    {
+        if (!string.Equals(expected.ConversationJobId, updated.ConversationJobId, StringComparison.Ordinal))
+            throw new ArgumentException("The expected and updated jobs must have the same ID.", nameof(updated));
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE conversation_jobs SET status = $status, attempt_count = $attempt, next_attempt_at = $next, last_error = $error, updated_at = $updated, transcript_revision_id = $revision WHERE conversation_job_id = $id AND status = $expectedStatus AND updated_at = $expectedUpdated";
+        command.Parameters.AddWithValue("$id", updated.ConversationJobId);
+        command.Parameters.AddWithValue("$status", updated.Status.ToString());
+        command.Parameters.AddWithValue("$attempt", updated.AttemptCount);
+        command.Parameters.AddWithValue("$next", updated.NextAttemptAt is null ? DBNull.Value : Format(updated.NextAttemptAt.Value));
+        command.Parameters.AddWithValue("$error", (object?)updated.LastError ?? DBNull.Value);
+        command.Parameters.AddWithValue("$updated", Format(updated.UpdatedAt));
+        command.Parameters.AddWithValue("$revision", (object?)updated.TranscriptRevisionId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$expectedStatus", expected.Status.ToString());
+        command.Parameters.AddWithValue("$expectedUpdated", Format(expected.UpdatedAt));
+        return command.ExecuteNonQuery() == 1;
+    }
+
     public bool HasActiveConversationJob(string sessionId, string sourceId, string jobType, string? transcriptRevisionId = null)
     {
         using var connection = archive.OpenConnection();

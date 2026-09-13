@@ -35,9 +35,13 @@ public sealed class ConversationSessionWriter
 
     public ConversationJob BeginAttempt(ConversationJob job, DateTimeOffset? now = null)
     {
+        return TryBeginAttempt(job, now) ?? throw new InvalidOperationException("Conversation job was already claimed or changed.");
+    }
+
+    public ConversationJob? TryBeginAttempt(ConversationJob job, DateTimeOffset? now = null)
+    {
         var updated = job with { Status = ConversationJobStatus.Processing, AttemptCount = job.AttemptCount + 1, UpdatedAt = now ?? DateTimeOffset.UtcNow };
-        _repository.UpdateConversationJob(updated);
-        return updated;
+        return _repository.TryUpdateConversationJob(job, updated) ? updated : null;
     }
 
     public ConversationJob MarkSucceeded(ConversationJob job, DateTimeOffset? now = null)

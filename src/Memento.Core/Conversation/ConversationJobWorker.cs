@@ -36,7 +36,9 @@ public sealed class ConversationJobWorker
         foreach (var job in jobs)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var processing = _writer.BeginAttempt(job, clock);
+            var processing = _writer.TryBeginAttempt(job, clock);
+            if (processing is null)
+                continue;
             try
             {
                 await _processor.ProcessAsync(processing, cancellationToken).ConfigureAwait(false);
