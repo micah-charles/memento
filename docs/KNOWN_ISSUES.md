@@ -18,6 +18,9 @@ These are deliberately visible. They are not reasons to invent a confident answe
 | K-010 | Legal status varies by jurisdiction, purpose, household/commercial context, and guest situation. | High: consent/disclosure risk. | Obtain appropriate advice before pilot or sharing. |
 | K-011 | Native WinUI visual/manual verification is unavailable in the current execution surface. | High: M01 gate cannot be honestly passed from this environment alone. | Run M01 on target Windows hardware with native GUI observation. |
 | K-012 | M02's real Windows microphone path is implemented through NAudio but has not been exercised against a physical device or permission/disconnect failure. | High: audio is primary evidence and the M02 gate needs real-device verification. | Run the app with a consented microphone and fault-injection/physical interruption checks before pilot use. |
+| K-013 | M03 has provider-neutral contracts and deterministic tests but no credentialed live provider adapter or bounded network exchange. | High: the M03 gate requires observed provider behaviour and current account policy. | Select a secure Windows credential flow and run a disposable, consented live test before pilot use. |
+| K-014 | M04 validation uses synthetic fixtures only; it cannot establish Cantonese, code-switch, name, or latency quality for a real provider. | High: language quality is an empirical gate. | Collect a consented, non-source-controlled validation corpus and run the harness against the selected provider. |
+| K-015 | M05 persistence and policy are deterministic, but the participant-facing clarification wording and interruption flow have not been observed with a real Cantonese speaker. | High: clarification must stay natural and avoid turning uncertainty into facts. | Run a supervised UX session and review the complete Source → revision → clarification → vocabulary chain. |
 
 ## M00 limitations
 

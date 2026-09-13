@@ -101,3 +101,27 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - Automated tests cover deterministic fake-input capture, consent denial, finalized WAV structure, SHA-256, Source registration, recoverable `.capture.tmp` files, and corrupt partial preservation. They do not prove microphone hardware, Windows permission prompts, unplug/disconnect, disk exhaustion, or a real process crash.
 - Manual/native-window verification is unavailable because the Computer Use native surface currently reports `apps: []`; no visual PASS is claimed.
 - Gate decision: **PARTIAL/BLOCKED** pending target-machine microphone and GUI verification. No cloud transmission is implemented in M02.
+
+## M03 implementation evidence — 2026-09-13
+
+- Official documentation was re-checked on 2026-09-13: [Realtime API reference](https://platform.openai.com/docs/api-reference/realtime?lang=javascript), [current model catalogue](https://developers.openai.com/api/docs/models), and [GPT-Transcribe model page](https://developers.openai.com/api/docs/models/gpt-transcribe). The Realtime reference documents WebRTC/WebSocket/SIP transport; the model catalogue identifies current speech models. These sources establish API shape only, not MEMENTO’s live success or Cantonese quality.
+- Added migration 3 and the append-only `provider_interactions` table. The archive does not store provider-hosted conversation state as canonical memory.
+- `ConversationOrchestrator` checks `LOCAL_CAPTURE_ONLY`, cloud consent, and local-file existence before transmission. It stores successful or failed interaction metadata and leaves the local file untouched on provider failure.
+- `dotnet test tests/Memento.Core.Tests/Memento.Core.Tests.csproj --configuration Release` passed **14/14** at the M03 checkpoint.
+- No API key, OpenAI SDK, live request, or real family audio was added. Deterministic fake-provider tests prove the boundary and failure isolation only.
+- Gate decision: **PARTIAL/BLOCKED** until a credentialed, bounded, consented live exchange can be run on target Windows hardware with local audio preserved first.
+
+## M04 implementation evidence — 2026-09-13
+
+- Added `LanguageValidationHarness` and synthetic case/observation/report contracts. Categories cover Hong Kong Cantonese, colloquial Cantonese, Mandarin, Cantonese/Mandarin and Cantonese/English code-switching, names, places, incomplete sentences, repetitions, hesitations, uncertainty, numbers, dates, and English product names.
+- Metrics include transcript similarity, entity accuracy, code-switch preservation, uncertainty preservation, and latency. Case classifications deliberately keep weak entity recognition separate from ordinary wording variance.
+- `dotnet test tests/Memento.Core.Tests/Memento.Core.Tests.csproj --configuration Release` passed **18/18** after M04 additions.
+- No real family data or real provider corpus was used. Gate decision: **PARTIAL/BLOCKED** pending empirical provider measurement.
+
+## M05 implementation evidence — 2026-09-13
+
+- Added migrations 4–5 for `transcript_revisions`, `clarification_events`, and `vocabulary_entries`, each linked by foreign keys to the original Source/session and revision parent.
+- The `ClarificationProtocol` preserves initial recognition, question, participant response, correction outcome, corrected revision, and speaker-confirmed vocabulary. Refusals and uncertain/two-option answers remain explicit without invented canonical values.
+- `dotnet test tests/Memento.Core.Tests/Memento.Core.Tests.csproj --configuration Release` passed **23/23** after M05 additions.
+- Tests cover the `阿珍` → `阿貞` chain, uncertain school year, refusal, “唔記得”, correction of a correction, policy thresholds, and schema persistence. No participant or natural voice UX test was run.
+- Gate decision: **PARTIAL/BLOCKED** pending participant-facing clarification UX and live Cantonese interaction review.

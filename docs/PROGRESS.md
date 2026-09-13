@@ -1,7 +1,7 @@
 # MEMENTO progress
 
-**Current milestone:** M02 — Reliable local audio capture
-**Status:** IMPLEMENTED / AUTOMATED TESTED; hardware and native-window verification pending
+**Current milestone:** M05 — Clarification protocol
+**Status:** PARTIAL/BLOCKED pending participant UX and live verification
 **Last updated:** 2026-09-13
 
 ## Completed in M00
@@ -51,6 +51,28 @@
 - Added a provider-neutral `IAudioInput` boundary and a Windows NAudio `WaveInEvent` adapter. The UI now requires an explicit local-recording checkbox and exposes large start/stop controls.
 - Added deterministic tests for consent gating, normal finalization, checksum and metadata registration, recoverable partial files, and corrupt partial preservation. These tests use a fake input; physical microphone, permission, disconnect, disk-full, and crash tests remain unverified.
 - M02 is **PARTIAL/BLOCKED**, not passed: automated coverage is green, but physical microphone and native UI observation have not been verified in this environment. See [M02 evidence](evidence/M02.md).
+
+## M03 implementation attempt — 2026-09-13
+
+- Re-checked official OpenAI documentation on 2026-09-13. The current Realtime reference describes WebRTC/WebSocket/SIP audio sessions; the current model catalogue lists GPT-Transcribe for high-accuracy speech-to-text and GPT-Live-Transcribe for low-latency transcription. The archive therefore keeps transport, transcription, reasoning, and model identifiers behind provider-neutral contracts.
+- Added `ConversationOrchestrator`, `IConversationProvider`, `ITranscriptionProvider`, and `IReasoningProvider` contracts. The orchestrator requires a finalized local audio path and explicit cloud consent before a provider call, and it refuses cloud processing in `LOCAL_CAPTURE_ONLY` mode.
+- Added append-only `provider_interactions` metadata with provider, capability, model, snapshot, request ID, timestamps, usage, success, and redacted error fields. Provider failures are recorded without deleting or changing local audio.
+- Added a deterministic provider for offline contract tests. No OpenAI credential or live network call is present in the repository.
+- M03 is **PARTIAL/BLOCKED**: 14 automated tests pass at that checkpoint, but a live bounded voice interaction and target-machine microphone path remain unverified. See [M03 evidence](evidence/M03.md).
+
+## M04 implementation attempt — 2026-09-13
+
+- Added a reproducible language-validation harness with explicit Hong Kong Cantonese, colloquial Cantonese, Mandarin, mixed-language, names, places, dates, numbers, hesitations, repetitions, uncertainty, and product-name categories.
+- The harness reports transcript similarity, entity/name accuracy, code-switch preservation, uncertainty preservation, latency, and a case-level disposition (`PASS`, `ACCEPTABLE_WITH_CLARIFICATION`, `WEAK`, `FAIL`, or `NOT_TESTED`). Name/entity accuracy is measured separately because a fluent sentence with a wrong person name is unsafe.
+- Fixtures are synthetic and contain no family recordings or private transcripts.
+- M04 is **PARTIAL/BLOCKED**: 18 deterministic tests pass cumulatively, but no real provider corpus or credentialed Cantonese measurement has been run. See [M04 evidence](evidence/M04.md).
+
+## M05 implementation attempt — 2026-09-13
+
+- Added append-only transcript revisions, clarification events, and speaker-confirmed vocabulary entries with foreign-key links to the original Source and session.
+- Added a clarification policy that prioritises names, places, relationships, dates, identity, preferences, and other high-impact ambiguity while avoiding low-impact filler checks. Speaker correction text is stored verbatim and always outranks model confidence.
+- The protocol supports confirmation, refusal, “唔記得”, two possibilities, and correction of a previous correction. A corrected revision never overwrites the initial recognition.
+- M05 is **PARTIAL/BLOCKED**: 23 deterministic tests pass cumulatively, but participant UX and natural Cantonese turn-taking have not been observed. See [M05 evidence](evidence/M05.md).
 
 ## Next action
 

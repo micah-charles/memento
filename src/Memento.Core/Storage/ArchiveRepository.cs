@@ -83,6 +83,98 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return source;
     }
 
+    public ProviderInteraction AddProviderInteraction(ProviderInteraction interaction)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO provider_interactions(provider_interaction_id, session_id, turn_id, provider, capability, model, model_snapshot, request_id, started_at, completed_at, input_audio_ms, output_audio_ms, succeeded, error_code, error_message, created_at)
+            VALUES ($id, $session, $turn, $provider, $capability, $model, $snapshot, $request, $started, $completed, $inputAudio, $outputAudio, $succeeded, $errorCode, $errorMessage, $created)
+            """;
+        command.Parameters.AddWithValue("$id", interaction.ProviderInteractionId);
+        command.Parameters.AddWithValue("$session", interaction.SessionId);
+        command.Parameters.AddWithValue("$turn", (object?)interaction.TurnId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$provider", interaction.Provider);
+        command.Parameters.AddWithValue("$capability", interaction.Capability);
+        command.Parameters.AddWithValue("$model", interaction.Model);
+        command.Parameters.AddWithValue("$snapshot", (object?)interaction.ModelSnapshot ?? DBNull.Value);
+        command.Parameters.AddWithValue("$request", (object?)interaction.RequestId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$started", Format(interaction.StartedAt));
+        command.Parameters.AddWithValue("$completed", interaction.CompletedAt is null ? DBNull.Value : Format(interaction.CompletedAt.Value));
+        command.Parameters.AddWithValue("$inputAudio", (object?)interaction.InputAudioMs ?? DBNull.Value);
+        command.Parameters.AddWithValue("$outputAudio", (object?)interaction.OutputAudioMs ?? DBNull.Value);
+        command.Parameters.AddWithValue("$succeeded", interaction.Succeeded ? 1 : 0);
+        command.Parameters.AddWithValue("$errorCode", (object?)interaction.ErrorCode ?? DBNull.Value);
+        command.Parameters.AddWithValue("$errorMessage", (object?)interaction.ErrorMessage ?? DBNull.Value);
+        command.Parameters.AddWithValue("$created", Format(interaction.CreatedAt));
+        command.ExecuteNonQuery();
+        return interaction;
+    }
+
+    public TranscriptRevision AddTranscriptRevision(TranscriptRevision revision)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO transcript_revisions(transcript_revision_id, source_id, turn_id, revision_number, revision_kind, text, confidence, parent_revision_id, created_at)
+            VALUES ($id, $source, $turn, $number, $kind, $text, $confidence, $parent, $created)
+            """;
+        command.Parameters.AddWithValue("$id", revision.TranscriptRevisionId);
+        command.Parameters.AddWithValue("$source", revision.SourceId);
+        command.Parameters.AddWithValue("$turn", (object?)revision.TurnId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$number", revision.RevisionNumber);
+        command.Parameters.AddWithValue("$kind", revision.RevisionKind);
+        command.Parameters.AddWithValue("$text", revision.Text);
+        command.Parameters.AddWithValue("$confidence", (object?)revision.Confidence ?? DBNull.Value);
+        command.Parameters.AddWithValue("$parent", (object?)revision.ParentRevisionId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$created", Format(revision.CreatedAt));
+        command.ExecuteNonQuery();
+        return revision;
+    }
+
+    public ClarificationEvent AddClarificationEvent(ClarificationEvent clarification)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO clarification_events(clarification_event_id, session_id, turn_id, source_id, trigger_kind, question_text, initial_revision_id, participant_response_text, corrected_revision_id, outcome, occurred_at, created_at)
+            VALUES ($id, $session, $turn, $source, $trigger, $question, $initial, $response, $corrected, $outcome, $occurred, $created)
+            """;
+        command.Parameters.AddWithValue("$id", clarification.ClarificationEventId);
+        command.Parameters.AddWithValue("$session", clarification.SessionId);
+        command.Parameters.AddWithValue("$turn", (object?)clarification.TurnId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$source", clarification.SourceId);
+        command.Parameters.AddWithValue("$trigger", clarification.TriggerKind);
+        command.Parameters.AddWithValue("$question", clarification.QuestionText);
+        command.Parameters.AddWithValue("$initial", clarification.InitialRevisionId);
+        command.Parameters.AddWithValue("$response", (object?)clarification.ParticipantResponseText ?? DBNull.Value);
+        command.Parameters.AddWithValue("$corrected", (object?)clarification.CorrectedRevisionId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$outcome", clarification.Outcome.ToString());
+        command.Parameters.AddWithValue("$occurred", Format(clarification.OccurredAt));
+        command.Parameters.AddWithValue("$created", Format(clarification.CreatedAt));
+        command.ExecuteNonQuery();
+        return clarification;
+    }
+
+    public VocabularyEntry AddVocabularyEntry(VocabularyEntry entry)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO vocabulary_entries(vocabulary_entry_id, canonical_text, previous_recognition, context, speaker_confirmed, source_clarification_event_id, created_at)
+            VALUES ($id, $canonical, $previous, $context, $confirmed, $event, $created)
+            """;
+        command.Parameters.AddWithValue("$id", entry.VocabularyEntryId);
+        command.Parameters.AddWithValue("$canonical", entry.CanonicalText);
+        command.Parameters.AddWithValue("$previous", entry.PreviousRecognition);
+        command.Parameters.AddWithValue("$context", (object?)entry.Context ?? DBNull.Value);
+        command.Parameters.AddWithValue("$confirmed", entry.SpeakerConfirmed ? 1 : 0);
+        command.Parameters.AddWithValue("$event", entry.SourceClarificationEventId);
+        command.Parameters.AddWithValue("$created", Format(entry.CreatedAt));
+        command.ExecuteNonQuery();
+        return entry;
+    }
+
     private static string NewId() => Guid.NewGuid().ToString("N");
     private static string Format(DateTimeOffset timestamp) => timestamp.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture);
 }

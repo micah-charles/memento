@@ -1,0 +1,56 @@
+using Memento.Core.Validation;
+
+namespace Memento.Core.Tests;
+
+public sealed class LanguageValidationTests
+{
+    [Fact]
+    public void Exact_synthetic_cantonese_case_passes()
+    {
+        var testCase = new LanguageValidationCase("yue-001", LanguageValidationCategory.HongKongCantonese, "我今日去飲茶", [], false, false);
+        var result = LanguageValidationHarness.Evaluate(testCase, new LanguageValidationObservation("我今日去飲茶", [], 420));
+
+        Assert.Equal(ValidationDisposition.Pass, result.Disposition);
+        Assert.Equal(1d, result.TranscriptSimilarity);
+        Assert.Equal(ValidationDisposition.Pass, result.Disposition);
+    }
+
+    [Fact]
+    public void Name_mismatch_is_weak_even_when_other_words_match()
+    {
+        var testCase = new LanguageValidationCase("name-001", LanguageValidationCategory.Name, "我朋友叫阿貞", ["阿貞"]);
+        var result = LanguageValidationHarness.Evaluate(testCase, new LanguageValidationObservation("我朋友叫阿珍", ["阿珍"], 510));
+
+        Assert.Equal(ValidationDisposition.Weak, result.Disposition);
+        Assert.Equal(0d, result.EntityAccuracy);
+    }
+
+    [Fact]
+    public void Mixed_language_and_uncertainty_are_measured_separately()
+    {
+        var testCase = new LanguageValidationCase("mix-001", LanguageValidationCategory.CantoneseEnglish, "我唔記得個 product name", ["product name"], true, true);
+        var observation = new LanguageValidationObservation("我唔記得個產品名", ["產品名"], 700, false);
+        var result = LanguageValidationHarness.Evaluate(testCase, observation);
+
+        Assert.Equal(ValidationDisposition.Weak, result.Disposition);
+        Assert.False(result.CodeSwitchPreserved);
+        Assert.True(result.UncertaintyPreserved);
+    }
+
+    [Fact]
+    public void Report_keeps_case_level_dispositions_and_latency()
+    {
+        var samples = new[]
+        {
+            (new LanguageValidationCase("a", LanguageValidationCategory.Mandarin, "你好", [], false, false), new LanguageValidationObservation("你好", [], 100)),
+            (new LanguageValidationCase("b", LanguageValidationCategory.Date, "大約二零二零年", [], false, true), new LanguageValidationObservation("二零二零年", [], 120, false))
+        };
+
+        var report = LanguageValidationHarness.Evaluate(samples);
+
+        Assert.Equal(2, report.Results.Count);
+        Assert.Equal(1, report.Count(ValidationDisposition.Pass));
+        Assert.Equal(1, report.Count(ValidationDisposition.AcceptableWithClarification));
+        Assert.Equal(120, report.Results[1].LatencyMs);
+    }
+}

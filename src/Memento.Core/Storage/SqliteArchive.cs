@@ -187,6 +187,68 @@ internal static class Migrations
             CREATE INDEX ix_sources_session ON sources(session_id);
             """)),
         new(2, (connection, transaction) => SqliteArchive.Execute(connection, transaction, "ALTER TABLE sources ADD COLUMN recovery_status TEXT NOT NULL DEFAULT 'not_applicable'"))
+        ,new(3, (connection, transaction) => SqliteArchive.Execute(connection, transaction, """
+            CREATE TABLE provider_interactions (
+                provider_interaction_id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL REFERENCES sessions(session_id) ON DELETE RESTRICT,
+                turn_id TEXT NULL REFERENCES turns(turn_id) ON DELETE RESTRICT,
+                provider TEXT NOT NULL,
+                capability TEXT NOT NULL,
+                model TEXT NOT NULL,
+                model_snapshot TEXT NULL,
+                request_id TEXT NULL,
+                started_at TEXT NOT NULL,
+                completed_at TEXT NULL,
+                input_audio_ms INTEGER NULL CHECK (input_audio_ms IS NULL OR input_audio_ms >= 0),
+                output_audio_ms INTEGER NULL CHECK (output_audio_ms IS NULL OR output_audio_ms >= 0),
+                succeeded INTEGER NOT NULL CHECK (succeeded IN (0, 1)),
+                error_code TEXT NULL,
+                error_message TEXT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX ix_provider_interactions_session ON provider_interactions(session_id, started_at);
+            """))
+        ,new(4, (connection, transaction) => SqliteArchive.Execute(connection, transaction, """
+            CREATE TABLE transcript_revisions (
+                transcript_revision_id TEXT PRIMARY KEY,
+                source_id TEXT NOT NULL REFERENCES sources(source_id) ON DELETE RESTRICT,
+                turn_id TEXT NULL REFERENCES turns(turn_id) ON DELETE RESTRICT,
+                revision_number INTEGER NOT NULL CHECK (revision_number > 0),
+                revision_kind TEXT NOT NULL CHECK (revision_kind IN ('initial', 'corrected')),
+                text TEXT NOT NULL,
+                confidence REAL NULL CHECK (confidence IS NULL OR (confidence >= 0 AND confidence <= 1)),
+                parent_revision_id TEXT NULL REFERENCES transcript_revisions(transcript_revision_id) ON DELETE RESTRICT,
+                created_at TEXT NOT NULL,
+                UNIQUE(source_id, revision_number)
+            );
+            CREATE TABLE clarification_events (
+                clarification_event_id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL REFERENCES sessions(session_id) ON DELETE RESTRICT,
+                turn_id TEXT NULL REFERENCES turns(turn_id) ON DELETE RESTRICT,
+                source_id TEXT NOT NULL REFERENCES sources(source_id) ON DELETE RESTRICT,
+                trigger_kind TEXT NOT NULL,
+                question_text TEXT NOT NULL,
+                initial_revision_id TEXT NOT NULL REFERENCES transcript_revisions(transcript_revision_id) ON DELETE RESTRICT,
+                participant_response_text TEXT NULL,
+                corrected_revision_id TEXT NULL REFERENCES transcript_revisions(transcript_revision_id) ON DELETE RESTRICT,
+                outcome TEXT NOT NULL CHECK (outcome IN ('SpeakerConfirmed', 'ParticipantRefused', 'ParticipantDoesNotRemember', 'TwoPossibilities', 'CorrectedPreviousCorrection')),
+                occurred_at TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE vocabulary_entries (
+                vocabulary_entry_id TEXT PRIMARY KEY,
+                canonical_text TEXT NOT NULL,
+                previous_recognition TEXT NOT NULL,
+                context TEXT NULL,
+                speaker_confirmed INTEGER NOT NULL CHECK (speaker_confirmed IN (0, 1)),
+                source_clarification_event_id TEXT NOT NULL REFERENCES clarification_events(clarification_event_id) ON DELETE RESTRICT,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX ix_transcript_revisions_source ON transcript_revisions(source_id, revision_number);
+            CREATE INDEX ix_clarification_events_session ON clarification_events(session_id, occurred_at);
+            CREATE INDEX ix_vocabulary_entries_canonical ON vocabulary_entries(canonical_text);
+            """))
+        ,new(5, (connection, transaction) => SqliteArchive.Execute(connection, transaction, "CREATE INDEX ix_clarification_events_initial ON clarification_events(initial_revision_id)"))
     ];
 
     internal sealed record Migration(int Version, Action<SqliteConnection, SqliteTransaction> Apply);
