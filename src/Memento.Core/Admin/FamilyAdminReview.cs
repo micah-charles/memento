@@ -30,6 +30,23 @@ public sealed class FamilyAdminReviewService
         return _repository.ListCandidateClaims();
     }
 
+    public void EnsureAuthorized(string actorId) => DemandAuthorization(actorId);
+
+    public ReviewAnnotation RecordAdminOperation(string actorId, string operation)
+    {
+        DemandAuthorization(actorId);
+        if (string.IsNullOrWhiteSpace(operation)) throw new ArgumentException("An operation name is required.", nameof(operation));
+        return _repository.AddReviewAnnotation(new ReviewAnnotation(
+            Guid.NewGuid().ToString("N"),
+            "archive",
+            "archive",
+            actorId,
+            "admin_annotation",
+            "Family Admin operation completed: " + operation.Trim(),
+            null,
+            DateTimeOffset.UtcNow));
+    }
+
     public ReviewAnnotation AnnotateClaim(string actorId, MemoryClaim claim, string annotationType, string body, string? assessment = null)
     {
         DemandAuthorization(actorId);

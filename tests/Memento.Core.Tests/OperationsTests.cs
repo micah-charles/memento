@@ -92,6 +92,24 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void Family_admin_operation_audit_requires_authorization_and_stores_no_content()
+    {
+        using var fixture = new OperationsFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var service = new FamilyAdminReviewService(repository, new FixedTestAdminAuthorizer("admin-1"));
+
+        Assert.Throws<UnauthorizedAccessException>(() => service.RecordAdminOperation("wrong", "export"));
+        var audit = service.RecordAdminOperation("admin-1", "export");
+
+        Assert.Equal("archive", audit.TargetType);
+        Assert.Equal("archive", audit.TargetId);
+        Assert.Equal("admin-1", audit.ActorId);
+        Assert.DoesNotContain("/", audit.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("\\", audit.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Export_writes_jsonl_media_and_encrypted_backup_roundtrip()
     {
         using var fixture = new OperationsFixture();

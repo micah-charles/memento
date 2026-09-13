@@ -539,9 +539,11 @@ public sealed partial class MainWindow : Window
 
     private void ExportButton_Click(object sender, RoutedEventArgs e)
     {
+        if (!EnsureAdminForOperation()) return;
         try
         {
             var result = ArchiveExporter.Export(_repository.Archive, Path.Combine(_dataRoot, "exports"), includeMedia: true);
+            _adminReview!.RecordAdminOperation(_adminActorId!, "export");
             StatusText.Text = $"已匯出本機資料：{result.ExportDirectory}";
         }
         catch (Exception)
@@ -552,6 +554,7 @@ public sealed partial class MainWindow : Window
 
     private async void BackupButton_Click(object sender, RoutedEventArgs e)
     {
+        if (!EnsureAdminForOperation()) return;
         var passwordBox = new PasswordBox { PlaceholderText = "輸入備份密碼", MinWidth = 280 };
         var dialog = new ContentDialog
         {
@@ -574,6 +577,7 @@ public sealed partial class MainWindow : Window
             var export = ArchiveExporter.Export(_repository.Archive, temporaryRoot, includeMedia: true);
             var destination = Path.Combine(_dataRoot, "backups", "memento-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N") + ".memento");
             ArchiveBackupProtector.EncryptDirectory(export.ExportDirectory, destination, passwordBox.Password);
+            _adminReview!.RecordAdminOperation(_adminActorId!, "encrypted_backup");
             StatusText.Text = $"已建立加密備份：{destination}";
         }
         catch (Exception)
@@ -590,6 +594,7 @@ public sealed partial class MainWindow : Window
 
     private async void RestoreButton_Click(object sender, RoutedEventArgs e)
     {
+        if (!EnsureAdminForOperation()) return;
         var backupPath = new TextBox { PlaceholderText = "輸入 .memento 備份檔案路徑", MinWidth = 360 };
         var passwordBox = new PasswordBox { PlaceholderText = "輸入備份密碼", MinWidth = 360 };
         var panel = new StackPanel { Spacing = 12 };
@@ -622,6 +627,7 @@ public sealed partial class MainWindow : Window
         try
         {
             var result = ArchiveBackupProtector.DecryptDirectory(backupPath.Text.Trim(), restoreRoot, passwordBox.Password);
+            _adminReview!.RecordAdminOperation(_adminActorId!, "restore_verification");
             StatusText.Text = result.IntegrityOk
                 ? $"備份已還原並通過完整性驗證：{restoreRoot}"
                 : $"備份已還原，但完整性驗證發現問題：{string.Join("；", result.Findings)}";
@@ -646,6 +652,26 @@ public sealed partial class MainWindow : Window
             CloseButtonText = closeText
         };
         await dialog.ShowAsync();
+    }
+
+    private bool EnsureAdminForOperation()
+    {
+        if (_adminReview is null || string.IsNullOrWhiteSpace(_adminActorId))
+        {
+            StatusText.Text = "呢項操作需要 Family Admin 權限。";
+            return false;
+        }
+
+        try
+        {
+            _adminReview.EnsureAuthorized(_adminActorId);
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            StatusText.Text = "呢項操作需要獲授權嘅 Windows 管理員。";
+            return false;
+        }
     }
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
@@ -687,6 +713,9 @@ public sealed partial class MainWindow : Window
         DeleteLatestSourceButton.IsEnabled = adminIdle && _deletion is not null && _lastSource is not null;
         WithdrawLatestSourceButton.IsEnabled = adminIdle && _withdrawal is not null && _lastSource is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase);
         PlaySourceButton.IsEnabled = adminIdle && _sourceAudioPlayback is not null && _lastSource is not null;
+        ExportButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
+        BackupButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
+        RestoreButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
     }
 
     private void StartRetryWorkerIfAvailable()
