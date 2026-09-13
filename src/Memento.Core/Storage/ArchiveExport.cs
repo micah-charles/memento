@@ -156,6 +156,8 @@ public static class ArchiveBackupProtector
     {
         if (string.IsNullOrWhiteSpace(destinationDirectory)) throw new ArgumentException("A restore directory is required.", nameof(destinationDirectory));
         var destination = Path.GetFullPath(destinationDirectory);
+        if (Directory.Exists(destination) && Directory.EnumerateFileSystemEntries(destination).Any())
+            throw new IOException("The restore directory must be empty.");
         Directory.CreateDirectory(destination);
         var temporaryZip = Path.Combine(Path.GetTempPath(), "memento-restore-" + Guid.NewGuid().ToString("N") + ".zip");
         try
