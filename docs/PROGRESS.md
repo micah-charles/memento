@@ -108,6 +108,7 @@
 - Real-user pilot work has not started. A supervised checklist is documented in [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md); the app still requires consent, microphone, provider, admin, export/restore, and incident/rollback review before pilot use.
 - A publish script now produces a self-contained `artifacts/MEMENTO-win-x64.zip`; MSIX generation remains separate because it requires a publisher identity, certificate, and package manifest.
 - `scripts/Install-Memento.ps1` now installs the portable bundle per user under `%LOCALAPPDATA%\\MEMENTO\\App` and creates a Start Menu shortcut; it does not claim signed package identity.
+- `scripts/Start-Memento.ps1` now resolves the installed executable first and otherwise starts the repository publish output, making the supported launch path explicit.
 - `scripts/Uninstall-Memento.ps1` removes that app install and Start Menu shortcut with a guarded per-user path; it preserves `%LOCALAPPDATA%\\MEMENTO` archive data unless `-RemoveData` is explicitly passed.
 - A persistent `recording_enabled` setting now gives the participant an explicit enable/disable control independent of per-session consent.
 - Optional TTS now completes the turn-based pipeline as local WAV → transcription → text response → verified derived speech storage → optional NAudio WAV playback. The WinUI shell can replay the latest stored assistant output; real output-device playback and Realtime/WebRTC transport remain deployment work.

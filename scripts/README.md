@@ -10,6 +10,12 @@ Scripts must not read or upload personal data by default.
 .\scripts\Install-Memento.ps1
 ```
 
+`Start-Memento.ps1` starts the installed app when available, or falls back to the repository's published executable:
+
+```powershell
+.\scripts\Start-Memento.ps1
+```
+
 `Uninstall-Memento.ps1` removes the app files and shortcut while preserving the `%LOCALAPPDATA%\MEMENTO` archive by default. Pass `-RemoveData` only after making and checking a backup:
 
 ```powershell

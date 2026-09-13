@@ -50,6 +50,12 @@ To install that bundle for the current Windows user and create a Start Menu shor
 .\scripts\Install-Memento.ps1
 ```
 
+To start MEMENTO after installation, or start the repository's published executable when no install exists:
+
+```powershell
+.\scripts\Start-Memento.ps1
+```
+
 To remove the installed app while preserving the local archive by default:
 
 ```powershell
