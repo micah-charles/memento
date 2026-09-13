@@ -27,6 +27,9 @@ public sealed class DurableTranscriptionJobProcessor : IConversationJobProcessor
         var session = _repository.GetSession(job.SessionId) ?? throw new InvalidOperationException("The queued session was not found.");
         if (session.PrivacyMode == PrivacyMode.LocalCaptureOnly || !_repository.HasGrantedConsent(job.SessionId, ConsentScope.CloudTranscription))
             throw new CloudNotPermittedException();
+        var source = _repository.GetSource(job.SourceId) ?? throw new InvalidDataException("The queued Source was not found.");
+        if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
+            throw new CloudNotPermittedException();
         var existingRevision = _repository.ListTranscriptRevisions(job.SourceId).OrderByDescending(item => item.RevisionNumber).FirstOrDefault();
         if (existingRevision is not null)
         {

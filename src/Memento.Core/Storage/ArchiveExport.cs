@@ -11,7 +11,7 @@ public static class ArchiveExporter
 {
     private static readonly string[] Tables = ["sessions", "turns", "consent_events", "sources", "provider_interactions", "transcript_revisions", "clarification_events", "vocabulary_entries", "conversation_jobs", "evidence_records", "memory_claims", "evidence_claim_links", "person_entities", "entity_aliases", "evidence_entity_links", "review_annotations", "response_episodes", "derived_speech_assets", "deletion_tombstones"];
 
-    public static ArchiveExportResult Export(SqliteArchive archive, string destinationDirectory, bool includeMedia = false)
+    public static ArchiveExportResult Export(SqliteArchive archive, string destinationDirectory, bool includeMedia = false, bool includeWithdrawn = false)
     {
         if (string.IsNullOrWhiteSpace(destinationDirectory)) throw new ArgumentException("An export directory is required.", nameof(destinationDirectory));
         Directory.CreateDirectory(destinationDirectory);
@@ -23,7 +23,7 @@ public static class ArchiveExporter
         {
             var relative = table + ".jsonl";
             var path = Path.Combine(exportDirectory, relative);
-            WriteTable(connection, table, path);
+            WriteTable(connection, table, path, includeWithdrawn);
             hashes[relative] = Hash(path);
         }
 
@@ -34,6 +34,8 @@ public static class ArchiveExporter
             backup.Parameters.AddWithValue("$path", backupPath);
             backup.ExecuteNonQuery();
         }
+        if (!includeWithdrawn)
+            SanitizeWithdrawnRecords(backupPath);
         hashes["archive.sqlite"] = Hash(backupPath);
 
         if (includeMedia)
@@ -42,7 +44,9 @@ public static class ArchiveExporter
             Directory.CreateDirectory(mediaDirectory);
             using (var sources = connection.CreateCommand())
             {
-                sources.CommandText = "SELECT source_id, file_path FROM sources WHERE file_path IS NOT NULL";
+                sources.CommandText = includeWithdrawn
+                    ? "SELECT source_id, file_path FROM sources WHERE file_path IS NOT NULL"
+                    : "SELECT source_id, file_path FROM sources WHERE file_path IS NOT NULL AND recovery_status <> 'withdrawn'";
                 using var reader = sources.ExecuteReader();
                 while (reader.Read())
                 {
@@ -59,7 +63,9 @@ public static class ArchiveExporter
 
             using (var derived = connection.CreateCommand())
             {
-                derived.CommandText = "SELECT derived_speech_asset_id, file_path FROM derived_speech_assets";
+                derived.CommandText = includeWithdrawn
+                    ? "SELECT derived_speech_asset_id, file_path FROM derived_speech_assets"
+                    : "SELECT derived_speech_asset_id, file_path FROM derived_speech_assets WHERE turn_id IS NULL OR turn_id NOT IN (SELECT turn_id FROM sources WHERE recovery_status = 'withdrawn' AND turn_id IS NOT NULL)";
                 using var reader = derived.ExecuteReader();
                 while (reader.Read())
                 {
@@ -95,10 +101,10 @@ public static class ArchiveExporter
         return candidate;
     }
 
-    private static void WriteTable(SqliteConnection connection, string table, string path)
+    private static void WriteTable(SqliteConnection connection, string table, string path, bool includeWithdrawn)
     {
         using var command = connection.CreateCommand();
-        command.CommandText = $"SELECT * FROM {table}";
+        command.CommandText = SelectTableSql(table, includeWithdrawn);
         using var reader = command.ExecuteReader();
         using var writer = new StreamWriter(path, false);
         while (reader.Read())
@@ -109,7 +115,78 @@ public static class ArchiveExporter
         }
     }
 
+    private static string SelectTableSql(string table, bool includeWithdrawn)
+    {
+        if (includeWithdrawn) return $"SELECT * FROM {table}";
+        const string withdrawn = "(SELECT source_id FROM sources WHERE recovery_status = 'withdrawn')";
+        const string withdrawnEvidence = "(SELECT evidence_id FROM evidence_records WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn'))";
+        const string withdrawnClaims = "(SELECT DISTINCT l.memory_claim_id FROM evidence_claim_links l JOIN evidence_records e ON e.evidence_id = l.evidence_id JOIN sources s ON s.source_id = e.source_id WHERE s.recovery_status = 'withdrawn')";
+        const string withdrawnClarifications = "(SELECT clarification_event_id FROM clarification_events WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn'))";
+        const string withdrawnTurns = "(SELECT turn_id FROM sources WHERE recovery_status = 'withdrawn' AND turn_id IS NOT NULL)";
+        return table switch
+        {
+            "sources" => "SELECT * FROM sources WHERE recovery_status <> 'withdrawn'",
+            "transcript_revisions" => $"SELECT * FROM transcript_revisions WHERE source_id NOT IN {withdrawn}",
+            "clarification_events" => $"SELECT * FROM clarification_events WHERE source_id NOT IN {withdrawn}",
+            "vocabulary_entries" => $"SELECT * FROM vocabulary_entries WHERE source_clarification_event_id NOT IN {withdrawnClarifications}",
+            "conversation_jobs" => $"SELECT * FROM conversation_jobs WHERE source_id NOT IN {withdrawn}",
+            "evidence_records" => $"SELECT * FROM evidence_records WHERE source_id NOT IN {withdrawn}",
+            "evidence_claim_links" => $"SELECT * FROM evidence_claim_links WHERE evidence_id NOT IN {withdrawnEvidence} AND memory_claim_id NOT IN {withdrawnClaims}",
+            "evidence_entity_links" => $"SELECT * FROM evidence_entity_links WHERE evidence_id NOT IN {withdrawnEvidence}",
+            "response_episodes" => $"SELECT * FROM response_episodes WHERE stimulus_evidence_id NOT IN {withdrawnEvidence} AND response_evidence_id NOT IN {withdrawnEvidence} AND (follow_up_evidence_id IS NULL OR follow_up_evidence_id NOT IN {withdrawnEvidence})",
+            "memory_claims" => $"SELECT * FROM memory_claims WHERE memory_claim_id NOT IN {withdrawnClaims}",
+            "provider_interactions" => $"SELECT * FROM provider_interactions WHERE turn_id IS NULL OR turn_id NOT IN {withdrawnTurns}",
+            "derived_speech_assets" => $"SELECT * FROM derived_speech_assets WHERE turn_id IS NULL OR turn_id NOT IN {withdrawnTurns}",
+            "entity_aliases" => $"SELECT * FROM entity_aliases WHERE source_clarification_event_id IS NULL OR source_clarification_event_id NOT IN {withdrawnClarifications}",
+            "review_annotations" => $"SELECT * FROM review_annotations WHERE NOT ((target_type = 'source' AND target_id IN {withdrawn} AND annotation_type <> 'withdrawal') OR (target_type = 'transcript_revision' AND target_id IN (SELECT transcript_revision_id FROM transcript_revisions WHERE source_id IN {withdrawn})) OR (target_type = 'evidence' AND target_id IN {withdrawnEvidence}) OR (target_type = 'memory_claim' AND target_id IN {withdrawnClaims}))",
+            _ => $"SELECT * FROM {table}"
+        };
+    }
+
     private static string Hash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
+
+    private static void SanitizeWithdrawnRecords(string databasePath)
+    {
+        var connectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = databasePath,
+            Mode = SqliteOpenMode.ReadWrite,
+            Cache = SqliteCacheMode.Private,
+            Pooling = false
+        }.ToString();
+        using var connection = new SqliteConnection(connectionString);
+        connection.Open();
+        using var foreignKeys = connection.CreateCommand();
+        foreignKeys.CommandText = "PRAGMA foreign_keys = ON";
+        foreignKeys.ExecuteNonQuery();
+        using var transaction = connection.BeginTransaction();
+        ExecuteSanitize(connection, transaction, "CREATE TEMP TABLE withdrawn_memory_claims(memory_claim_id TEXT PRIMARY KEY)");
+        ExecuteSanitize(connection, transaction, "INSERT INTO withdrawn_memory_claims(memory_claim_id) SELECT DISTINCT l.memory_claim_id FROM evidence_claim_links l JOIN evidence_records e ON e.evidence_id = l.evidence_id JOIN sources s ON s.source_id = e.source_id WHERE s.recovery_status = 'withdrawn'");
+        ExecuteSanitize(connection, transaction, "DELETE FROM review_annotations WHERE (target_type = 'source' AND target_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn') AND annotation_type <> 'withdrawal') OR (target_type = 'transcript_revision' AND target_id IN (SELECT transcript_revision_id FROM transcript_revisions WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn'))) OR (target_type = 'evidence' AND target_id IN (SELECT evidence_id FROM evidence_records WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn'))) OR (target_type = 'memory_claim' AND target_id IN (SELECT memory_claim_id FROM withdrawn_memory_claims))");
+        ExecuteSanitize(connection, transaction, "DELETE FROM response_episodes WHERE stimulus_evidence_id IN (SELECT evidence_id FROM evidence_records WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn')) OR response_evidence_id IN (SELECT evidence_id FROM evidence_records WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn')) OR follow_up_evidence_id IN (SELECT evidence_id FROM evidence_records WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn'))");
+        ExecuteSanitize(connection, transaction, "DELETE FROM evidence_entity_links WHERE evidence_id IN (SELECT evidence_id FROM evidence_records WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn'))");
+        ExecuteSanitize(connection, transaction, "DELETE FROM memory_search WHERE (record_type IN ('transcript_revision', 'evidence') AND source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn')) OR (record_type = 'memory_claim' AND record_id IN (SELECT memory_claim_id FROM withdrawn_memory_claims))");
+        ExecuteSanitize(connection, transaction, "DELETE FROM evidence_claim_links WHERE evidence_id IN (SELECT evidence_id FROM evidence_records WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn')) OR memory_claim_id IN (SELECT memory_claim_id FROM withdrawn_memory_claims)");
+        ExecuteSanitize(connection, transaction, "DELETE FROM vocabulary_entries WHERE source_clarification_event_id IN (SELECT clarification_event_id FROM clarification_events WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn'))");
+        ExecuteSanitize(connection, transaction, "DELETE FROM entity_aliases WHERE source_clarification_event_id IN (SELECT clarification_event_id FROM clarification_events WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn'))");
+        ExecuteSanitize(connection, transaction, "DELETE FROM clarification_events WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn')");
+        ExecuteSanitize(connection, transaction, "DELETE FROM conversation_jobs WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn')");
+        ExecuteSanitize(connection, transaction, "DELETE FROM provider_interactions WHERE turn_id IN (SELECT turn_id FROM sources WHERE recovery_status = 'withdrawn' AND turn_id IS NOT NULL)");
+        ExecuteSanitize(connection, transaction, "DELETE FROM derived_speech_assets WHERE turn_id IN (SELECT turn_id FROM sources WHERE recovery_status = 'withdrawn' AND turn_id IS NOT NULL)");
+        ExecuteSanitize(connection, transaction, "DELETE FROM evidence_records WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn')");
+        ExecuteSanitize(connection, transaction, "DELETE FROM memory_claims WHERE memory_claim_id IN (SELECT memory_claim_id FROM withdrawn_memory_claims)");
+        ExecuteSanitize(connection, transaction, "DELETE FROM transcript_revisions WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn')");
+        ExecuteSanitize(connection, transaction, "DELETE FROM sources WHERE recovery_status = 'withdrawn'");
+        transaction.Commit();
+    }
+
+    private static void ExecuteSanitize(SqliteConnection connection, SqliteTransaction transaction, string sql)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = sql;
+        command.ExecuteNonQuery();
+    }
 }
 
 public static class ArchiveBackupProtector

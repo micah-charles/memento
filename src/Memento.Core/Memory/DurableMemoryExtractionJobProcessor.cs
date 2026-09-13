@@ -23,6 +23,8 @@ public sealed class DurableMemoryExtractionJobProcessor : IConversationJobProces
         if (session.PrivacyMode == PrivacyMode.LocalCaptureOnly || !_repository.HasGrantedConsent(job.SessionId, ConsentScope.CloudTranscription))
             throw new CloudNotPermittedException();
         var source = _repository.GetSource(job.SourceId) ?? throw new InvalidDataException("The queued Source was not found.");
+        if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
+            throw new CloudNotPermittedException();
         var revisions = _repository.ListTranscriptRevisions(job.SourceId);
         var revision = job.TranscriptRevisionId is null
             ? revisions.OrderByDescending(item => item.RevisionNumber).FirstOrDefault()

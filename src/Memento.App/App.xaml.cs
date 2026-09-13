@@ -53,7 +53,8 @@ public partial class App : Application
         var adminReview = new Memento.Core.Admin.FamilyAdminReviewService(Repository, adminAuthorizer);
         var adminActorId = adminAuthorizer.GetCurrentActorId();
         var deletion = adminAuthorizer.IsAuthorized(adminActorId) ? new Memento.Core.Admin.ArchiveDeletionService(Repository, adminAuthorizer) : null;
-        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, voiceConversation, new WaveFileSpeechOutputPlayback(derivedAudioStore), adminReview, adminActorId, retryWorker, () => !string.IsNullOrWhiteSpace(credentials.GetApiKey()), dataDirectory, deletion);
+        var withdrawal = adminAuthorizer.IsAuthorized(adminActorId) ? new Memento.Core.Admin.ArchiveWithdrawalService(Repository, adminAuthorizer) : null;
+        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, voiceConversation, new WaveFileSpeechOutputPlayback(derivedAudioStore), adminReview, adminActorId, retryWorker, () => !string.IsNullOrWhiteSpace(credentials.GetApiKey()), dataDirectory, deletion, withdrawal);
         _window.Activate();
     }
 }

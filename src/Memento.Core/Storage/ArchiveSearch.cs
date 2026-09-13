@@ -30,6 +30,16 @@ public sealed class ArchiveSearchService(SqliteArchive archive)
                 LEFT JOIN sources s ON s.source_id = d.source_id
                 WHERE memory_search MATCH $query
                   AND (d.source_id IS NULL OR s.recovery_status IS NULL OR s.recovery_status <> 'withdrawn')
+                  AND (
+                    d.record_type <> 'memory_claim'
+                    OR NOT EXISTS (
+                        SELECT 1
+                        FROM evidence_claim_links l
+                        JOIN evidence_records e ON e.evidence_id = l.evidence_id
+                        JOIN sources ws ON ws.source_id = e.source_id AND ws.recovery_status = 'withdrawn'
+                        WHERE l.memory_claim_id = d.record_id
+                    )
+                  )
                 ORDER BY bm25(memory_search)
                 LIMIT $limit
                 """;
@@ -48,6 +58,16 @@ public sealed class ArchiveSearchService(SqliteArchive archive)
                 LEFT JOIN sources s ON s.source_id = d.source_id
                 WHERE d.content LIKE $pattern ESCAPE '\'
                   AND (d.source_id IS NULL OR s.recovery_status IS NULL OR s.recovery_status <> 'withdrawn')
+                  AND (
+                    d.record_type <> 'memory_claim'
+                    OR NOT EXISTS (
+                        SELECT 1
+                        FROM evidence_claim_links l
+                        JOIN evidence_records e ON e.evidence_id = l.evidence_id
+                        JOIN sources ws ON ws.source_id = e.source_id AND ws.recovery_status = 'withdrawn'
+                        WHERE l.memory_claim_id = d.record_id
+                    )
+                  )
                 ORDER BY d.record_type, d.record_id
                 LIMIT $limit
                 """;

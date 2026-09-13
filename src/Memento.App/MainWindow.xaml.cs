@@ -20,6 +20,7 @@ public sealed partial class MainWindow : Window
     private readonly ISpeechOutputPlayback? _speechPlayback;
     private readonly FamilyAdminReviewService? _adminReview;
     private readonly ArchiveDeletionService? _deletion;
+    private readonly ArchiveWithdrawalService? _withdrawal;
     private readonly string? _adminActorId;
     private readonly ConversationJobWorker? _retryWorker;
     private readonly Func<bool>? _credentialAvailable;
@@ -32,7 +33,7 @@ public sealed partial class MainWindow : Window
     private CancellationTokenSource? _retryCancellation;
     private Task? _retryTask;
 
-    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null, ConversationJobWorker? retryWorker = null, Func<bool>? credentialAvailable = null, string? dataRoot = null, ArchiveDeletionService? deletion = null)
+    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null, ConversationJobWorker? retryWorker = null, Func<bool>? credentialAvailable = null, string? dataRoot = null, ArchiveDeletionService? deletion = null, ArchiveWithdrawalService? withdrawal = null)
     {
         _repository = repository;
         _audioRoot = audioRoot;
@@ -43,6 +44,7 @@ public sealed partial class MainWindow : Window
         _speechPlayback = speechPlayback;
         _adminReview = adminReview;
         _deletion = deletion;
+        _withdrawal = withdrawal;
         _adminActorId = adminActorId;
         _retryWorker = retryWorker;
         _credentialAvailable = credentialAvailable;
@@ -295,6 +297,39 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async void WithdrawLatestSourceButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_withdrawal is null || string.IsNullOrWhiteSpace(_adminActorId) || _lastSource is null || _capture?.State == AudioCaptureState.Capturing || _processing || string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = RootGrid.XamlRoot,
+            Title = "停止日後雲端處理？",
+            Content = new TextBlock
+            {
+                Text = "這會保留歷史錄音及資料作本機管理，但由此來源衍生嘅資料會停止日後雲端轉錄、記憶抽取、搜尋及一般匯出。原始錄音不會刪除。",
+                TextWrapping = TextWrapping.Wrap
+            },
+            PrimaryButtonText = "確認停止",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Close
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+        try
+        {
+            var result = _withdrawal.WithdrawSource(_adminActorId, _lastSource.SourceId, "participant requested future cloud processing withdrawal");
+            _lastSource = _repository.GetSource(result.SourceId);
+            StatusText.Text = "已停止此錄音日後雲端處理；歷史資料及原始錄音仍然保留。";
+            UpdateRecordControl();
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "未能停止日後雲端處理；原有資料仍然保留。";
+        }
+    }
+
     private void HealthCheckButton_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -448,9 +483,10 @@ public sealed partial class MainWindow : Window
     private void UpdateRecordControl()
     {
         RecordButton.IsEnabled = _recordingEnabled && ConsentCheckBox.IsChecked == true && ConsentCheckBox.IsEnabled && !_processing;
-        ProcessButton.IsEnabled = !_processing && _voiceConversation is not null && _capture?.State != AudioCaptureState.Capturing && _lastSource?.FilePath is not null && _session?.EndedAt is not null && _session.PrivacyMode != PrivacyMode.LocalCaptureOnly && CloudConsentCheckBox.IsChecked == true;
+        ProcessButton.IsEnabled = !_processing && _voiceConversation is not null && _capture?.State != AudioCaptureState.Capturing && _lastSource?.FilePath is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) && _session?.EndedAt is not null && _session.PrivacyMode != PrivacyMode.LocalCaptureOnly && CloudConsentCheckBox.IsChecked == true;
         PlaySpeechButton.IsEnabled = !_processing && _latestSpeechAsset is not null && _speechPlayback is not null;
         DeleteLatestSourceButton.IsEnabled = !_processing && _deletion is not null && !string.IsNullOrWhiteSpace(_adminActorId) && _lastSource is not null && _capture?.State != AudioCaptureState.Capturing;
+        WithdrawLatestSourceButton.IsEnabled = !_processing && _withdrawal is not null && !string.IsNullOrWhiteSpace(_adminActorId) && _lastSource is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) && _capture?.State != AudioCaptureState.Capturing;
     }
 
     private void StartRetryWorkerIfAvailable()

@@ -21,6 +21,7 @@
             <Button x:Name="PlaySpeechButton" Content="播放最近回覆" IsEnabled="False" Click="PlaySpeechButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="AdminReviewButton" Content="家庭管理審閱" Click="AdminReviewButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="DeleteLatestSourceButton" Content="刪除最近本機錄音" Click="DeleteLatestSourceButton_Click" HorizontalAlignment="Center" Padding="20,8" />
+            <Button x:Name="WithdrawLatestSourceButton" Content="停止日後雲端處理" Click="WithdrawLatestSourceButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="HealthCheckButton" Content="檢查本機資料" Click="HealthCheckButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="ExportButton" Content="匯出本機資料" Click="ExportButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="BackupButton" Content="建立加密備份" Click="BackupButton_Click" HorizontalAlignment="Center" Padding="20,8" />

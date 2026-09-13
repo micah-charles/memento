@@ -27,7 +27,10 @@ public sealed class DurableResponseJobProcessor : IConversationJobProcessor
         var session = _repository.GetSession(job.SessionId) ?? throw new InvalidOperationException("The queued session was not found.");
         if (session.PrivacyMode == PrivacyMode.LocalCaptureOnly || !_repository.HasGrantedConsent(job.SessionId, ConsentScope.CloudTranscription))
             throw new CloudNotPermittedException();
-        var sourcePath = _repository.GetSourceFilePath(job.SourceId);
+        var source = _repository.GetSource(job.SourceId) ?? throw new InvalidDataException("The queued Source was not found.");
+        if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
+            throw new CloudNotPermittedException();
+        var sourcePath = source.FilePath;
         if (string.IsNullOrWhiteSpace(sourcePath)) throw new FileNotFoundException("The queued Source has no local file path.", job.SourceId);
         var revision = _repository.ListTranscriptRevisions(job.SourceId).OrderByDescending(item => item.RevisionNumber).FirstOrDefault() ?? throw new InvalidDataException("The queued Source has no transcript revision.");
         var request = new ConversationRequest(session.SessionId, job.TurnId, sourcePath, session.PrivacyMode, true, DateTimeOffset.UtcNow, revision.Text, job.SourceId);
