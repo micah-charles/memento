@@ -45,6 +45,28 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void Family_admin_review_rejects_a_claim_that_is_not_a_current_candidate()
+    {
+        using var fixture = new OperationsFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-admin-stale"));
+        var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-admin-stale", source.SourceId, null, 1, "initial", "我鍾意魚蛋", 0.8, null, DateTimeOffset.UtcNow));
+        var extraction = new MemoryExtractionService(repository, new DeterministicMemoryExtractionProvider()).ExtractAndPersist(session, source, revision);
+        var claim = Assert.Single(extraction.Claims);
+        repository.UpdateMemoryClaimStatus(claim.MemoryClaimId, ClaimStatus.Reviewed);
+        var service = new FamilyAdminReviewService(repository, new FixedTestAdminAuthorizer("admin-1"));
+
+        Assert.Throws<InvalidOperationException>(() => service.AnnotateClaim("admin-1", claim, "family_assessment", "stale review", "supported"));
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM review_annotations WHERE target_id = $claim";
+        command.Parameters.AddWithValue("$claim", claim.MemoryClaimId);
+        Assert.Equal(0L, Convert.ToInt64(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
     public void Export_writes_jsonl_media_and_encrypted_backup_roundtrip()
     {
         using var fixture = new OperationsFixture();

@@ -35,6 +35,8 @@ public sealed class FamilyAdminReviewService
         DemandAuthorization(actorId);
         if (claim.Status != ClaimStatus.Candidate) throw new InvalidOperationException("Only candidate claims can be reviewed through this operation.");
         if (string.IsNullOrWhiteSpace(body)) throw new ArgumentException("A review body is required.", nameof(body));
+        if (!_repository.ListCandidateClaims().Any(candidate => string.Equals(candidate.MemoryClaimId, claim.MemoryClaimId, StringComparison.Ordinal)))
+            throw new InvalidOperationException("The candidate claim is no longer available for review.");
         var annotation = _repository.AddReviewAnnotation(new ReviewAnnotation(Guid.NewGuid().ToString("N"), "memory_claim", claim.MemoryClaimId, actorId, annotationType, body, assessment, DateTimeOffset.UtcNow));
         if (string.Equals(annotationType, "family_assessment", StringComparison.Ordinal) && string.Equals(assessment, "supported", StringComparison.OrdinalIgnoreCase))
             _repository.UpdateMemoryClaimStatus(claim.MemoryClaimId, ClaimStatus.Reviewed);
