@@ -54,21 +54,23 @@ public sealed class AudioCaptureController
         if (State == AudioCaptureState.Capturing) throw new InvalidOperationException("Capture is already active.");
         _sessionId = sessionId;
         _turnId = turnId;
-        var input = inputFactory(new PcmWaveFormat(48000, 1, 16));
-        _input = input;
-        _writer = PcmWaveWriter.Create(_audioRootDirectory, sessionId, startedAt ?? DateTimeOffset.UtcNow, input.Format);
-        input.DataAvailable += OnDataAvailable;
-        input.CaptureError += OnCaptureError;
+        IAudioInput? input = null;
         try
         {
-            input.Start();
+            input = inputFactory(new PcmWaveFormat(48000, 1, 16)) ?? throw new InvalidOperationException("Audio input factory returned no input.");
+            _input = input;
+            _writer = PcmWaveWriter.Create(_audioRootDirectory, sessionId, startedAt ?? DateTimeOffset.UtcNow, input.Format);
+            input.DataAvailable += OnDataAvailable;
+            input.CaptureError += OnCaptureError;
             State = AudioCaptureState.Capturing;
+            input.Start();
+            if (State == AudioCaptureState.Failed)
+                throw new InvalidOperationException(Failure ?? "Audio input failed during start.");
         }
-        catch
+        catch (Exception error)
         {
-            State = AudioCaptureState.Failed;
-            input.Dispose();
-            _writer.Dispose();
+            if (State != AudioCaptureState.Failed)
+                FailCapture(error);
             throw;
         }
     }
@@ -85,15 +87,34 @@ public sealed class AudioCaptureController
         }
         _input.DataAvailable -= OnDataAvailable;
         _input.CaptureError -= OnCaptureError;
-        _input.Dispose();
-        var asset = _writer.FinalizeAsset();
-        _writer.Dispose();
-        var source = new SourceMetadata(asset.SourceId, "audio", _sessionId, _turnId, asset.FilePath, "PCM WAV", asset.Format.SampleRate, asset.Format.Channels, asset.Format.BitsPerSample, asset.ByteLength, asset.DurationMs, asset.Sha256, asset.StartedAt, asset.FinalizedAt, "finalized", DateTimeOffset.UtcNow);
-        _repository.AddSource(source);
-        State = AudioCaptureState.Finalized;
-        _writer = null;
+        try
+        {
+            _input.Dispose();
+        }
+        catch (Exception error)
+        {
+            FailCapture(error);
+            throw;
+        }
         _input = null;
-        return source;
+        try
+        {
+            var asset = _writer.FinalizeAsset();
+            _writer.Dispose();
+            _writer = null;
+            var source = new SourceMetadata(asset.SourceId, "audio", _sessionId, _turnId, asset.FilePath, "PCM WAV", asset.Format.SampleRate, asset.Format.Channels, asset.Format.BitsPerSample, asset.ByteLength, asset.DurationMs, asset.Sha256, asset.StartedAt, asset.FinalizedAt, "finalized", DateTimeOffset.UtcNow);
+            _repository.AddSource(source);
+            State = AudioCaptureState.Finalized;
+            return source;
+        }
+        catch (Exception error)
+        {
+            var writer = _writer;
+            _writer = null;
+            try { writer?.Dispose(); } catch { }
+            FailCapture(error);
+            throw;
+        }
     }
 
     public void AbortForRecovery()
@@ -118,6 +139,11 @@ public sealed class AudioCaptureController
 
     private void OnCaptureError(object? sender, Exception error)
     {
+        FailCapture(error);
+    }
+
+    private void FailCapture(Exception error)
+    {
         if (State == AudioCaptureState.Failed) return;
         Failure = error.Message;
         if (_input is not null)
@@ -127,8 +153,9 @@ public sealed class AudioCaptureController
             try { _input.Dispose(); } catch { }
             _input = null;
         }
-        _writer?.Dispose();
+        var writer = _writer;
         _writer = null;
+        try { writer?.Dispose(); } catch { }
         State = AudioCaptureState.Failed;
         CaptureFailed?.Invoke(this, error);
     }

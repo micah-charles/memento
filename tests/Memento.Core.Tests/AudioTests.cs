@@ -133,6 +133,87 @@ public sealed class AudioTests
     }
 
     [Fact]
+    public void Capture_error_during_start_does_not_reenter_capturing()
+    {
+        using var fixture = new AudioFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.LocalCaptureOnly);
+        var fake = new FakeAudioInput(new PcmWaveFormat(48000, 1, 16)) { RaiseErrorOnStart = true };
+        var controller = new AudioCaptureController(repository, fixture.AudioRoot);
+        Exception? raised = null;
+        controller.CaptureFailed += (_, error) => raised = error;
+
+        Assert.Throws<InvalidOperationException>(() => controller.Start(session.SessionId, null, true, _ => fake));
+
+        Assert.Equal(AudioCaptureState.Failed, controller.State);
+        Assert.NotNull(raised);
+        Assert.True(fake.Disposed);
+        Assert.Single(AudioRecoveryScanner.Scan(fixture.AudioRoot));
+    }
+
+    [Fact]
+    public void Input_factory_failure_marks_capture_failed()
+    {
+        using var fixture = new AudioFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.LocalCaptureOnly);
+        var controller = new AudioCaptureController(repository, fixture.AudioRoot);
+        Exception? raised = null;
+        controller.CaptureFailed += (_, error) => raised = error;
+
+        Assert.Throws<IOException>(() => controller.Start(session.SessionId, null, true, _ => throw new IOException("no microphone")));
+
+        Assert.Equal(AudioCaptureState.Failed, controller.State);
+        Assert.Contains("no microphone", controller.Failure);
+        Assert.NotNull(raised);
+        Assert.Empty(AudioRecoveryScanner.Scan(fixture.AudioRoot));
+    }
+
+    [Fact]
+    public void Source_registration_failure_marks_capture_failed_after_finalization()
+    {
+        using var fixture = new AudioFixture();
+        var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.LocalCaptureOnly);
+        var fake = new FakeAudioInput(new PcmWaveFormat(48000, 1, 16));
+        var controller = new AudioCaptureController(repository, fixture.AudioRoot);
+        controller.Start(session.SessionId, null, true, _ => fake);
+        Exception? raised = null;
+        controller.CaptureFailed += (_, error) => raised = error;
+        archive.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => controller.Stop());
+
+        Assert.Equal(AudioCaptureState.Failed, controller.State);
+        Assert.NotNull(raised);
+        Assert.Empty(AudioRecoveryScanner.Scan(fixture.AudioRoot));
+    }
+
+    [Fact]
+    public void Input_dispose_failure_preserves_capture_for_recovery()
+    {
+        using var fixture = new AudioFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.LocalCaptureOnly);
+        var fake = new FakeAudioInput(new PcmWaveFormat(48000, 1, 16)) { ThrowOnDispose = true };
+        var controller = new AudioCaptureController(repository, fixture.AudioRoot);
+        controller.Start(session.SessionId, null, true, _ => fake);
+
+        Assert.Throws<InvalidOperationException>(() => controller.Stop());
+
+        Assert.Equal(AudioCaptureState.Failed, controller.State);
+        Assert.Single(AudioRecoveryScanner.Scan(fixture.AudioRoot));
+    }
+
+    [Fact]
     public void Duplicate_final_path_keeps_the_second_capture_recoverable()
     {
         using var fixture = new AudioFixture();
@@ -159,12 +240,28 @@ public sealed class AudioTests
         public event EventHandler<Exception>? CaptureError;
 #pragma warning restore CS0067
 
-        public void Start() => DataAvailable?.Invoke(this, new AudioDataEventArgs(new byte[Format.BlockAlign * 480], Format.BlockAlign * 480));
+        public void Start() => StartWithErrorIfRequested();
         public void Stop() { if (ThrowOnStop) throw new InvalidOperationException("stop failed"); }
         public bool Disposed { get; private set; }
         public bool ThrowOnStop { get; init; }
+        public bool ThrowOnDispose { get; init; }
+        public bool RaiseErrorOnStart { get; init; }
         public void RaiseError(Exception error) => CaptureError?.Invoke(this, error);
-        public void Dispose() => Disposed = true;
+        public void StartWithErrorIfRequested()
+        {
+            if (RaiseErrorOnStart)
+            {
+                RaiseError(new IOException("microphone failed during start"));
+                return;
+            }
+
+            DataAvailable?.Invoke(this, new AudioDataEventArgs(new byte[Format.BlockAlign * 480], Format.BlockAlign * 480));
+        }
+        public void Dispose()
+        {
+            Disposed = true;
+            if (ThrowOnDispose) throw new InvalidOperationException("input dispose failed");
+        }
     }
 
     private sealed class AudioFixture : IDisposable
