@@ -249,6 +249,80 @@ internal static class Migrations
             CREATE INDEX ix_vocabulary_entries_canonical ON vocabulary_entries(canonical_text);
             """))
         ,new(5, (connection, transaction) => SqliteArchive.Execute(connection, transaction, "CREATE INDEX ix_clarification_events_initial ON clarification_events(initial_revision_id)"))
+        ,new(6, (connection, transaction) => SqliteArchive.Execute(connection, transaction, """
+            CREATE TABLE conversation_jobs (
+                conversation_job_id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL REFERENCES sessions(session_id) ON DELETE RESTRICT,
+                turn_id TEXT NULL REFERENCES turns(turn_id) ON DELETE RESTRICT,
+                source_id TEXT NOT NULL REFERENCES sources(source_id) ON DELETE RESTRICT,
+                job_type TEXT NOT NULL,
+                status TEXT NOT NULL CHECK (status IN ('Pending', 'Processing', 'Succeeded', 'Failed')),
+                attempt_count INTEGER NOT NULL CHECK (attempt_count >= 0),
+                next_attempt_at TEXT NULL,
+                last_error TEXT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX ix_conversation_jobs_status ON conversation_jobs(status, next_attempt_at);
+            """))
+        ,new(7, (connection, transaction) => SqliteArchive.Execute(connection, transaction, """
+            CREATE TABLE evidence_records (
+                evidence_id TEXT PRIMARY KEY,
+                kind TEXT NOT NULL CHECK (kind IN ('DirectStatement', 'ConfirmedInterpretation', 'AiInference', 'SystemObservation', 'ExternalFact')),
+                source_id TEXT NOT NULL REFERENCES sources(source_id) ON DELETE RESTRICT,
+                session_id TEXT NULL REFERENCES sessions(session_id) ON DELETE RESTRICT,
+                turn_id TEXT NULL REFERENCES turns(turn_id) ON DELETE RESTRICT,
+                transcript_revision_id TEXT NULL REFERENCES transcript_revisions(transcript_revision_id) ON DELETE RESTRICT,
+                statement TEXT NOT NULL,
+                original_expression TEXT NOT NULL,
+                participant_certainty TEXT NOT NULL CHECK (participant_certainty IN ('Stated', 'Uncertain', 'Unknown', 'NotApplicable')),
+                speaker_confirmed INTEGER NOT NULL CHECK (speaker_confirmed IN (0, 1)),
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE memory_claims (
+                memory_claim_id TEXT PRIMARY KEY,
+                statement TEXT NOT NULL,
+                subject_person_id TEXT NULL,
+                predicate TEXT NOT NULL,
+                object TEXT NOT NULL,
+                status TEXT NOT NULL CHECK (status IN ('Candidate', 'Reviewed', 'Rejected')),
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE evidence_claim_links (
+                evidence_id TEXT NOT NULL REFERENCES evidence_records(evidence_id) ON DELETE RESTRICT,
+                memory_claim_id TEXT NOT NULL REFERENCES memory_claims(memory_claim_id) ON DELETE RESTRICT,
+                relationship TEXT NOT NULL CHECK (relationship IN ('supports', 'weakens', 'contradicts', 'clarifies', 'contextualises')),
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (evidence_id, memory_claim_id, relationship)
+            );
+            CREATE INDEX ix_evidence_source ON evidence_records(source_id, created_at);
+            CREATE INDEX ix_claim_links_claim ON evidence_claim_links(memory_claim_id);
+            """))
+        ,new(8, (connection, transaction) => SqliteArchive.Execute(connection, transaction, """
+            CREATE TABLE person_entities (
+                person_entity_id TEXT PRIMARY KEY,
+                display_name TEXT NOT NULL,
+                relationship TEXT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE entity_aliases (
+                entity_alias_id TEXT PRIMARY KEY,
+                person_entity_id TEXT NOT NULL REFERENCES person_entities(person_entity_id) ON DELETE RESTRICT,
+                alias TEXT NOT NULL,
+                speaker_confirmed INTEGER NOT NULL CHECK (speaker_confirmed IN (0, 1)),
+                source_clarification_event_id TEXT NULL REFERENCES clarification_events(clarification_event_id) ON DELETE RESTRICT,
+                created_at TEXT NOT NULL,
+                UNIQUE(person_entity_id, alias)
+            );
+            CREATE TABLE evidence_entity_links (
+                evidence_id TEXT NOT NULL REFERENCES evidence_records(evidence_id) ON DELETE RESTRICT,
+                person_entity_id TEXT NOT NULL REFERENCES person_entities(person_entity_id) ON DELETE RESTRICT,
+                role TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (evidence_id, person_entity_id, role)
+            );
+            CREATE INDEX ix_entity_aliases_alias ON entity_aliases(alias);
+            """))
     ];
 
     internal sealed record Migration(int Version, Action<SqliteConnection, SqliteTransaction> Apply);

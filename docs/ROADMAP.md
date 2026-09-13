@@ -1,7 +1,7 @@
 # MEMENTO roadmap
 
-**Status:** M00.1 gate plan
-**Last reviewed:** 2026-09-12
+**Status:** M01–M09 implementation in progress; evidence gates remain explicit
+**Last reviewed:** 2026-09-13
 
 Every milestone requires implementation, automated tests, manual verification, evidence, documentation, and a Git checkpoint. Passing compilation is not a gate. No milestone may weaken the evidence rules or privacy modes.
 

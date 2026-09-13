@@ -1,7 +1,7 @@
 # MEMENTO progress
 
-**Current milestone:** M05 — Clarification protocol
-**Status:** PARTIAL/BLOCKED pending participant UX and live verification
+**Current milestone:** M09 — Vocabulary and entities
+**Status:** IMPLEMENTED / AUTOMATED TESTED; live provider, hardware, and supervised UX gates remain pending
 **Last updated:** 2026-09-13
 
 ## Completed in M00
@@ -73,6 +73,14 @@
 - Added a clarification policy that prioritises names, places, relationships, dates, identity, preferences, and other high-impact ambiguity while avoiding low-impact filler checks. Speaker correction text is stored verbatim and always outranks model confidence.
 - The protocol supports confirmation, refusal, “唔記得”, two possibilities, and correction of a previous correction. A corrected revision never overwrites the initial recognition.
 - M05 is **PARTIAL/BLOCKED**: 23 deterministic tests pass cumulatively, but participant UX and natural Cantonese turn-taking have not been observed. See [M05 evidence](evidence/M05.md).
+
+## M06–M09 implementation attempt — 2026-09-13
+
+- M06 added durable `conversation_jobs` with pending/processing/succeeded/failed states, attempt counts, retry timestamps, and error metadata. `ConversationSessionWriter` maps the continuous session UX onto durable sessions, turns, local Sources, and retryable work.
+- M07 added candidate `EvidenceRecord`, `MemoryClaim`, and explicit `EvidenceClaimLink` records. `MemoryExtractionService` uses a deterministic provider boundary and never promotes candidates beyond `candidate` status.
+- M08 added `ProvenanceGraph.Validate`, which checks Source → transcript revision → Evidence → Claim links, allowed relationships, and blocks an unconfirmed AI inference from silently becoming a reviewed claim.
+- M09 added person entities, speaker-confirmed aliases, and Evidence-to-entity links. Alias history is additive and does not rewrite transcript or Source records.
+- The cumulative suite now passes **27/27** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while real offline restart workers, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
 
 ## Next action
 

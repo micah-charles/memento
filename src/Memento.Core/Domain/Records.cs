@@ -120,3 +120,96 @@ public sealed record VocabularyEntry(
     bool SpeakerConfirmed,
     string SourceClarificationEventId,
     DateTimeOffset CreatedAt);
+
+public enum ConversationJobStatus
+{
+    Pending,
+    Processing,
+    Succeeded,
+    Failed
+}
+
+public sealed record ConversationJob(
+    string ConversationJobId,
+    string SessionId,
+    string? TurnId,
+    string SourceId,
+    string JobType,
+    ConversationJobStatus Status,
+    int AttemptCount,
+    DateTimeOffset? NextAttemptAt,
+    string? LastError,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+
+public enum EvidenceKind
+{
+    DirectStatement,
+    ConfirmedInterpretation,
+    AiInference,
+    SystemObservation,
+    ExternalFact
+}
+
+public enum ParticipantCertainty
+{
+    Stated,
+    Uncertain,
+    Unknown,
+    NotApplicable
+}
+
+public sealed record EvidenceRecord(
+    string EvidenceId,
+    EvidenceKind Kind,
+    string SourceId,
+    string? SessionId,
+    string? TurnId,
+    string? TranscriptRevisionId,
+    string Statement,
+    string OriginalExpression,
+    ParticipantCertainty ParticipantCertainty,
+    bool SpeakerConfirmed,
+    DateTimeOffset CreatedAt);
+
+public enum ClaimStatus
+{
+    Candidate,
+    Reviewed,
+    Rejected
+}
+
+public sealed record MemoryClaim(
+    string MemoryClaimId,
+    string Statement,
+    string? SubjectPersonId,
+    string Predicate,
+    string Object,
+    ClaimStatus Status,
+    DateTimeOffset CreatedAt);
+
+public sealed record EvidenceClaimLink(
+    string EvidenceId,
+    string MemoryClaimId,
+    string Relationship,
+    DateTimeOffset CreatedAt);
+
+public sealed record PersonEntity(
+    string PersonEntityId,
+    string DisplayName,
+    string? Relationship,
+    DateTimeOffset CreatedAt);
+
+public sealed record EntityAlias(
+    string EntityAliasId,
+    string PersonEntityId,
+    string Alias,
+    bool SpeakerConfirmed,
+    string? SourceClarificationEventId,
+    DateTimeOffset CreatedAt);
+
+public sealed record EvidenceEntityLink(
+    string EvidenceId,
+    string PersonEntityId,
+    string Role,
+    DateTimeOffset CreatedAt);

@@ -175,6 +175,145 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return entry;
     }
 
+    public ConversationJob AddConversationJob(ConversationJob job)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO conversation_jobs(conversation_job_id, session_id, turn_id, source_id, job_type, status, attempt_count, next_attempt_at, last_error, created_at, updated_at)
+            VALUES ($id, $session, $turn, $source, $type, $status, $attempt, $next, $error, $created, $updated)
+            """;
+        command.Parameters.AddWithValue("$id", job.ConversationJobId);
+        command.Parameters.AddWithValue("$session", job.SessionId);
+        command.Parameters.AddWithValue("$turn", (object?)job.TurnId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$source", job.SourceId);
+        command.Parameters.AddWithValue("$type", job.JobType);
+        command.Parameters.AddWithValue("$status", job.Status.ToString());
+        command.Parameters.AddWithValue("$attempt", job.AttemptCount);
+        command.Parameters.AddWithValue("$next", job.NextAttemptAt is null ? DBNull.Value : Format(job.NextAttemptAt.Value));
+        command.Parameters.AddWithValue("$error", (object?)job.LastError ?? DBNull.Value);
+        command.Parameters.AddWithValue("$created", Format(job.CreatedAt));
+        command.Parameters.AddWithValue("$updated", Format(job.UpdatedAt));
+        command.ExecuteNonQuery();
+        return job;
+    }
+
+    public void UpdateConversationJob(ConversationJob job)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE conversation_jobs SET status = $status, attempt_count = $attempt, next_attempt_at = $next, last_error = $error, updated_at = $updated WHERE conversation_job_id = $id";
+        command.Parameters.AddWithValue("$id", job.ConversationJobId);
+        command.Parameters.AddWithValue("$status", job.Status.ToString());
+        command.Parameters.AddWithValue("$attempt", job.AttemptCount);
+        command.Parameters.AddWithValue("$next", job.NextAttemptAt is null ? DBNull.Value : Format(job.NextAttemptAt.Value));
+        command.Parameters.AddWithValue("$error", (object?)job.LastError ?? DBNull.Value);
+        command.Parameters.AddWithValue("$updated", Format(job.UpdatedAt));
+        if (command.ExecuteNonQuery() != 1) throw new InvalidOperationException("Conversation job was not found.");
+    }
+
+    public IReadOnlyList<ConversationJob> ListRetryableConversationJobs(DateTimeOffset now)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT conversation_job_id, session_id, turn_id, source_id, job_type, status, attempt_count, next_attempt_at, last_error, created_at, updated_at FROM conversation_jobs WHERE status IN ('Pending', 'Failed') AND (next_attempt_at IS NULL OR next_attempt_at <= $now) ORDER BY created_at";
+        command.Parameters.AddWithValue("$now", Format(now));
+        using var reader = command.ExecuteReader();
+        var jobs = new List<ConversationJob>();
+        while (reader.Read()) jobs.Add(new ConversationJob(reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetString(3), reader.GetString(4), Enum.Parse<ConversationJobStatus>(reader.GetString(5)), reader.GetInt32(6), reader.IsDBNull(7) ? null : DateTimeOffset.Parse(reader.GetString(7), null, System.Globalization.DateTimeStyles.RoundtripKind), reader.IsDBNull(8) ? null : reader.GetString(8), DateTimeOffset.Parse(reader.GetString(9), null, System.Globalization.DateTimeStyles.RoundtripKind), DateTimeOffset.Parse(reader.GetString(10), null, System.Globalization.DateTimeStyles.RoundtripKind)));
+        return jobs;
+    }
+
+    public EvidenceRecord AddEvidence(EvidenceRecord evidence)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO evidence_records(evidence_id, kind, source_id, session_id, turn_id, transcript_revision_id, statement, original_expression, participant_certainty, speaker_confirmed, created_at) VALUES ($id, $kind, $source, $session, $turn, $revision, $statement, $original, $certainty, $confirmed, $created)";
+        command.Parameters.AddWithValue("$id", evidence.EvidenceId);
+        command.Parameters.AddWithValue("$kind", evidence.Kind.ToString());
+        command.Parameters.AddWithValue("$source", evidence.SourceId);
+        command.Parameters.AddWithValue("$session", (object?)evidence.SessionId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$turn", (object?)evidence.TurnId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$revision", (object?)evidence.TranscriptRevisionId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$statement", evidence.Statement);
+        command.Parameters.AddWithValue("$original", evidence.OriginalExpression);
+        command.Parameters.AddWithValue("$certainty", evidence.ParticipantCertainty.ToString());
+        command.Parameters.AddWithValue("$confirmed", evidence.SpeakerConfirmed ? 1 : 0);
+        command.Parameters.AddWithValue("$created", Format(evidence.CreatedAt));
+        command.ExecuteNonQuery();
+        return evidence;
+    }
+
+    public MemoryClaim AddMemoryClaim(MemoryClaim claim)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO memory_claims(memory_claim_id, statement, subject_person_id, predicate, object, status, created_at) VALUES ($id, $statement, $subject, $predicate, $object, $status, $created)";
+        command.Parameters.AddWithValue("$id", claim.MemoryClaimId);
+        command.Parameters.AddWithValue("$statement", claim.Statement);
+        command.Parameters.AddWithValue("$subject", (object?)claim.SubjectPersonId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$predicate", claim.Predicate);
+        command.Parameters.AddWithValue("$object", claim.Object);
+        command.Parameters.AddWithValue("$status", claim.Status.ToString());
+        command.Parameters.AddWithValue("$created", Format(claim.CreatedAt));
+        command.ExecuteNonQuery();
+        return claim;
+    }
+
+    public EvidenceClaimLink AddEvidenceClaimLink(EvidenceClaimLink link)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO evidence_claim_links(evidence_id, memory_claim_id, relationship, created_at) VALUES ($evidence, $claim, $relationship, $created)";
+        command.Parameters.AddWithValue("$evidence", link.EvidenceId);
+        command.Parameters.AddWithValue("$claim", link.MemoryClaimId);
+        command.Parameters.AddWithValue("$relationship", link.Relationship);
+        command.Parameters.AddWithValue("$created", Format(link.CreatedAt));
+        command.ExecuteNonQuery();
+        return link;
+    }
+
+    public PersonEntity AddPersonEntity(PersonEntity entity)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO person_entities(person_entity_id, display_name, relationship, created_at) VALUES ($id, $name, $relationship, $created)";
+        command.Parameters.AddWithValue("$id", entity.PersonEntityId);
+        command.Parameters.AddWithValue("$name", entity.DisplayName);
+        command.Parameters.AddWithValue("$relationship", (object?)entity.Relationship ?? DBNull.Value);
+        command.Parameters.AddWithValue("$created", Format(entity.CreatedAt));
+        command.ExecuteNonQuery();
+        return entity;
+    }
+
+    public EntityAlias AddEntityAlias(EntityAlias alias)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO entity_aliases(entity_alias_id, person_entity_id, alias, speaker_confirmed, source_clarification_event_id, created_at) VALUES ($id, $entity, $alias, $confirmed, $event, $created)";
+        command.Parameters.AddWithValue("$id", alias.EntityAliasId);
+        command.Parameters.AddWithValue("$entity", alias.PersonEntityId);
+        command.Parameters.AddWithValue("$alias", alias.Alias);
+        command.Parameters.AddWithValue("$confirmed", alias.SpeakerConfirmed ? 1 : 0);
+        command.Parameters.AddWithValue("$event", (object?)alias.SourceClarificationEventId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$created", Format(alias.CreatedAt));
+        command.ExecuteNonQuery();
+        return alias;
+    }
+
+    public EvidenceEntityLink AddEvidenceEntityLink(EvidenceEntityLink link)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO evidence_entity_links(evidence_id, person_entity_id, role, created_at) VALUES ($evidence, $person, $role, $created)";
+        command.Parameters.AddWithValue("$evidence", link.EvidenceId);
+        command.Parameters.AddWithValue("$person", link.PersonEntityId);
+        command.Parameters.AddWithValue("$role", link.Role);
+        command.Parameters.AddWithValue("$created", Format(link.CreatedAt));
+        command.ExecuteNonQuery();
+        return link;
+    }
+
     private static string NewId() => Guid.NewGuid().ToString("N");
     private static string Format(DateTimeOffset timestamp) => timestamp.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture);
 }

@@ -125,3 +125,12 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - `dotnet test tests/Memento.Core.Tests/Memento.Core.Tests.csproj --configuration Release` passed **23/23** after M05 additions.
 - Tests cover the `阿珍` → `阿貞` chain, uncertain school year, refusal, “唔記得”, correction of a correction, policy thresholds, and schema persistence. No participant or natural voice UX test was run.
 - Gate decision: **PARTIAL/BLOCKED** pending participant-facing clarification UX and live Cantonese interaction review.
+
+## M06–M09 implementation evidence — 2026-09-13
+
+- Added migrations 6–8 for retryable conversation jobs, separate Evidence/Memory Claim/link records, and person/entity/alias links.
+- `ConversationSessionWriter` persists session/turn/source work and supports retry state transitions without deleting the local Source.
+- `MemoryExtractionService` writes candidate Evidence and candidate Claims separately, with an explicit supports/weakens/contradicts/clarifies/contextualises link. `ProvenanceGraph.Validate` rejects mismatched source chains and unconfirmed AI inference promotion.
+- `EntityResolutionService` adds people, speaker-confirmed aliases, and explicit Evidence links. Existing transcript and audio records remain unchanged.
+- `dotnet test tests/Memento.Core.Tests/Memento.Core.Tests.csproj --configuration Release` passed **27/27** after M06–M09 additions; `dotnet build Memento.slnx --configuration Release --no-restore` passed with 0 warnings and 0 errors.
+- Gate status: **IMPLEMENTED / AUTOMATED TESTED**, with live worker scheduling, real provider extraction, and admin UI still unverified.
