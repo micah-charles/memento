@@ -497,6 +497,74 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return link;
     }
 
+    /// <summary>
+    /// Persists one extraction result as an all-or-nothing batch. Evidence,
+    /// candidate claims, links, and their search rows must not be left half
+    /// written if a later row fails (for example after a disk or constraint
+    /// error).
+    /// </summary>
+    public void AddMemoryExtractionBatch(IReadOnlyList<(EvidenceRecord Evidence, MemoryClaim Claim, EvidenceClaimLink Link)> entries)
+    {
+        if (entries.Count == 0) return;
+        using var connection = archive.OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        foreach (var entry in entries)
+        {
+            EnsureTurnBelongsToSession(connection, entry.Evidence.SessionId, entry.Evidence.TurnId, "Evidence", transaction);
+            EnsureSourceContext(connection, entry.Evidence.SourceId, entry.Evidence.SessionId, entry.Evidence.TurnId, "Evidence", transaction);
+            if (entry.Evidence.TranscriptRevisionId is not null)
+                EnsureRevisionContext(connection, entry.Evidence.SourceId, entry.Evidence.TurnId, entry.Evidence.TranscriptRevisionId, "Evidence transcript revision", transaction);
+
+            using (var evidence = connection.CreateCommand())
+            {
+                evidence.Transaction = transaction;
+                evidence.CommandText = "INSERT INTO evidence_records(evidence_id, kind, source_id, session_id, turn_id, transcript_revision_id, statement, original_expression, participant_certainty, speaker_confirmed, created_at, audio_start_ms, audio_end_ms, extraction_provider, extraction_model) VALUES ($id, $kind, $source, $session, $turn, $revision, $statement, $original, $certainty, $confirmed, $created, $audioStart, $audioEnd, $provider, $model)";
+                evidence.Parameters.AddWithValue("$id", entry.Evidence.EvidenceId);
+                evidence.Parameters.AddWithValue("$kind", entry.Evidence.Kind.ToString());
+                evidence.Parameters.AddWithValue("$source", entry.Evidence.SourceId);
+                evidence.Parameters.AddWithValue("$session", (object?)entry.Evidence.SessionId ?? DBNull.Value);
+                evidence.Parameters.AddWithValue("$turn", (object?)entry.Evidence.TurnId ?? DBNull.Value);
+                evidence.Parameters.AddWithValue("$revision", (object?)entry.Evidence.TranscriptRevisionId ?? DBNull.Value);
+                evidence.Parameters.AddWithValue("$statement", entry.Evidence.Statement);
+                evidence.Parameters.AddWithValue("$original", entry.Evidence.OriginalExpression);
+                evidence.Parameters.AddWithValue("$certainty", entry.Evidence.ParticipantCertainty.ToString());
+                evidence.Parameters.AddWithValue("$confirmed", entry.Evidence.SpeakerConfirmed ? 1 : 0);
+                evidence.Parameters.AddWithValue("$created", Format(entry.Evidence.CreatedAt));
+                evidence.Parameters.AddWithValue("$audioStart", (object?)entry.Evidence.AudioStartMs ?? DBNull.Value);
+                evidence.Parameters.AddWithValue("$audioEnd", (object?)entry.Evidence.AudioEndMs ?? DBNull.Value);
+                evidence.Parameters.AddWithValue("$provider", (object?)entry.Evidence.ExtractionProvider ?? DBNull.Value);
+                evidence.Parameters.AddWithValue("$model", (object?)entry.Evidence.ExtractionModel ?? DBNull.Value);
+                evidence.ExecuteNonQuery();
+            }
+            ArchiveSearchIndex.Upsert(connection, transaction, "evidence", entry.Evidence.EvidenceId, entry.Evidence.Statement + " " + entry.Evidence.OriginalExpression, entry.Evidence.SourceId, entry.Evidence.SessionId);
+
+            using (var claim = connection.CreateCommand())
+            {
+                claim.Transaction = transaction;
+                claim.CommandText = "INSERT INTO memory_claims(memory_claim_id, statement, subject_person_id, predicate, object, status, created_at) VALUES ($id, $statement, $subject, $predicate, $object, $status, $created)";
+                claim.Parameters.AddWithValue("$id", entry.Claim.MemoryClaimId);
+                claim.Parameters.AddWithValue("$statement", entry.Claim.Statement);
+                claim.Parameters.AddWithValue("$subject", (object?)entry.Claim.SubjectPersonId ?? DBNull.Value);
+                claim.Parameters.AddWithValue("$predicate", entry.Claim.Predicate);
+                claim.Parameters.AddWithValue("$object", entry.Claim.Object);
+                claim.Parameters.AddWithValue("$status", entry.Claim.Status.ToString());
+                claim.Parameters.AddWithValue("$created", Format(entry.Claim.CreatedAt));
+                claim.ExecuteNonQuery();
+            }
+            ArchiveSearchIndex.Upsert(connection, transaction, "memory_claim", entry.Claim.MemoryClaimId, entry.Claim.Statement + " " + entry.Claim.Predicate + " " + entry.Claim.Object, null, null);
+
+            using var link = connection.CreateCommand();
+            link.Transaction = transaction;
+            link.CommandText = "INSERT INTO evidence_claim_links(evidence_id, memory_claim_id, relationship, created_at) VALUES ($evidence, $claim, $relationship, $created)";
+            link.Parameters.AddWithValue("$evidence", entry.Link.EvidenceId);
+            link.Parameters.AddWithValue("$claim", entry.Link.MemoryClaimId);
+            link.Parameters.AddWithValue("$relationship", entry.Link.Relationship);
+            link.Parameters.AddWithValue("$created", Format(entry.Link.CreatedAt));
+            link.ExecuteNonQuery();
+        }
+        transaction.Commit();
+    }
+
     public PersonEntity AddPersonEntity(PersonEntity entity)
     {
         using var connection = archive.OpenConnection();
@@ -689,10 +757,11 @@ public sealed class ArchiveRepository(SqliteArchive archive)
     private static string NewId() => Guid.NewGuid().ToString("N");
     private static string Format(DateTimeOffset timestamp) => timestamp.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture);
 
-    private static void EnsureTurnBelongsToSession(SqliteConnection connection, string? sessionId, string? turnId, string context)
+    private static void EnsureTurnBelongsToSession(SqliteConnection connection, string? sessionId, string? turnId, string context, SqliteTransaction? transaction = null)
     {
         if (sessionId is null || turnId is null) return;
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = "SELECT session_id FROM turns WHERE turn_id = $turn";
         command.Parameters.AddWithValue("$turn", turnId);
         var turnSessionId = command.ExecuteScalar()?.ToString();
@@ -700,9 +769,10 @@ public sealed class ArchiveRepository(SqliteArchive archive)
             throw new InvalidOperationException($"{context} turn does not belong to the supplied session.");
     }
 
-    private static void EnsureSourceContext(SqliteConnection connection, string sourceId, string? sessionId, string? turnId, string context)
+    private static void EnsureSourceContext(SqliteConnection connection, string sourceId, string? sessionId, string? turnId, string context, SqliteTransaction? transaction = null)
     {
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = "SELECT session_id, turn_id FROM sources WHERE source_id = $source";
         command.Parameters.AddWithValue("$source", sourceId);
         using var reader = command.ExecuteReader();
@@ -716,9 +786,10 @@ public sealed class ArchiveRepository(SqliteArchive archive)
             throw new InvalidOperationException($"{context} does not belong to the supplied turn.");
     }
 
-    private static void EnsureRevisionContext(SqliteConnection connection, string sourceId, string? turnId, string revisionId, string context)
+    private static void EnsureRevisionContext(SqliteConnection connection, string sourceId, string? turnId, string revisionId, string context, SqliteTransaction? transaction = null)
     {
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = "SELECT source_id, turn_id FROM transcript_revisions WHERE transcript_revision_id = $revision";
         command.Parameters.AddWithValue("$revision", revisionId);
         using var reader = command.ExecuteReader();
@@ -731,9 +802,10 @@ public sealed class ArchiveRepository(SqliteArchive archive)
             throw new InvalidOperationException($"{context} does not belong to the supplied turn.");
     }
 
-    private static void EnsureEvidenceBelongsToSession(SqliteConnection connection, string evidenceId, string sessionId, string context)
+    private static void EnsureEvidenceBelongsToSession(SqliteConnection connection, string evidenceId, string sessionId, string context, SqliteTransaction? transaction = null)
     {
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = "SELECT session_id FROM evidence_records WHERE evidence_id = $evidence";
         command.Parameters.AddWithValue("$evidence", evidenceId);
         var evidenceSessionId = command.ExecuteScalar()?.ToString();
@@ -741,11 +813,12 @@ public sealed class ArchiveRepository(SqliteArchive archive)
             throw new InvalidOperationException($"{context} does not belong to the supplied session.");
     }
 
-    private static void EnsureSpeakerConfirmationEvent(SqliteConnection connection, string? clarificationEventId, string context)
+    private static void EnsureSpeakerConfirmationEvent(SqliteConnection connection, string? clarificationEventId, string context, SqliteTransaction? transaction = null)
     {
         if (string.IsNullOrWhiteSpace(clarificationEventId))
             throw new InvalidOperationException($"{context} requires a speaker-confirmed clarification event.");
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = "SELECT outcome FROM clarification_events WHERE clarification_event_id = $event";
         command.Parameters.AddWithValue("$event", clarificationEventId);
         var outcome = command.ExecuteScalar()?.ToString();

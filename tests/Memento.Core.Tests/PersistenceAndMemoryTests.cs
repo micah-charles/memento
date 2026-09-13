@@ -264,6 +264,38 @@ public sealed class PersistenceAndMemoryTests
     }
 
     [Fact]
+    public void Extraction_batch_rolls_back_all_rows_when_a_later_row_fails()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-batch-rollback"));
+        var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-batch-rollback", source.SourceId, null, 1, "initial", "測試", 1, null, DateTimeOffset.UtcNow));
+        var firstEvidence = new EvidenceRecord("evidence-batch-1", EvidenceKind.DirectStatement, source.SourceId, session.SessionId, null, revision.TranscriptRevisionId, "第一項", "第一項", ParticipantCertainty.Stated, false, DateTimeOffset.UtcNow);
+        var firstClaim = new MemoryClaim("claim-batch-1", "第一項", null, "said", "第一項", ClaimStatus.Candidate, DateTimeOffset.UtcNow);
+        var firstLink = new EvidenceClaimLink(firstEvidence.EvidenceId, firstClaim.MemoryClaimId, "supports", DateTimeOffset.UtcNow);
+        var secondEvidence = firstEvidence with { EvidenceId = "evidence-batch-2", Statement = "第二項", OriginalExpression = "第二項" };
+        var secondLink = new EvidenceClaimLink(secondEvidence.EvidenceId, firstClaim.MemoryClaimId, "supports", DateTimeOffset.UtcNow);
+
+        Assert.ThrowsAny<Microsoft.Data.Sqlite.SqliteException>(() => repository.AddMemoryExtractionBatch([
+            (firstEvidence, firstClaim, firstLink),
+            (secondEvidence, firstClaim, secondLink)
+        ]));
+
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT (SELECT COUNT(*) FROM evidence_records WHERE source_id = $source), (SELECT COUNT(*) FROM memory_claims WHERE memory_claim_id = $claim), (SELECT COUNT(*) FROM evidence_claim_links WHERE evidence_id IN ('evidence-batch-1', 'evidence-batch-2'))";
+        command.Parameters.AddWithValue("$source", source.SourceId);
+        command.Parameters.AddWithValue("$claim", firstClaim.MemoryClaimId);
+        using var reader = command.ExecuteReader();
+        Assert.True(reader.Read());
+        Assert.Equal(0L, reader.GetInt64(0));
+        Assert.Equal(0L, reader.GetInt64(1));
+        Assert.Equal(0L, reader.GetInt64(2));
+    }
+
+    [Fact]
     public void Candidate_extraction_drops_unknown_model_entity_ids_without_failing()
     {
         using var fixture = new PersistenceFixture();

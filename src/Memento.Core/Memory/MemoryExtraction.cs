@@ -107,6 +107,7 @@ internal static class MemoryExtractionPersistence
         var evidence = new List<EvidenceRecord>();
         var claims = new List<MemoryClaim>();
         var links = new List<EvidenceClaimLink>();
+        var batch = new List<(EvidenceRecord Evidence, MemoryClaim Claim, EvidenceClaimLink Link)>();
         foreach (var candidate in candidates)
         {
             // External search answers are time-bound untrusted information,
@@ -117,13 +118,21 @@ internal static class MemoryExtractionPersistence
             if (string.IsNullOrWhiteSpace(candidate.Statement) || string.IsNullOrWhiteSpace(candidate.Predicate) || string.IsNullOrWhiteSpace(candidate.Object))
                 continue;
             var now = DateTimeOffset.UtcNow;
-            var item = repository.AddEvidence(new EvidenceRecord(Guid.NewGuid().ToString("N"), candidate.EvidenceKind, source.SourceId, session.SessionId, revision.TurnId, revision.TranscriptRevisionId, candidate.Statement, candidate.Statement, candidate.Certainty, false, now, ExtractionProvider: provider, ExtractionModel: model));
+            var item = new EvidenceRecord(Guid.NewGuid().ToString("N"), candidate.EvidenceKind, source.SourceId, session.SessionId, revision.TurnId, revision.TranscriptRevisionId, candidate.Statement, candidate.Statement, candidate.Certainty, false, now, ExtractionProvider: provider, ExtractionModel: model);
             var subjectPersonId = candidate.SubjectPersonId is not null && repository.PersonEntityExists(candidate.SubjectPersonId)
                 ? candidate.SubjectPersonId
                 : null;
-            var claim = repository.AddMemoryClaim(new MemoryClaim(Guid.NewGuid().ToString("N"), candidate.Statement, subjectPersonId, candidate.Predicate, candidate.Object, ClaimStatus.Candidate, now));
-            var link = repository.AddEvidenceClaimLink(new EvidenceClaimLink(item.EvidenceId, claim.MemoryClaimId, "supports", DateTimeOffset.UtcNow));
-            evidence.Add(item); claims.Add(claim); links.Add(link);
+            var claim = new MemoryClaim(Guid.NewGuid().ToString("N"), candidate.Statement, subjectPersonId, candidate.Predicate, candidate.Object, ClaimStatus.Candidate, now);
+            var link = new EvidenceClaimLink(item.EvidenceId, claim.MemoryClaimId, "supports", DateTimeOffset.UtcNow);
+            batch.Add((item, claim, link));
+        }
+
+        repository.AddMemoryExtractionBatch(batch);
+        foreach (var item in batch)
+        {
+            evidence.Add(item.Evidence);
+            claims.Add(item.Claim);
+            links.Add(item.Link);
         }
 
         return new ExtractionResult(evidence, claims, links);

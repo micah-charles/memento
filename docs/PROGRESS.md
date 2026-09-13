@@ -93,6 +93,7 @@
 - Worker claims now use an atomic `status + updated_at` compare-and-set, so a second process skips a job already claimed by another worker instead of duplicating provider work.
 - M07 added candidate `EvidenceRecord`, `MemoryClaim`, and explicit `EvidenceClaimLink` records. Evidence now carries optional audio spans and extraction provider/model metadata; `MemoryExtractionService` uses a deterministic provider boundary and never promotes candidates beyond `candidate` status. An async OpenAI structured-output adapter and persistence service now validate candidate fields before writing the same reviewable records, and consented app sessions queue revision-scoped `durable_extraction` work for the launch worker; corrected transcript revisions therefore receive their own extraction job; no live extraction call has been made.
 - Extraction persistence drops `ExternalFact` candidates so untrusted current-information results cannot enter participant-memory claims through a malformed or prompt-injected provider response.
+- Evidence, candidate claims, links, and their search-index rows are now persisted as one SQLite transaction; a late constraint or storage failure rolls back the complete extraction batch instead of leaving partial memory records.
 - M08 added `ProvenanceGraph.Validate`, which checks Source → transcript revision → Evidence → Claim links, allowed relationships, blocks an unconfirmed AI inference from silently becoming a reviewed claim, and validates observed Response Episodes from stimulus/response Evidence.
 - M09 added person entities, speaker-confirmed aliases, and Evidence-to-entity links. Alias history is additive and does not rewrite transcript or Source records.
 - Speaker-confirmed aliases and vocabulary now require a linked clarification event with a speaker-confirmed outcome; refusal, uncertainty, and missing-event inputs cannot create participant authority.
@@ -100,7 +101,7 @@
 - The WinUI shell now exposes this local search through a small Cantonese-friendly query box; results are limited to the bounded local lexical service and inherit the withdrawn-Source privacy filter.
 - The WinUI shell now exposes a participant-facing clarification panel for the latest transcript, with explicit person/place/relationship/date/event/identity/preference categories and separate speaker-confirmed, two-possibility, “唔記得”, and refusal outcomes. Original transcript revisions remain visible in the protocol and are never overwritten.
 - The shell also exposes a local index repair action, so a health-check parity finding can be fixed from the app without opening SQLite or a terminal.
-- The cumulative suite now passes **104/104** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while target-machine restart/power-loss observation, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
+- The cumulative suite now passes **105/105** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while target-machine restart/power-loss observation, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
 - Clarification provenance now rejects cross-session or unpersisted initial revisions before creating a correction chain.
 - Clarification ownership checks now reject sessionless or mismatched Source context before creating a corrected revision, avoiding orphaned correction records.
 - The WinUI capture flow now creates a participant Turn before opening the microphone, links the finalized Source and provider work to that Turn, and closes the Turn on normal stop, capture failure, shutdown recovery, or microphone-start failure. `ArchiveRepository` also persists turn closure and provides a restart-safe next sequence number.
@@ -125,7 +126,7 @@
 - The WinUI shell now exposes the M12/M13 health-check, media export, encrypted-backup, and disposable restore/verification operations with plain Cantonese status messages; these actions still require supervised native UI verification.
 - The Family Admin shell now exposes a confirmation-gated deletion of the latest finalized Source; it removes dependent content through the authenticated deletion service and preserves only a minimal audit tombstone.
 - The Family Admin shell also exposes a confirmation-gated withdrawal of the latest finalized Source; it retains local history and media but disables future cloud processing and ordinary search/export paths.
-- The cumulative suite now passes **104/104** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
+- The cumulative suite now passes **105/105** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
 
 ## M14 status
 
