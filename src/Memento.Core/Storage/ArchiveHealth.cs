@@ -64,10 +64,11 @@ public static class ArchiveHealthCheck
     private static bool IsFileMatching(string path, long expectedLength, string? expectedHash)
     {
         if (!File.Exists(path)) return false;
-        var bytes = File.ReadAllBytes(path);
-        if (expectedLength >= 0 && bytes.LongLength != expectedLength) return false;
+        var fileLength = new FileInfo(path).Length;
+        if (expectedLength >= 0 && fileLength != expectedLength) return false;
         if (string.IsNullOrWhiteSpace(expectedHash)) return true;
-        var actualHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+        using var stream = File.OpenRead(path);
+        var actualHash = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
         return string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase);
     }
 }
