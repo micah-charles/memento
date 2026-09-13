@@ -96,6 +96,7 @@
 
 - Real-user pilot work has not started. A supervised checklist is documented in [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md); the app still requires consent, microphone, provider, admin, export/restore, and incident/rollback review before pilot use.
 - A publish script now produces a self-contained `artifacts/MEMENTO-win-x64.zip`; MSIX generation remains separate because it requires a publisher identity, certificate, and package manifest.
+- `scripts/Install-Memento.ps1` now installs the portable bundle per user under `%LOCALAPPDATA%\\MEMENTO\\App` and creates a Start Menu shortcut; it does not claim signed package identity.
 - A persistent `recording_enabled` setting now gives the participant an explicit enable/disable control independent of per-session consent.
 - Optional TTS now completes the turn-based pipeline as local WAV → transcription → text response → verified derived speech storage, with an injectable NAudio WAV playback boundary; real output-device playback and Realtime/WebRTC transport remain deployment work.
 
