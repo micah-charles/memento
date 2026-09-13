@@ -121,6 +121,10 @@ public sealed partial class MainWindow : Window
             catch (Exception)
             {
                 StatusText.Text = "錄音未能完成，請檢查咪高風或 Windows 權限。";
+                if (_session is not null && _session.EndedAt is null)
+                {
+                    try { _session = _repository.EndSession(_session); } catch { }
+                }
             }
             finally
             {
