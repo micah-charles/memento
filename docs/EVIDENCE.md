@@ -140,6 +140,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - Added the `ISearchProvider`/`CurrentInformationService` boundary and an `OpenAiWebSearchProvider` that sends an allowlisted Responses web-search request with `store=false`, filters citations to HTTPS hosts in the allowlist, and returns retrieval time, source URLs, and `IsUntrustedExternalInformation=true`; no service method writes personal memory.
 - Added `FamilyAdminReviewService` with an `IAdminAuthorizer` boundary, candidate listing, attributed review annotations, and explicit candidate status transitions. The test authorizer is fixed and clearly a fixture; it is not production identity management.
 - Added `ArchiveExporter` JSONL/media/snapshot export with SHA-256 manifest entries and `ArchiveBackupProtector` AES-GCM password backup/restore.
+- Export directories now use unique run IDs, and duplicate media basenames are preserved with collision-safe names instead of aborting an export.
 - Added `ArchiveHealthCheck` for SQLite integrity, schema version, recoverable audio, and due conversation jobs.
 - `dotnet test tests/Memento.Core.Tests/Memento.Core.Tests.csproj --configuration Release` passed **58/58**; full solution build passed with 0 warnings and 0 errors; the NuGet vulnerability scan reported no vulnerable packages.
 - Gate status: **IMPLEMENTED / AUTOMATED TESTED**. Live search, real OS authentication, target-machine restore, and destructive reliability testing remain unverified.

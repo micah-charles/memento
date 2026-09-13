@@ -54,11 +54,19 @@ public sealed class OperationsTests
         var audio = Path.Combine(fixture.DirectoryPath, "recording.wav");
         File.WriteAllBytes(audio, [7, 8, 9]);
         repository.AddSource(new SourceMetadata("source-export", "audio", session.SessionId, null, audio, "PCM WAV", 48000, 1, 16, 3, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        var secondAudioDirectory = Path.Combine(fixture.DirectoryPath, "second");
+        Directory.CreateDirectory(secondAudioDirectory);
+        var secondAudio = Path.Combine(secondAudioDirectory, "recording.wav");
+        File.WriteAllBytes(secondAudio, [4, 5, 6]);
+        repository.AddSource(new SourceMetadata("source-export-second", "audio", session.SessionId, null, secondAudio, "PCM WAV", 48000, 1, 16, 3, 0, "def", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
         var result = ArchiveExporter.Export(archive, fixture.ExportRoot, includeMedia: true);
+        var secondResult = ArchiveExporter.Export(archive, fixture.ExportRoot, includeMedia: true);
 
         Assert.True(File.Exists(result.ManifestPath));
         Assert.True(File.Exists(Path.Combine(result.ExportDirectory, "sources.jsonl")));
         Assert.True(File.Exists(Path.Combine(result.ExportDirectory, "media", "recording.wav")));
+        Assert.True(File.Exists(Path.Combine(result.ExportDirectory, "media", "source-source-export-second-recording.wav")));
+        Assert.NotEqual(result.ExportDirectory, secondResult.ExportDirectory);
         Assert.True(File.Exists(Path.Combine(result.ExportDirectory, "archive.sqlite")));
         var encrypted = Path.Combine(fixture.ExportRoot, "backup.memento");
         var restored = Path.Combine(fixture.ExportRoot, "restored.sqlite");

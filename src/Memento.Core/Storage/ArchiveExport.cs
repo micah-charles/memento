@@ -15,7 +15,7 @@ public static class ArchiveExporter
     {
         if (string.IsNullOrWhiteSpace(destinationDirectory)) throw new ArgumentException("An export directory is required.", nameof(destinationDirectory));
         Directory.CreateDirectory(destinationDirectory);
-        var exportDirectory = Path.Combine(destinationDirectory, "memento-export-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss", System.Globalization.CultureInfo.InvariantCulture));
+        var exportDirectory = Path.Combine(destinationDirectory, "memento-export-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(exportDirectory);
         var hashes = new Dictionary<string, string>(StringComparer.Ordinal);
         using var connection = archive.OpenConnection();
@@ -42,34 +42,36 @@ public static class ArchiveExporter
             Directory.CreateDirectory(mediaDirectory);
             using (var sources = connection.CreateCommand())
             {
-                sources.CommandText = "SELECT file_path FROM sources WHERE file_path IS NOT NULL";
+                sources.CommandText = "SELECT source_id, file_path FROM sources WHERE file_path IS NOT NULL";
                 using var reader = sources.ExecuteReader();
                 while (reader.Read())
                 {
-                    var sourcePath = reader.GetString(0);
+                    var sourceId = reader.GetString(0);
+                    var sourcePath = reader.GetString(1);
                     if (!File.Exists(sourcePath)) continue;
                     var filename = Path.GetFileName(sourcePath);
                     if (string.IsNullOrWhiteSpace(filename)) continue;
-                    var target = Path.Combine(mediaDirectory, filename);
+                    var target = GetUniqueMediaPath(mediaDirectory, filename, "source-" + sourceId);
                     File.Copy(sourcePath, target, overwrite: false);
-                    hashes[Path.Combine("media", filename).Replace('\\', '/')] = Hash(target);
+                    hashes[Path.Combine("media", Path.GetFileName(target)).Replace('\\', '/')] = Hash(target);
                 }
             }
 
             using (var derived = connection.CreateCommand())
             {
-                derived.CommandText = "SELECT file_path FROM derived_speech_assets";
+                derived.CommandText = "SELECT derived_speech_asset_id, file_path FROM derived_speech_assets";
                 using var reader = derived.ExecuteReader();
                 while (reader.Read())
                 {
-                    var sourcePath = reader.GetString(0);
+                    var assetId = reader.GetString(0);
+                    var sourcePath = reader.GetString(1);
                     if (!File.Exists(sourcePath)) continue;
                     var filename = Path.GetFileName(sourcePath);
                     if (string.IsNullOrWhiteSpace(filename)) continue;
                     var exportName = "derived-" + filename;
-                    var target = Path.Combine(mediaDirectory, exportName);
+                    var target = GetUniqueMediaPath(mediaDirectory, exportName, "derived-" + assetId);
                     File.Copy(sourcePath, target, overwrite: false);
-                    hashes[Path.Combine("media", exportName).Replace('\\', '/')] = Hash(target);
+                    hashes[Path.Combine("media", Path.GetFileName(target)).Replace('\\', '/')] = Hash(target);
                 }
             }
         }
@@ -79,6 +81,18 @@ public static class ArchiveExporter
         File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
         hashes["manifest.json"] = Hash(manifestPath);
         return new ArchiveExportResult(exportDirectory, manifestPath, hashes);
+    }
+
+    private static string GetUniqueMediaPath(string mediaDirectory, string preferredName, string idPrefix)
+    {
+        var target = Path.Combine(mediaDirectory, preferredName);
+        if (!File.Exists(target)) return target;
+        var safePrefix = string.Concat(idPrefix.Select(character => char.IsLetterOrDigit(character) || character is '-' or '_' ? character : '_'));
+        var candidate = Path.Combine(mediaDirectory, safePrefix + "-" + preferredName);
+        var suffix = 2;
+        while (File.Exists(candidate))
+            candidate = Path.Combine(mediaDirectory, safePrefix + "-" + suffix++ + "-" + preferredName);
+        return candidate;
     }
 
     private static void WriteTable(SqliteConnection connection, string table, string path)
