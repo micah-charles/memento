@@ -59,10 +59,11 @@ public sealed class ArchiveDeletionService
             var revisionIds = ReadIds(connection, transaction, "SELECT transcript_revision_id FROM transcript_revisions WHERE source_id = $source ORDER BY revision_number DESC", ("$source", sourceId));
             var personIds = ReadIds(connection, transaction, "SELECT DISTINCT person_entity_id FROM evidence_entity_links WHERE evidence_id IN (SELECT evidence_id FROM evidence_records WHERE source_id = $source) UNION SELECT DISTINCT person_entity_id FROM entity_aliases WHERE source_clarification_event_id IN (SELECT clarification_event_id FROM clarification_events WHERE source_id = $source)", ("$source", sourceId));
             var canDeleteTurnAssets = turnId is not null && CountRows(connection, transaction, "SELECT COUNT(*) FROM sources WHERE turn_id = $turn", ("$turn", turnId)) == 1;
+            var derivedIds = canDeleteTurnAssets ? ReadIds(connection, transaction, "SELECT derived_speech_asset_id FROM derived_speech_assets WHERE turn_id = $turn", ("$turn", turnId!)) : [];
             if (turnId is not null && !canDeleteTurnAssets)
                 findings.Add("Turn-level provider metadata and derived audio were retained because the turn has another Source.");
 
-            counts["review_annotations"] = DeleteByIds(connection, transaction, "review_annotations", "target_id", evidenceIds.Concat(claimIds).Concat(responseEpisodeIds).Concat([sourceId]).ToArray());
+            counts["review_annotations"] = DeleteByIds(connection, transaction, "review_annotations", "target_id", evidenceIds.Concat(claimIds).Concat(responseEpisodeIds).Concat(clarificationIds).Concat(revisionIds).Concat(personIds).Concat(derivedIds).Concat([sourceId]).Distinct(StringComparer.Ordinal).ToArray());
             counts["response_episodes"] = DeleteByIds(connection, transaction, "response_episodes", "response_episode_id", responseEpisodeIds);
             counts["evidence_claim_links"] = DeleteClaimLinks(connection, transaction, evidenceIds, claimIds);
             counts["evidence_entity_links"] = DeleteByIds(connection, transaction, "evidence_entity_links", "evidence_id", evidenceIds);
