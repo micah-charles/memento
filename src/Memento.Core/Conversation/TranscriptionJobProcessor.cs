@@ -27,9 +27,10 @@ public sealed class DurableTranscriptionJobProcessor : IConversationJobProcessor
         var session = _repository.GetSession(job.SessionId) ?? throw new InvalidOperationException("The queued session was not found.");
         if (session.PrivacyMode == PrivacyMode.LocalCaptureOnly || !_repository.HasGrantedConsent(job.SessionId, ConsentScope.CloudTranscription))
             throw new CloudNotPermittedException();
-        if (_repository.ListTranscriptRevisions(job.SourceId).Count > 0)
+        var existingRevision = _repository.ListTranscriptRevisions(job.SourceId).OrderByDescending(item => item.RevisionNumber).FirstOrDefault();
+        if (existingRevision is not null)
         {
-            if (_queueExtractionJobs) _sessionWriter.QueueExtractionIfNeeded(job.SessionId, job.TurnId, job.SourceId);
+            if (_queueExtractionJobs) _sessionWriter.QueueExtractionIfNeeded(job.SessionId, job.TurnId, job.SourceId, existingRevision.TranscriptRevisionId);
             return;
         }
         var sourcePath = _repository.GetSourceFilePath(job.SourceId);
@@ -37,7 +38,8 @@ public sealed class DurableTranscriptionJobProcessor : IConversationJobProcessor
         var result = await _provider.TranscribeAsync(sourcePath, _languageHint, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(result.Text)) throw new InvalidDataException("Transcription provider returned no text.");
         _repository.AddTranscriptRevision(new TranscriptRevision(Guid.NewGuid().ToString("N"), job.SourceId, job.TurnId, 1, "initial", result.Text, null, null, result.CompletedAt));
-        if (_queueExtractionJobs) _sessionWriter.QueueExtractionIfNeeded(job.SessionId, job.TurnId, job.SourceId);
+        var revision = _repository.ListTranscriptRevisions(job.SourceId).OrderByDescending(item => item.RevisionNumber).First();
+        if (_queueExtractionJobs) _sessionWriter.QueueExtractionIfNeeded(job.SessionId, job.TurnId, job.SourceId, revision.TranscriptRevisionId);
     }
 
 }

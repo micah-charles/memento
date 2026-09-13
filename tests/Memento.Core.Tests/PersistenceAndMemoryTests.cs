@@ -93,6 +93,29 @@ public sealed class PersistenceAndMemoryTests
     }
 
     [Fact]
+    public void Extraction_jobs_are_deduplicated_per_transcript_revision()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-revision-jobs"));
+        repository.AddTranscriptRevision(new TranscriptRevision("revision-one", source.SourceId, null, 1, "initial", "first", 0.9, null, DateTimeOffset.UtcNow));
+        repository.AddTranscriptRevision(new TranscriptRevision("revision-two", source.SourceId, null, 2, "corrected", "second", 0.9, "revision-one", DateTimeOffset.UtcNow));
+        var writer = new ConversationSessionWriter(repository);
+
+        var first = writer.QueueExtractionIfNeeded(session.SessionId, null, source.SourceId, "revision-one");
+        var duplicate = writer.QueueExtractionIfNeeded(session.SessionId, null, source.SourceId, "revision-one");
+        var corrected = writer.QueueExtractionIfNeeded(session.SessionId, null, source.SourceId, "revision-two");
+
+        Assert.NotNull(first);
+        Assert.Null(duplicate);
+        Assert.NotNull(corrected);
+        Assert.Equal("revision-one", first!.TranscriptRevisionId);
+        Assert.Equal("revision-two", corrected!.TranscriptRevisionId);
+    }
+
+    [Fact]
     public async Task Durable_transcription_processor_persists_one_initial_revision_and_is_idempotent()
     {
         using var fixture = new PersistenceFixture();

@@ -381,6 +381,10 @@ internal static class Migrations
             );
             CREATE INDEX ix_derived_speech_assets_session ON derived_speech_assets(session_id, created_at);
             """))
+        ,new(14, (connection, transaction) => SqliteArchive.Execute(connection, transaction, """
+            ALTER TABLE conversation_jobs ADD COLUMN transcript_revision_id TEXT NULL REFERENCES transcript_revisions(transcript_revision_id) ON DELETE RESTRICT;
+            CREATE INDEX ix_conversation_jobs_revision ON conversation_jobs(source_id, job_type, transcript_revision_id);
+            """))
     ];
 
     internal sealed record Migration(int Version, Action<SqliteConnection, SqliteTransaction> Apply);

@@ -43,10 +43,13 @@ public sealed class BoundedVoiceConversationService
         {
             transcript = await _transcription.TranscribeAsync(request.LocalAudioPath, cancellationToken: cancellationToken).ConfigureAwait(false);
             _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, transcript.Provider, "transcription", transcript.Model, null, transcript.RequestId, started, transcript.CompletedAt, null, null, true, null, null, DateTimeOffset.UtcNow));
-            if (_repository.ListTranscriptRevisions(request.SourceId).Count == 0)
-                _repository.AddTranscriptRevision(new TranscriptRevision(Guid.NewGuid().ToString("N"), request.SourceId, request.TurnId, 1, "initial", transcript.Text, null, null, transcript.CompletedAt));
+            var revision = _repository.ListTranscriptRevisions(request.SourceId).OrderByDescending(item => item.RevisionNumber).FirstOrDefault();
+            if (revision is null)
+            {
+                revision = _repository.AddTranscriptRevision(new TranscriptRevision(Guid.NewGuid().ToString("N"), request.SourceId, request.TurnId, 1, "initial", transcript.Text, null, null, transcript.CompletedAt));
+            }
             if (_queueExtractionJobs)
-                _sessionWriter.QueueExtractionIfNeeded(request.SessionId, request.TurnId, request.SourceId);
+                _sessionWriter.QueueExtractionIfNeeded(request.SessionId, request.TurnId, request.SourceId, revision.TranscriptRevisionId);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

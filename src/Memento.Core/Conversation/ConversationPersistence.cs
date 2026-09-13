@@ -23,11 +23,11 @@ public sealed class ConversationSessionWriter
         return _repository.AddConversationJob(new ConversationJob(Guid.NewGuid().ToString("N"), session.SessionId, turn?.TurnId, source.SourceId, "durable_transcription", ConversationJobStatus.Pending, 0, timestamp, null, timestamp, timestamp));
     }
 
-    public ConversationJob? QueueExtractionIfNeeded(string sessionId, string? turnId, string sourceId, DateTimeOffset? now = null)
+    public ConversationJob? QueueExtractionIfNeeded(string sessionId, string? turnId, string sourceId, string transcriptRevisionId, DateTimeOffset? now = null)
     {
-        if (_repository.HasActiveConversationJob(sessionId, sourceId, "durable_extraction")) return null;
+        if (_repository.HasActiveConversationJob(sessionId, sourceId, "durable_extraction", transcriptRevisionId)) return null;
         var timestamp = now ?? DateTimeOffset.UtcNow;
-        return _repository.AddConversationJob(new ConversationJob(Guid.NewGuid().ToString("N"), sessionId, turnId, sourceId, "durable_extraction", ConversationJobStatus.Pending, 0, timestamp, null, timestamp, timestamp));
+        return _repository.AddConversationJob(new ConversationJob(Guid.NewGuid().ToString("N"), sessionId, turnId, sourceId, "durable_extraction", ConversationJobStatus.Pending, 0, timestamp, null, timestamp, timestamp, transcriptRevisionId));
     }
 
     public ConversationJob BeginAttempt(ConversationJob job, DateTimeOffset? now = null)

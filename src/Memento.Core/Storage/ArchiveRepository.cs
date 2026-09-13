@@ -308,8 +308,8 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         using var connection = archive.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
-            INSERT INTO conversation_jobs(conversation_job_id, session_id, turn_id, source_id, job_type, status, attempt_count, next_attempt_at, last_error, created_at, updated_at)
-            VALUES ($id, $session, $turn, $source, $type, $status, $attempt, $next, $error, $created, $updated)
+            INSERT INTO conversation_jobs(conversation_job_id, session_id, turn_id, source_id, job_type, status, attempt_count, next_attempt_at, last_error, created_at, updated_at, transcript_revision_id)
+            VALUES ($id, $session, $turn, $source, $type, $status, $attempt, $next, $error, $created, $updated, $revision)
             """;
         command.Parameters.AddWithValue("$id", job.ConversationJobId);
         command.Parameters.AddWithValue("$session", job.SessionId);
@@ -322,6 +322,7 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         command.Parameters.AddWithValue("$error", (object?)job.LastError ?? DBNull.Value);
         command.Parameters.AddWithValue("$created", Format(job.CreatedAt));
         command.Parameters.AddWithValue("$updated", Format(job.UpdatedAt));
+        command.Parameters.AddWithValue("$revision", (object?)job.TranscriptRevisionId ?? DBNull.Value);
         command.ExecuteNonQuery();
         return job;
     }
@@ -330,24 +331,26 @@ public sealed class ArchiveRepository(SqliteArchive archive)
     {
         using var connection = archive.OpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = "UPDATE conversation_jobs SET status = $status, attempt_count = $attempt, next_attempt_at = $next, last_error = $error, updated_at = $updated WHERE conversation_job_id = $id";
+        command.CommandText = "UPDATE conversation_jobs SET status = $status, attempt_count = $attempt, next_attempt_at = $next, last_error = $error, updated_at = $updated, transcript_revision_id = $revision WHERE conversation_job_id = $id";
         command.Parameters.AddWithValue("$id", job.ConversationJobId);
         command.Parameters.AddWithValue("$status", job.Status.ToString());
         command.Parameters.AddWithValue("$attempt", job.AttemptCount);
         command.Parameters.AddWithValue("$next", job.NextAttemptAt is null ? DBNull.Value : Format(job.NextAttemptAt.Value));
         command.Parameters.AddWithValue("$error", (object?)job.LastError ?? DBNull.Value);
         command.Parameters.AddWithValue("$updated", Format(job.UpdatedAt));
+        command.Parameters.AddWithValue("$revision", (object?)job.TranscriptRevisionId ?? DBNull.Value);
         if (command.ExecuteNonQuery() != 1) throw new InvalidOperationException("Conversation job was not found.");
     }
 
-    public bool HasActiveConversationJob(string sessionId, string sourceId, string jobType)
+    public bool HasActiveConversationJob(string sessionId, string sourceId, string jobType, string? transcriptRevisionId = null)
     {
         using var connection = archive.OpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM conversation_jobs WHERE session_id = $session AND source_id = $source AND job_type = $type AND (status IN ('Pending', 'Processing', 'Succeeded') OR (status = 'Failed' AND next_attempt_at IS NOT NULL))";
+        command.CommandText = "SELECT COUNT(*) FROM conversation_jobs WHERE session_id = $session AND source_id = $source AND job_type = $type AND (($revision IS NULL AND transcript_revision_id IS NULL) OR ($revision IS NOT NULL AND transcript_revision_id = $revision)) AND (status IN ('Pending', 'Processing', 'Succeeded') OR (status = 'Failed' AND next_attempt_at IS NOT NULL))";
         command.Parameters.AddWithValue("$session", sessionId);
         command.Parameters.AddWithValue("$source", sourceId);
         command.Parameters.AddWithValue("$type", jobType);
+        command.Parameters.AddWithValue("$revision", (object?)transcriptRevisionId ?? DBNull.Value);
         return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) > 0;
     }
 
@@ -355,11 +358,11 @@ public sealed class ArchiveRepository(SqliteArchive archive)
     {
         using var connection = archive.OpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT conversation_job_id, session_id, turn_id, source_id, job_type, status, attempt_count, next_attempt_at, last_error, created_at, updated_at FROM conversation_jobs WHERE (status = 'Pending' AND (next_attempt_at IS NULL OR next_attempt_at <= $now)) OR (status = 'Failed' AND next_attempt_at IS NOT NULL AND next_attempt_at <= $now) ORDER BY created_at";
+        command.CommandText = "SELECT conversation_job_id, session_id, turn_id, source_id, job_type, status, attempt_count, next_attempt_at, last_error, created_at, updated_at, transcript_revision_id FROM conversation_jobs WHERE (status = 'Pending' AND (next_attempt_at IS NULL OR next_attempt_at <= $now)) OR (status = 'Failed' AND next_attempt_at IS NOT NULL AND next_attempt_at <= $now) ORDER BY created_at";
         command.Parameters.AddWithValue("$now", Format(now));
         using var reader = command.ExecuteReader();
         var jobs = new List<ConversationJob>();
-        while (reader.Read()) jobs.Add(new ConversationJob(reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetString(3), reader.GetString(4), Enum.Parse<ConversationJobStatus>(reader.GetString(5)), reader.GetInt32(6), reader.IsDBNull(7) ? null : DateTimeOffset.Parse(reader.GetString(7), null, System.Globalization.DateTimeStyles.RoundtripKind), reader.IsDBNull(8) ? null : reader.GetString(8), DateTimeOffset.Parse(reader.GetString(9), null, System.Globalization.DateTimeStyles.RoundtripKind), DateTimeOffset.Parse(reader.GetString(10), null, System.Globalization.DateTimeStyles.RoundtripKind)));
+        while (reader.Read()) jobs.Add(new ConversationJob(reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetString(3), reader.GetString(4), Enum.Parse<ConversationJobStatus>(reader.GetString(5)), reader.GetInt32(6), reader.IsDBNull(7) ? null : DateTimeOffset.Parse(reader.GetString(7), null, System.Globalization.DateTimeStyles.RoundtripKind), reader.IsDBNull(8) ? null : reader.GetString(8), DateTimeOffset.Parse(reader.GetString(9), null, System.Globalization.DateTimeStyles.RoundtripKind), DateTimeOffset.Parse(reader.GetString(10), null, System.Globalization.DateTimeStyles.RoundtripKind), reader.IsDBNull(11) ? null : reader.GetString(11)));
         return jobs;
     }
 

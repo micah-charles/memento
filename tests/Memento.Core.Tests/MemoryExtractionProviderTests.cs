@@ -77,7 +77,8 @@ public sealed class MemoryExtractionProviderTests
             repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
             var source = repository.AddSource(new SourceMetadata("source-durable-extract", "audio", session.SessionId, null, "audio.wav", "PCM WAV", 48000, 1, 16, 4, 1, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
             var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-durable-extract", source.SourceId, null, 1, "initial", "我鍾意食魚蛋", 0.9, null, DateTimeOffset.UtcNow));
-            var job = new ConversationJob("job-durable-extract", session.SessionId, null, source.SourceId, "durable_extraction", ConversationJobStatus.Pending, 0, DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+            repository.AddTranscriptRevision(new TranscriptRevision("revision-durable-extract-corrected", source.SourceId, null, 2, "corrected", "我鍾意食雞蛋", 0.9, revision.TranscriptRevisionId, DateTimeOffset.UtcNow));
+            var job = new ConversationJob("job-durable-extract", session.SessionId, null, source.SourceId, "durable_extraction", ConversationJobStatus.Pending, 0, DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, revision.TranscriptRevisionId);
             var result = new DurableMemoryExtractionJobProcessor(repository, new InlineExtractionProvider());
 
             await result.ProcessAsync(job);

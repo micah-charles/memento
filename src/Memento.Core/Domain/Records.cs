@@ -154,7 +154,8 @@ public sealed record ConversationJob(
     DateTimeOffset? NextAttemptAt,
     string? LastError,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? TranscriptRevisionId = null);
 
 public enum EvidenceKind
 {

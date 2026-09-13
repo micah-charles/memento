@@ -23,8 +23,11 @@ public sealed class DurableMemoryExtractionJobProcessor : IConversationJobProces
         if (session.PrivacyMode == PrivacyMode.LocalCaptureOnly || !_repository.HasGrantedConsent(job.SessionId, ConsentScope.CloudTranscription))
             throw new CloudNotPermittedException();
         var source = _repository.GetSource(job.SourceId) ?? throw new InvalidDataException("The queued Source was not found.");
-        var revision = _repository.ListTranscriptRevisions(job.SourceId).OrderByDescending(item => item.RevisionNumber).FirstOrDefault()
-            ?? throw new InvalidDataException("The queued Source has no transcript revision.");
+        var revisions = _repository.ListTranscriptRevisions(job.SourceId);
+        var revision = job.TranscriptRevisionId is null
+            ? revisions.OrderByDescending(item => item.RevisionNumber).FirstOrDefault()
+            : revisions.FirstOrDefault(item => item.TranscriptRevisionId == job.TranscriptRevisionId);
+        if (revision is null) throw new InvalidDataException("The queued Source has no matching transcript revision.");
         await _service.ExtractAndPersistAsync(session, source, revision, cancellationToken).ConfigureAwait(false);
     }
 }
