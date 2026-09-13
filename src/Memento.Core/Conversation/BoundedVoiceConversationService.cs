@@ -38,7 +38,7 @@ public sealed class BoundedVoiceConversationService
         if (!File.Exists(request.LocalAudioPath)) throw new FileNotFoundException("Local audio source is required before cloud processing.", request.LocalAudioPath);
         if (string.IsNullOrWhiteSpace(request.SourceId)) throw new InvalidOperationException("A Source ID is required for durable transcription provenance.");
         var source = _repository.GetSource(request.SourceId) ?? throw new InvalidDataException("The requested Source was not found.");
-        if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase)) throw new CloudNotPermittedException();
+        if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase)) throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
         var started = DateTimeOffset.UtcNow;
         TranscriptionResult transcript;
         try

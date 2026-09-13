@@ -26,7 +26,11 @@ public sealed record ConversationResponse(
 
 public sealed class CloudConsentRequiredException() : InvalidOperationException("Cloud conversation requires explicit cloud consent.");
 
-public sealed class CloudNotPermittedException() : InvalidOperationException("Cloud processing is disabled for LOCAL_CAPTURE_ONLY sessions.");
+public sealed class CloudNotPermittedException(string? message = null) : InvalidOperationException(message ?? DefaultMessage)
+{
+    public const string DefaultMessage = "Cloud processing is disabled for LOCAL_CAPTURE_ONLY sessions.";
+    public const string WithdrawnSourceMessage = "Cloud processing is disabled because this Source was withdrawn.";
+}
 
 public interface IConversationProvider
 {
@@ -101,7 +105,7 @@ public sealed class ConversationOrchestrator
         if (!File.Exists(request.LocalAudioPath))
             throw new FileNotFoundException("Local audio source is required before provider transmission.", request.LocalAudioPath);
         if (request.SourceId is not null && string.Equals(_repository.GetSource(request.SourceId)?.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
-            throw new CloudNotPermittedException();
+            throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
 
         var started = DateTimeOffset.UtcNow;
         try

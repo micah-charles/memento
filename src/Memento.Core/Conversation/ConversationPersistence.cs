@@ -20,7 +20,7 @@ public sealed class ConversationSessionWriter
         if (source.SessionId != session.SessionId) throw new InvalidOperationException("The audio Source belongs to another session.");
         if (turn is not null && turn.SessionId != session.SessionId) throw new InvalidOperationException("The turn belongs to another session.");
         if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) || string.Equals(_repository.GetSource(source.SourceId)?.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
-            throw new CloudNotPermittedException();
+            throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
         var timestamp = now ?? DateTimeOffset.UtcNow;
         return _repository.AddConversationJob(new ConversationJob(Guid.NewGuid().ToString("N"), session.SessionId, turn?.TurnId, source.SourceId, "durable_transcription", ConversationJobStatus.Pending, 0, timestamp, null, timestamp, timestamp));
     }

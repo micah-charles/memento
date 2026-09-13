@@ -24,7 +24,7 @@ public sealed class DurableMemoryExtractionJobProcessor : IConversationJobProces
             throw new CloudNotPermittedException();
         var source = _repository.GetSource(job.SourceId) ?? throw new InvalidDataException("The queued Source was not found.");
         if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
-            throw new CloudNotPermittedException();
+            throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
         var revisions = _repository.ListTranscriptRevisions(job.SourceId);
         var revision = job.TranscriptRevisionId is null
             ? revisions.OrderByDescending(item => item.RevisionNumber).FirstOrDefault()

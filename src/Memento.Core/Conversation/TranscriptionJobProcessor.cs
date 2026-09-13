@@ -29,7 +29,7 @@ public sealed class DurableTranscriptionJobProcessor : IConversationJobProcessor
             throw new CloudNotPermittedException();
         var source = _repository.GetSource(job.SourceId) ?? throw new InvalidDataException("The queued Source was not found.");
         if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
-            throw new CloudNotPermittedException();
+            throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
         var existingRevision = _repository.ListTranscriptRevisions(job.SourceId).OrderByDescending(item => item.RevisionNumber).FirstOrDefault();
         if (existingRevision is not null)
         {

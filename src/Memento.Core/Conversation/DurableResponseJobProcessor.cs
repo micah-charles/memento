@@ -29,7 +29,7 @@ public sealed class DurableResponseJobProcessor : IConversationJobProcessor
             throw new CloudNotPermittedException();
         var source = _repository.GetSource(job.SourceId) ?? throw new InvalidDataException("The queued Source was not found.");
         if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
-            throw new CloudNotPermittedException();
+            throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
         var sourcePath = source.FilePath;
         if (string.IsNullOrWhiteSpace(sourcePath)) throw new FileNotFoundException("The queued Source has no local file path.", job.SourceId);
         var revision = _repository.ListTranscriptRevisions(job.SourceId).OrderByDescending(item => item.RevisionNumber).FirstOrDefault() ?? throw new InvalidDataException("The queued Source has no transcript revision.");
