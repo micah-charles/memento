@@ -10,7 +10,8 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <TextBlock Text="MEMENTO" FontSize="32" FontWeight="SemiBold" />
-        <StackPanel Grid.Row="1" VerticalAlignment="Center" Spacing="16">
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel VerticalAlignment="Center" Spacing="16">
             <TextBlock Text="今日想傾啲乜？" FontSize="28" HorizontalAlignment="Center" />
             <TextBlock Text="本機錄音會儲存在呢部電腦，唔會自動上載。" FontSize="18" HorizontalAlignment="Center" TextWrapping="Wrap" />
             <CheckBox x:Name="RecordingEnabledCheckBox" Content="啟用本機錄音功能" HorizontalAlignment="Center" Checked="RecordingEnabledChanged" Unchecked="RecordingEnabledChanged" />
@@ -32,7 +33,8 @@
             <Button x:Name="BackupButton" Content="建立加密備份" Click="BackupButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="RestoreButton" Content="驗證及還原加密備份" Click="RestoreButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <TextBlock x:Name="StatusText" Text="Recording is off · Local archive" FontSize="16" HorizontalAlignment="Center" TextWrapping="Wrap" />
-        </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
         <TextBlock Grid.Row="2" Text="MEMENTO · 本機資料庫" FontSize="16" HorizontalAlignment="Center" />
     </Grid>
 </Window>
