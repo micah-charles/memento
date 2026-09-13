@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Memento.App/Memento.App.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Memento.Core/Memento.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Memento.Core.Tests/Memento.Core.Tests.csproj" />
+  </Folder>
+</Solution>

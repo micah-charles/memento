@@ -82,3 +82,12 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - The architecture now requires explicit Source → Evidence → Memory Claim links, independent speaker/family/admin authority, temporal validity, and evidence-backed Response Episodes.
 - The roadmap retains M01–M14 numbering and explicitly keeps M01 local-only; no WinUI code, SQLite runtime, microphone capture, OpenAI call, or application dependency was added by M00.1.
 - The acceptance package includes repeated Evidence → one Claim, temporal change, family support ≠ speaker confirmation, and observed Response Episode scenarios.
+
+## M01 implementation evidence — 2026-09-13
+
+- A minimal WinUI 3 app and local SQLite core were added under `src/` with five automated tests under `tests/Memento.Core.Tests`.
+- `dotnet build Memento.slnx --configuration Release --no-restore` passed with 0 warnings and 0 errors.
+- `dotnet test Memento.slnx --configuration Release --no-restore` passed 5/5 tests.
+- `dotnet list tests/Memento.Core.Tests/Memento.Core.Tests.csproj package --vulnerable --include-transitive` reported no vulnerable packages after the native SQLite provider pin.
+- The initial framework-dependent launch failed with a Windows “This application could not be started” window. After enabling self-contained Windows App SDK deployment, a direct launch produced a `MEMENTO` main window title and created the local database. Native-window visual/manual verification remains unavailable, so M01 is recorded as BLOCKED rather than PASS. Full details: [evidence/M01.md](evidence/M01.md).
+- Implementation commit: `0cbf9fa` (`feat: establish M01 local storage foundation`); this is not a passing M01 checkpoint.

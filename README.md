@@ -2,9 +2,9 @@
 
 MEMENTO is a proposed Windows-first, Cantonese-friendly AI companion whose most important output is a trustworthy, family-owned archive of a living person’s memories and conversational behaviour.
 
-## Current status: M00.1 — Architecture and schema refinement
+## Current status: M01 — Windows shell and local storage (blocked for manual GUI verification)
 
-This repository intentionally contains documentation and non-production scaffolding only. M00.1 refines M00’s Source → Evidence → Memory Claim provenance, temporal semantics, authority model, and Response Episode contract before application implementation begins.
+M00.1 architecture is approved for implementation. The repository now contains a minimal WinUI 3 shell and a local SQLite storage foundation with automated tests. M01 remains blocked until the shell is manually inspected on target Windows hardware; no audio capture or cloud AI has been added.
 
 The governing principle is:
 

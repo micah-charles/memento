@@ -22,3 +22,7 @@
 ## Decision hygiene
 
 An implementation milestone may turn a proposed decision into accepted, superseded, or rejected only with evidence, a dated note, and an ADR update. Model aliases, pricing, SDK versions, and legal guidance are time-sensitive and must be re-checked rather than inferred from this snapshot.
+
+## M01 implementation note
+
+The first build uses Windows App SDK 2.4.0, the stable release listed by Microsoft on 2026-09-13. The unpackaged executable uses self-contained Windows App SDK deployment so its runtime files ship beside the app; [Microsoft documents this as the supported self-contained option](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/self-contained-deploy/deploy-self-contained-apps). This is an implementation pin pending the M01 target-machine verification; it does not change the provider or archive architecture.

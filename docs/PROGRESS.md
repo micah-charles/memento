@@ -1,8 +1,8 @@
 # MEMENTO progress
 
-**Current milestone:** M00.1 — Architecture and schema refinement
-**Status:** Correction package prepared; awaiting architecture review
-**Last updated:** 2026-09-12
+**Current milestone:** M01 — Windows shell and local storage
+**Status:** BLOCKED pending native-window manual verification
+**Last updated:** 2026-09-13
 
 ## Completed in M00
 
@@ -36,6 +36,14 @@
 - [x] Technology recommendation and exact next implementation step are documented.
 - [ ] Human architecture review and approval.
 
+## M01 implementation attempt — 2026-09-13
+
+- Implemented a minimal WinUI 3 shell and a local SQLite archive foundation in `src/Memento.App` and `src/Memento.Core`.
+- Added five automated tests for migration, restart persistence, foreign keys, source metadata, relationships, and integrity.
+- Solution build succeeded and vulnerability scan is clean after pinning the SQLite native provider to 2.1.13.
+- M01 is **BLOCKED**, not passed: the current execution surface cannot visually inspect a native Windows window or prove clean-install/manual shell behaviour. See [M01 evidence](evidence/M01.md).
+- M02–M05 are not started.
+
 ## Next action
 
-Pause production implementation. Review [ARCHITECTURE.md](ARCHITECTURE.md), [MEMORY_MODEL.md](MEMORY_MODEL.md), [PRIVACY_MODEL.md](PRIVACY_MODEL.md), [ADR-005](adr/ADR-005-source-evidence-claim.md), and the existing ADRs. M00.1 does not start M01. Once the architecture is approved, start M01 exactly as described in [ROADMAP.md](ROADMAP.md); do not connect OpenAI or capture real audio during M01.
+Run the built M01 shell on target Windows hardware with native GUI observation, verify the visible participant surface and local application-data behaviour, then rerun the M01 gate. Do not begin M02 until that gate passes.

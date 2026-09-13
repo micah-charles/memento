@@ -16,6 +16,7 @@ These are deliberately visible. They are not reasons to invent a confident answe
 | K-008 | SQLite FTS5 language/tokenization behaviour for Chinese text needs real-corpus evaluation. | Medium: retrieval quality. | Evaluate in M06–M09 before semantic search. |
 | K-009 | OpenAI pricing, model aliases, endpoint retention, and platform docs may change. | Medium: stale planning claims. | Re-check before every milestone. |
 | K-010 | Legal status varies by jurisdiction, purpose, household/commercial context, and guest situation. | High: consent/disclosure risk. | Obtain appropriate advice before pilot or sharing. |
+| K-011 | Native WinUI visual/manual verification is unavailable in the current execution surface. | High: M01 gate cannot be honestly passed from this environment alone. | Run M01 on target Windows hardware with native GUI observation. |
 
 ## M00 limitations
 
