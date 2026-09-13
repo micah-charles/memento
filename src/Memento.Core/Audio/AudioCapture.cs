@@ -77,7 +77,12 @@ public sealed class AudioCaptureController
     {
         if (State != AudioCaptureState.Capturing || _writer is null || _input is null || _sessionId is null)
             throw new InvalidOperationException("Capture is not active.");
-        _input.Stop();
+        try { _input.Stop(); }
+        catch (Exception error)
+        {
+            OnCaptureError(_input, error);
+            throw;
+        }
         _input.DataAvailable -= OnDataAvailable;
         _input.CaptureError -= OnCaptureError;
         _input.Dispose();

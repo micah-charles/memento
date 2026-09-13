@@ -114,6 +114,24 @@ public sealed class AudioTests
         Assert.True(fake.Disposed);
     }
 
+    [Fact]
+    public void Stop_error_preserves_partial_capture_for_recovery()
+    {
+        using var fixture = new AudioFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.LocalCaptureOnly);
+        var fake = new FakeAudioInput(new PcmWaveFormat(48000, 1, 16)) { ThrowOnStop = true };
+        var controller = new AudioCaptureController(repository, fixture.AudioRoot);
+        controller.Start(session.SessionId, null, true, _ => fake);
+
+        Assert.Throws<InvalidOperationException>(() => controller.Stop());
+
+        Assert.Equal(AudioCaptureState.Failed, controller.State);
+        Assert.Single(AudioRecoveryScanner.Scan(fixture.AudioRoot));
+    }
+
     private sealed class FakeAudioInput(PcmWaveFormat format) : IAudioInput
     {
         public PcmWaveFormat Format { get; } = format;
@@ -123,8 +141,9 @@ public sealed class AudioTests
 #pragma warning restore CS0067
 
         public void Start() => DataAvailable?.Invoke(this, new AudioDataEventArgs(new byte[Format.BlockAlign * 480], Format.BlockAlign * 480));
-        public void Stop() { }
+        public void Stop() { if (ThrowOnStop) throw new InvalidOperationException("stop failed"); }
         public bool Disposed { get; private set; }
+        public bool ThrowOnStop { get; init; }
         public void RaiseError(Exception error) => CaptureError?.Invoke(this, error);
         public void Dispose() => Disposed = true;
     }
