@@ -23,6 +23,9 @@ public sealed class WithdrawalTests
         var evidence = repository.AddEvidence(new EvidenceRecord("evidence-withdrawal", EvidenceKind.DirectStatement, source.SourceId, session.SessionId, null, revision.TranscriptRevisionId, revision.Text, revision.Text, ParticipantCertainty.Stated, false, DateTimeOffset.UtcNow));
         var claim = repository.AddMemoryClaim(new MemoryClaim("claim-withdrawal", "Participant likes fish balls", null, "likes", "fish balls", ClaimStatus.Candidate, DateTimeOffset.UtcNow));
         repository.AddEvidenceClaimLink(new EvidenceClaimLink(evidence.EvidenceId, claim.MemoryClaimId, "supports", DateTimeOffset.UtcNow));
+        repository.AddProviderInteraction(new ProviderInteraction("interaction-withdrawal", session.SessionId, null, "test", "conversation", "test-v1", null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, null, true, null, null, DateTimeOffset.UtcNow));
+        var audioBytes = File.ReadAllBytes(fixture.AudioPath);
+        repository.AddDerivedSpeechAsset(new DerivedSpeechAsset("derived-withdrawal", session.SessionId, null, fixture.AudioPath, "wav", audioBytes.LongLength, Convert.ToHexString(SHA256.HashData(audioBytes)).ToLowerInvariant(), "test", "test-v1", "test", null, DateTimeOffset.UtcNow));
         repository.AddConversationJob(new ConversationJob("job-withdrawal", session.SessionId, null, source.SourceId, "durable_transcription", ConversationJobStatus.Pending, 0, DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
 
         var service = new ArchiveWithdrawalService(repository, new FixedTestAdminAuthorizer("admin-1"));
@@ -64,10 +67,12 @@ public sealed class WithdrawalTests
         var responseJob = new ConversationJob("response-withdrawal", session.SessionId, null, source.SourceId, "durable_response", ConversationJobStatus.Pending, 0, DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
         await Assert.ThrowsAsync<CloudNotPermittedException>(() => new DurableResponseJobProcessor(repository, new DeterministicConversationProvider()).ProcessAsync(responseJob));
 
-        var filtered = ArchiveExporter.Export(archive, fixture.ExportRoot);
+        var filtered = ArchiveExporter.Export(archive, fixture.ExportRoot, includeMedia: true);
         Assert.DoesNotContain(source.SourceId, File.ReadAllText(Path.Combine(filtered.ExportDirectory, "sources.jsonl")), StringComparison.Ordinal);
         Assert.DoesNotContain(claim.MemoryClaimId, File.ReadAllText(Path.Combine(filtered.ExportDirectory, "memory_claims.jsonl")), StringComparison.Ordinal);
         Assert.DoesNotContain(claim.MemoryClaimId, File.ReadAllText(Path.Combine(filtered.ExportDirectory, "evidence_claim_links.jsonl")), StringComparison.Ordinal);
+        Assert.DoesNotContain("interaction-withdrawal", File.ReadAllText(Path.Combine(filtered.ExportDirectory, "provider_interactions.jsonl")), StringComparison.Ordinal);
+        Assert.DoesNotContain("derived-withdrawal", File.ReadAllText(Path.Combine(filtered.ExportDirectory, "derived_speech_assets.jsonl")), StringComparison.Ordinal);
         Assert.Contains(result.AnnotationId, File.ReadAllText(Path.Combine(filtered.ExportDirectory, "review_annotations.jsonl")), StringComparison.Ordinal);
         using (var filteredConnection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(filtered.ExportDirectory, "archive.sqlite"), Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString()))
         {
@@ -78,9 +83,11 @@ public sealed class WithdrawalTests
             Assert.Equal(0L, Convert.ToInt64(count.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture));
         }
 
-        var complete = ArchiveExporter.Export(archive, fixture.ExportRoot, includeWithdrawn: true);
+        var complete = ArchiveExporter.Export(archive, fixture.ExportRoot, includeMedia: true, includeWithdrawn: true);
         Assert.Contains(source.SourceId, File.ReadAllText(Path.Combine(complete.ExportDirectory, "sources.jsonl")), StringComparison.Ordinal);
         Assert.Contains(claim.MemoryClaimId, File.ReadAllText(Path.Combine(complete.ExportDirectory, "memory_claims.jsonl")), StringComparison.Ordinal);
+        Assert.Contains("interaction-withdrawal", File.ReadAllText(Path.Combine(complete.ExportDirectory, "provider_interactions.jsonl")), StringComparison.Ordinal);
+        Assert.Contains("derived-withdrawal", File.ReadAllText(Path.Combine(complete.ExportDirectory, "derived_speech_assets.jsonl")), StringComparison.Ordinal);
     }
 
     private sealed class WithdrawalFixture : IDisposable

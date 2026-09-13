@@ -65,7 +65,7 @@ public static class ArchiveExporter
             {
                 derived.CommandText = includeWithdrawn
                     ? "SELECT derived_speech_asset_id, file_path FROM derived_speech_assets"
-                    : "SELECT derived_speech_asset_id, file_path FROM derived_speech_assets WHERE turn_id IS NULL OR turn_id NOT IN (SELECT turn_id FROM sources WHERE recovery_status = 'withdrawn' AND turn_id IS NOT NULL)";
+                    : "SELECT d.derived_speech_asset_id, d.file_path FROM derived_speech_assets d WHERE NOT EXISTS (SELECT 1 FROM sources ws WHERE ws.recovery_status = 'withdrawn' AND ((ws.turn_id IS NOT NULL AND ws.turn_id = d.turn_id) OR (ws.turn_id IS NULL AND d.turn_id IS NULL AND ws.session_id = d.session_id)))";
                 using var reader = derived.ExecuteReader();
                 while (reader.Read())
                 {
@@ -122,7 +122,6 @@ public static class ArchiveExporter
         const string withdrawnEvidence = "(SELECT evidence_id FROM evidence_records WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn'))";
         const string withdrawnClaims = "(SELECT DISTINCT l.memory_claim_id FROM evidence_claim_links l JOIN evidence_records e ON e.evidence_id = l.evidence_id JOIN sources s ON s.source_id = e.source_id WHERE s.recovery_status = 'withdrawn')";
         const string withdrawnClarifications = "(SELECT clarification_event_id FROM clarification_events WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn'))";
-        const string withdrawnTurns = "(SELECT turn_id FROM sources WHERE recovery_status = 'withdrawn' AND turn_id IS NOT NULL)";
         return table switch
         {
             "sources" => "SELECT * FROM sources WHERE recovery_status <> 'withdrawn'",
@@ -135,8 +134,8 @@ public static class ArchiveExporter
             "evidence_entity_links" => $"SELECT * FROM evidence_entity_links WHERE evidence_id NOT IN {withdrawnEvidence}",
             "response_episodes" => $"SELECT * FROM response_episodes WHERE stimulus_evidence_id NOT IN {withdrawnEvidence} AND response_evidence_id NOT IN {withdrawnEvidence} AND (follow_up_evidence_id IS NULL OR follow_up_evidence_id NOT IN {withdrawnEvidence})",
             "memory_claims" => $"SELECT * FROM memory_claims WHERE memory_claim_id NOT IN {withdrawnClaims}",
-            "provider_interactions" => $"SELECT * FROM provider_interactions WHERE turn_id IS NULL OR turn_id NOT IN {withdrawnTurns}",
-            "derived_speech_assets" => $"SELECT * FROM derived_speech_assets WHERE turn_id IS NULL OR turn_id NOT IN {withdrawnTurns}",
+            "provider_interactions" => "SELECT p.* FROM provider_interactions p WHERE NOT EXISTS (SELECT 1 FROM sources ws WHERE ws.recovery_status = 'withdrawn' AND ((ws.turn_id IS NOT NULL AND ws.turn_id = p.turn_id) OR (ws.turn_id IS NULL AND p.turn_id IS NULL AND ws.session_id = p.session_id)))",
+            "derived_speech_assets" => "SELECT d.* FROM derived_speech_assets d WHERE NOT EXISTS (SELECT 1 FROM sources ws WHERE ws.recovery_status = 'withdrawn' AND ((ws.turn_id IS NOT NULL AND ws.turn_id = d.turn_id) OR (ws.turn_id IS NULL AND d.turn_id IS NULL AND ws.session_id = d.session_id)))",
             "entity_aliases" => $"SELECT * FROM entity_aliases WHERE source_clarification_event_id IS NULL OR source_clarification_event_id NOT IN {withdrawnClarifications}",
             "review_annotations" => $"SELECT * FROM review_annotations WHERE NOT ((target_type = 'source' AND target_id IN {withdrawn} AND annotation_type <> 'withdrawal') OR (target_type = 'transcript_revision' AND target_id IN (SELECT transcript_revision_id FROM transcript_revisions WHERE source_id IN {withdrawn})) OR (target_type = 'evidence' AND target_id IN {withdrawnEvidence}) OR (target_type = 'memory_claim' AND target_id IN {withdrawnClaims}))",
             _ => $"SELECT * FROM {table}"
@@ -171,8 +170,8 @@ public static class ArchiveExporter
         ExecuteSanitize(connection, transaction, "DELETE FROM entity_aliases WHERE source_clarification_event_id IN (SELECT clarification_event_id FROM clarification_events WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn'))");
         ExecuteSanitize(connection, transaction, "DELETE FROM clarification_events WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn')");
         ExecuteSanitize(connection, transaction, "DELETE FROM conversation_jobs WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn')");
-        ExecuteSanitize(connection, transaction, "DELETE FROM provider_interactions WHERE turn_id IN (SELECT turn_id FROM sources WHERE recovery_status = 'withdrawn' AND turn_id IS NOT NULL)");
-        ExecuteSanitize(connection, transaction, "DELETE FROM derived_speech_assets WHERE turn_id IN (SELECT turn_id FROM sources WHERE recovery_status = 'withdrawn' AND turn_id IS NOT NULL)");
+        ExecuteSanitize(connection, transaction, "DELETE FROM provider_interactions WHERE EXISTS (SELECT 1 FROM sources ws WHERE ws.recovery_status = 'withdrawn' AND ((ws.turn_id IS NOT NULL AND ws.turn_id = provider_interactions.turn_id) OR (ws.turn_id IS NULL AND provider_interactions.turn_id IS NULL AND ws.session_id = provider_interactions.session_id)))");
+        ExecuteSanitize(connection, transaction, "DELETE FROM derived_speech_assets WHERE EXISTS (SELECT 1 FROM sources ws WHERE ws.recovery_status = 'withdrawn' AND ((ws.turn_id IS NOT NULL AND ws.turn_id = derived_speech_assets.turn_id) OR (ws.turn_id IS NULL AND derived_speech_assets.turn_id IS NULL AND ws.session_id = derived_speech_assets.session_id)))");
         ExecuteSanitize(connection, transaction, "DELETE FROM evidence_records WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn')");
         ExecuteSanitize(connection, transaction, "DELETE FROM memory_claims WHERE memory_claim_id IN (SELECT memory_claim_id FROM withdrawn_memory_claims)");
         ExecuteSanitize(connection, transaction, "DELETE FROM transcript_revisions WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn')");
