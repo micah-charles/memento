@@ -515,6 +515,8 @@ public sealed partial class MainWindow : Window
     {
         _dispatcherQueue.TryEnqueue(() =>
         {
+            if (_session is not null && _session.EndedAt is null)
+                _session = _repository.EndSession(_session);
             StatusText.Text = "錄音中斷，已保留暫存檔；請檢查咪高風或 Windows 權限。";
             RecordButton.Content = "開始錄音";
             ConsentCheckBox.IsEnabled = true;
