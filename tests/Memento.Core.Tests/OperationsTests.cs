@@ -109,6 +109,7 @@ public sealed class OperationsTests
         Assert.Equal(1, report.RecoverableAudioCount);
         Assert.Equal(1, report.PendingConversationJobs);
         Assert.Equal(0, report.InvalidDerivedSpeechAssetCount);
+        Assert.Equal(1, report.InvalidSourceAssetCount);
         Assert.NotEmpty(report.Findings);
 
         File.AppendAllBytes(derivedPath, [99]);
