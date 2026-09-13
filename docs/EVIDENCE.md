@@ -129,6 +129,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 ## M06–M09 implementation evidence — 2026-09-13
 
 - Added migrations 6–8 for retryable conversation jobs, separate Evidence/Memory Claim/link records, and person/entity/alias links; migration 14 links extraction jobs to the exact transcript revision they must process; migration 15 records authenticated deletion tombstones; migration 16 adds a rebuildable FTS5 lexical index.
+- The WinUI shell exposes the local FTS5/substring search service for transcript, Evidence, and candidate Claim text; withdrawn Sources remain excluded from displayed results.
 - `ConversationSessionWriter` persists session/turn/source work and supports retry state transitions without deleting the local Source.
 - `MemoryExtractionService` writes candidate Evidence and candidate Claims separately, with an explicit supports/weakens/contradicts/clarifies/contextualises link. `ProvenanceGraph.Validate` rejects mismatched source chains and unconfirmed AI inference promotion.
 - `EntityResolutionService` adds people, speaker-confirmed aliases, and explicit Evidence links. Existing transcript and audio records remain unchanged.
@@ -146,4 +147,4 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - Family Admin now has explicit confirmation flows for deleting the latest finalized Source and withdrawing it from future cloud processing. Deletion records a minimal tombstone and reports media-removal failures; withdrawal retains local history/media and writes an attributed annotation while filtering future processing, search, and default exports.
 - `dotnet test tests/Memento.Core.Tests/Memento.Core.Tests.csproj --configuration Release` passed **62/62**; full solution build passed with 0 warnings and 0 errors; the NuGet vulnerability scan reported no vulnerable packages.
 - Gate status: **IMPLEMENTED / AUTOMATED TESTED**. Live search, real OS authentication, target-machine restore, and destructive reliability testing remain unverified.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Publish-Memento.ps1` completed successfully and produced the ignored local bundle `artifacts/MEMENTO-win-x64.zip` (106,442,649 bytes at the time of verification). The bundle is self-contained and portable; it is not a signed installer.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Publish-Memento.ps1` completed successfully and produced the ignored local bundle `artifacts/MEMENTO-win-x64.zip` (106,443,655 bytes at the time of verification). The bundle is self-contained and portable; it is not a signed installer.

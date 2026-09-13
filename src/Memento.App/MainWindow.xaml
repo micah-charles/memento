@@ -19,6 +19,11 @@
             <Button x:Name="RecordButton" Content="開始錄音" IsEnabled="False" Click="RecordButton_Click" HorizontalAlignment="Center" Padding="28,10" />
             <Button x:Name="ProcessButton" Content="轉錄及回覆最近錄音" IsEnabled="False" Click="ProcessButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="PlaySpeechButton" Content="播放最近回覆" IsEnabled="False" Click="PlaySpeechButton_Click" HorizontalAlignment="Center" Padding="20,8" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                <TextBox x:Name="SearchBox" PlaceholderText="搜尋本機記錄" Width="280" KeyDown="SearchBox_KeyDown" />
+                <Button x:Name="SearchArchiveButton" Content="搜尋" Click="SearchArchiveButton_Click" Padding="18,8" />
+            </StackPanel>
+            <TextBlock x:Name="SearchResultsText" TextWrapping="Wrap" MaxWidth="620" HorizontalAlignment="Center" />
             <Button x:Name="AdminReviewButton" Content="家庭管理審閱" Click="AdminReviewButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="DeleteLatestSourceButton" Content="刪除最近本機錄音" Click="DeleteLatestSourceButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="WithdrawLatestSourceButton" Content="停止日後雲端處理" Click="WithdrawLatestSourceButton_Click" HorizontalAlignment="Center" Padding="20,8" />

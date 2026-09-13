@@ -6,6 +6,7 @@ using Memento.Core.Storage;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 
 namespace Memento.App;
 
@@ -205,6 +206,36 @@ public sealed partial class MainWindow : Window
         finally
         {
             PlaySpeechButton.IsEnabled = _latestSpeechAsset is not null && _speechPlayback is not null;
+        }
+    }
+
+    private void SearchBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != Windows.System.VirtualKey.Enter) return;
+        SearchArchiveButton_Click(sender, new RoutedEventArgs());
+        e.Handled = true;
+    }
+
+    private void SearchArchiveButton_Click(object sender, RoutedEventArgs e)
+    {
+        var query = SearchBox.Text.Trim();
+        if (query.Length == 0)
+        {
+            SearchResultsText.Text = "請輸入要搜尋嘅字詞。";
+            return;
+        }
+
+        try
+        {
+            var hits = new ArchiveSearchService(_repository.Archive).Search(query, 20);
+            SearchResultsText.Text = hits.Count == 0
+                ? "未找到符合嘅本機記錄。"
+                : string.Join(Environment.NewLine, hits.Select(hit => $"[{hit.RecordType}] {hit.Content}"));
+            StatusText.Text = $"本機搜尋完成：{hits.Count} 項。";
+        }
+        catch (Exception)
+        {
+            SearchResultsText.Text = "未能完成本機搜尋。";
         }
     }
 
