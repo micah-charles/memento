@@ -58,6 +58,9 @@ public sealed class ArchiveDeletionService
             var responseEpisodeIds = ReadIds(connection, transaction, "SELECT response_episode_id FROM response_episodes WHERE stimulus_evidence_id IN (SELECT evidence_id FROM evidence_records WHERE source_id = $source) OR response_evidence_id IN (SELECT evidence_id FROM evidence_records WHERE source_id = $source) OR follow_up_evidence_id IN (SELECT evidence_id FROM evidence_records WHERE source_id = $source)", ("$source", sourceId));
             var revisionIds = ReadIds(connection, transaction, "SELECT transcript_revision_id FROM transcript_revisions WHERE source_id = $source ORDER BY revision_number DESC", ("$source", sourceId));
             var personIds = ReadIds(connection, transaction, "SELECT DISTINCT person_entity_id FROM evidence_entity_links WHERE evidence_id IN (SELECT evidence_id FROM evidence_records WHERE source_id = $source) UNION SELECT DISTINCT person_entity_id FROM entity_aliases WHERE source_clarification_event_id IN (SELECT clarification_event_id FROM clarification_events WHERE source_id = $source)", ("$source", sourceId));
+            var canDeleteTurnAssets = turnId is not null && CountRows(connection, transaction, "SELECT COUNT(*) FROM sources WHERE turn_id = $turn", ("$turn", turnId)) == 1;
+            if (turnId is not null && !canDeleteTurnAssets)
+                findings.Add("Turn-level provider metadata and derived audio were retained because the turn has another Source.");
 
             counts["review_annotations"] = DeleteByIds(connection, transaction, "review_annotations", "target_id", evidenceIds.Concat(claimIds).Concat(responseEpisodeIds).Concat([sourceId]).ToArray());
             counts["response_episodes"] = DeleteByIds(connection, transaction, "response_episodes", "response_episode_id", responseEpisodeIds);
@@ -67,13 +70,13 @@ public sealed class ArchiveDeletionService
             counts["entity_aliases"] = DeleteByIds(connection, transaction, "entity_aliases", "source_clarification_event_id", clarificationIds);
             counts["clarification_events"] = DeleteByIds(connection, transaction, "clarification_events", "clarification_event_id", clarificationIds);
             counts["conversation_jobs"] = DeleteByIds(connection, transaction, "conversation_jobs", "source_id", [sourceId]);
-            counts["provider_interactions"] = DeleteByIds(connection, transaction, "provider_interactions", "turn_id", turnId is null ? [] : [turnId]);
+            counts["provider_interactions"] = canDeleteTurnAssets ? DeleteByIds(connection, transaction, "provider_interactions", "turn_id", [turnId!]) : 0;
 
-            if (turnId is not null)
+            if (canDeleteTurnAssets)
             {
-                var derivedPaths = ReadPaths(connection, transaction, "SELECT file_path FROM derived_speech_assets WHERE turn_id = $turn", ("$turn", turnId));
+                var derivedPaths = ReadPaths(connection, transaction, "SELECT file_path FROM derived_speech_assets WHERE turn_id = $turn", ("$turn", turnId!));
                 foreach (var path in derivedPaths) AddPath(mediaPaths, path);
-                counts["derived_speech_assets"] = DeleteByIds(connection, transaction, "derived_speech_assets", "turn_id", [turnId]);
+                counts["derived_speech_assets"] = DeleteByIds(connection, transaction, "derived_speech_assets", "turn_id", [turnId!]);
             }
             else
             {
@@ -151,6 +154,15 @@ public sealed class ArchiveDeletionService
 
     private static List<string> ReadPaths(SqliteConnection connection, SqliteTransaction transaction, string sql, params (string Name, object? Value)[] parameters)
         => ReadIds(connection, transaction, sql, parameters);
+
+    private static int CountRows(SqliteConnection connection, SqliteTransaction transaction, string sql, params (string Name, object? Value)[] parameters)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = sql;
+        foreach (var (name, value) in parameters) command.Parameters.AddWithValue(name, value ?? DBNull.Value);
+        return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
+    }
 
     private static int DeleteRevisions(SqliteConnection connection, SqliteTransaction transaction, IReadOnlyList<string> revisionIds)
     {

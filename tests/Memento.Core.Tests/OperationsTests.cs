@@ -64,6 +64,7 @@ public sealed class OperationsTests
 
         Assert.True(File.Exists(result.ManifestPath));
         Assert.True(File.Exists(Path.Combine(result.ExportDirectory, "sources.jsonl")));
+        Assert.True(File.Exists(Path.Combine(result.ExportDirectory, "deletion_tombstones.jsonl")));
         Assert.True(File.Exists(Path.Combine(result.ExportDirectory, "media", "recording.wav")));
         Assert.True(File.Exists(Path.Combine(result.ExportDirectory, "media", "source-source-export-second-recording.wav")));
         Assert.NotEqual(result.ExportDirectory, secondResult.ExportDirectory);
