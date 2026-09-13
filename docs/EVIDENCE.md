@@ -142,6 +142,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - Added `ArchiveExporter` JSONL/media/snapshot export with SHA-256 manifest entries and `ArchiveBackupProtector` AES-GCM password backup/restore.
 - Export directories now use unique run IDs, and duplicate media basenames are preserved with collision-safe names instead of aborting an export.
 - Added `ArchiveHealthCheck` for SQLite integrity, schema version, recoverable audio, and due conversation jobs.
+- The WinUI shell now exposes explicit local health-check, media export, and password-encrypted backup actions; backup snapshots are staged under a temporary directory and removed after encryption.
 - `dotnet test tests/Memento.Core.Tests/Memento.Core.Tests.csproj --configuration Release` passed **58/58**; full solution build passed with 0 warnings and 0 errors; the NuGet vulnerability scan reported no vulnerable packages.
 - Gate status: **IMPLEMENTED / AUTOMATED TESTED**. Live search, real OS authentication, target-machine restore, and destructive reliability testing remain unverified.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Publish-Memento.ps1` completed successfully and produced the ignored local bundle `artifacts/MEMENTO-win-x64.zip` (106,425,315 bytes at the time of verification). The bundle is self-contained and portable; it is not a signed installer.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Publish-Memento.ps1` completed successfully and produced the ignored local bundle `artifacts/MEMENTO-win-x64.zip` (106,427,367 bytes at the time of verification). The bundle is self-contained and portable; it is not a signed installer.

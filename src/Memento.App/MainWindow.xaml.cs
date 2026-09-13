@@ -15,6 +15,7 @@ public sealed partial class MainWindow : Window
     private readonly string _audioRoot;
     private readonly int _recoverableAudioCount;
     private readonly DispatcherQueue _dispatcherQueue;
+    private readonly string _dataRoot;
     private readonly BoundedVoiceConversationService? _voiceConversation;
     private readonly ISpeechOutputPlayback? _speechPlayback;
     private readonly FamilyAdminReviewService? _adminReview;
@@ -30,12 +31,13 @@ public sealed partial class MainWindow : Window
     private CancellationTokenSource? _retryCancellation;
     private Task? _retryTask;
 
-    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null, ConversationJobWorker? retryWorker = null, Func<bool>? credentialAvailable = null)
+    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null, ConversationJobWorker? retryWorker = null, Func<bool>? credentialAvailable = null, string? dataRoot = null)
     {
         _repository = repository;
         _audioRoot = audioRoot;
         _recoverableAudioCount = recoverableAudioCount;
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
+        _dataRoot = dataRoot is null ? Path.GetFullPath(Path.Combine(audioRoot, "..", "..")) : Path.GetFullPath(dataRoot);
         _voiceConversation = voiceConversation;
         _speechPlayback = speechPlayback;
         _adminReview = adminReview;
@@ -250,6 +252,72 @@ public sealed partial class MainWindow : Window
         catch (Exception)
         {
             StatusText.Text = "未能儲存家庭管理審閱。";
+        }
+    }
+
+    private void HealthCheckButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var report = ArchiveHealthCheck.Run(_repository.Archive, _audioRoot);
+            StatusText.Text = report.Findings.Count == 0
+                ? $"健康檢查完成：SQLite {report.SchemaVersion}，未發現問題。"
+                : $"健康檢查發現 {report.Findings.Count} 項：{string.Join("；", report.Findings)}";
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "未能完成本機資料健康檢查。";
+        }
+    }
+
+    private void ExportButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var result = ArchiveExporter.Export(_repository.Archive, Path.Combine(_dataRoot, "exports"), includeMedia: true);
+            StatusText.Text = $"已匯出本機資料：{result.ExportDirectory}";
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "未能匯出本機資料；原有資料仍然保留。";
+        }
+    }
+
+    private async void BackupButton_Click(object sender, RoutedEventArgs e)
+    {
+        var passwordBox = new PasswordBox { PlaceholderText = "輸入備份密碼", MinWidth = 280 };
+        var dialog = new ContentDialog
+        {
+            XamlRoot = RootGrid.XamlRoot,
+            Title = "建立加密備份",
+            Content = passwordBox,
+            PrimaryButtonText = "建立備份",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary || string.IsNullOrWhiteSpace(passwordBox.Password))
+        {
+            StatusText.Text = "已取消加密備份。";
+            return;
+        }
+
+        var temporaryRoot = Path.Combine(Path.GetTempPath(), "memento-backup-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var export = ArchiveExporter.Export(_repository.Archive, temporaryRoot, includeMedia: true);
+            var destination = Path.Combine(_dataRoot, "backups", "memento-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N") + ".memento");
+            ArchiveBackupProtector.EncryptDirectory(export.ExportDirectory, destination, passwordBox.Password);
+            StatusText.Text = $"已建立加密備份：{destination}";
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "未能建立加密備份；原有資料仍然保留。";
+        }
+        finally
+        {
+            passwordBox.Password = string.Empty;
+            if (Directory.Exists(temporaryRoot))
+                Directory.Delete(temporaryRoot, recursive: true);
         }
     }
 

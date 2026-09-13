@@ -5,6 +5,8 @@ namespace Memento.Core.Storage;
 
 public sealed class ArchiveRepository(SqliteArchive archive)
 {
+    public SqliteArchive Archive => archive;
+
     public Session AddSession(DateTimeOffset startedAt, PrivacyMode privacyMode, string? sessionId = null)
     {
         var session = new Session(sessionId ?? NewId(), startedAt, null, privacyMode, DateTimeOffset.UtcNow);

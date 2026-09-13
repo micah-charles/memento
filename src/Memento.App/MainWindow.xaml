@@ -20,6 +20,9 @@
             <Button x:Name="ProcessButton" Content="轉錄及回覆最近錄音" IsEnabled="False" Click="ProcessButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="PlaySpeechButton" Content="播放最近回覆" IsEnabled="False" Click="PlaySpeechButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="AdminReviewButton" Content="家庭管理審閱" Click="AdminReviewButton_Click" HorizontalAlignment="Center" Padding="20,8" />
+            <Button x:Name="HealthCheckButton" Content="檢查本機資料" Click="HealthCheckButton_Click" HorizontalAlignment="Center" Padding="20,8" />
+            <Button x:Name="ExportButton" Content="匯出本機資料" Click="ExportButton_Click" HorizontalAlignment="Center" Padding="20,8" />
+            <Button x:Name="BackupButton" Content="建立加密備份" Click="BackupButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <TextBlock x:Name="StatusText" Text="Recording is off · Local archive" FontSize="16" HorizontalAlignment="Center" TextWrapping="Wrap" />
         </StackPanel>
         <TextBlock Grid.Row="2" Text="MEMENTO · 本機資料庫" FontSize="16" HorizontalAlignment="Center" />
