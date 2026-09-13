@@ -88,15 +88,28 @@ public sealed class PcmWaveWriter : IDisposable
     public FinalizedAudioAsset FinalizeAsset()
     {
         ThrowIfClosed();
-        WriteHeader(_dataBytes);
-        Flush();
-        _stream.Dispose();
-        _closed = true;
-        PcmWaveValidator.Validate(_temporaryPath, allowPartial: false);
-        var hash = ComputeSha256(_temporaryPath);
-        File.Move(_temporaryPath, _finalPath, overwrite: false);
-        var finalizedAt = DateTimeOffset.UtcNow;
-        return new FinalizedAudioAsset(_sourceId, _finalPath, _format, HeaderLength + _dataBytes, Duration(_dataBytes), hash, _startedAt, finalizedAt);
+        try
+        {
+            WriteHeader(_dataBytes);
+            Flush();
+            _stream.Dispose();
+            _closed = true;
+            PcmWaveValidator.Validate(_temporaryPath, allowPartial: false);
+            var hash = ComputeSha256(_temporaryPath);
+            File.Move(_temporaryPath, _finalPath, overwrite: false);
+            var finalizedAt = DateTimeOffset.UtcNow;
+            return new FinalizedAudioAsset(_sourceId, _finalPath, _format, HeaderLength + _dataBytes, Duration(_dataBytes), hash, _startedAt, finalizedAt);
+        }
+        catch
+        {
+            if (!_closed)
+            {
+                try { _stream.Dispose(); }
+                finally { _closed = true; }
+            }
+
+            throw;
+        }
     }
 
     public void Dispose()

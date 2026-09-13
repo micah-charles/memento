@@ -132,6 +132,25 @@ public sealed class AudioTests
         Assert.Single(AudioRecoveryScanner.Scan(fixture.AudioRoot));
     }
 
+    [Fact]
+    public void Duplicate_final_path_keeps_the_second_capture_recoverable()
+    {
+        using var fixture = new AudioFixture();
+        var format = new PcmWaveFormat(16000, 1, 16);
+        using (var first = PcmWaveWriter.Create(fixture.AudioRoot, "session-duplicate", DateTimeOffset.UtcNow, format, "same-source"))
+        {
+            first.Append(new byte[format.BlockAlign * 160]);
+            first.FinalizeAsset();
+        }
+
+        using var second = PcmWaveWriter.Create(fixture.AudioRoot, "session-duplicate", DateTimeOffset.UtcNow, format, "same-source");
+        second.Append(new byte[format.BlockAlign * 80]);
+
+        Assert.Throws<IOException>(() => second.FinalizeAsset());
+        Assert.True(File.Exists(second.TemporaryPath));
+        Assert.True(PcmWaveValidator.Validate(second.TemporaryPath, allowPartial: false).Equals(format));
+    }
+
     private sealed class FakeAudioInput(PcmWaveFormat format) : IAudioInput
     {
         public PcmWaveFormat Format { get; } = format;
