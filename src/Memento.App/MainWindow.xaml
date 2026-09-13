@@ -19,6 +19,30 @@
             <CheckBox x:Name="CloudConsentCheckBox" Content="我同意完成錄音後送到雲端轉錄、回覆及目前資訊查詢" HorizontalAlignment="Center" Checked="CloudConsentChanged" Unchecked="CloudConsentChanged" />
             <Button x:Name="RecordButton" Content="開始錄音" IsEnabled="False" Click="RecordButton_Click" HorizontalAlignment="Center" Padding="28,10" />
             <Button x:Name="ProcessButton" Content="轉錄及回覆最近錄音" IsEnabled="False" Click="ProcessButton_Click" HorizontalAlignment="Center" Padding="20,8" />
+            <StackPanel x:Name="ClarificationPanel" Visibility="Collapsed" Spacing="8" MaxWidth="620" HorizontalAlignment="Center">
+                <TextBlock Text="想確認或更正最近轉錄？" FontSize="20" HorizontalAlignment="Center" />
+                <TextBlock x:Name="ClarificationTranscriptText" TextWrapping="Wrap" />
+                <ComboBox x:Name="ClarificationEntityKindBox" Header="要確認嘅類型" SelectedIndex="0" HorizontalAlignment="Stretch">
+                    <ComboBoxItem Content="人名" Tag="PersonName" />
+                    <ComboBoxItem Content="地點" Tag="Place" />
+                    <ComboBoxItem Content="關係" Tag="Relationship" />
+                    <ComboBoxItem Content="日期／年份" Tag="Date" />
+                    <ComboBoxItem Content="重大事件" Tag="MajorEvent" />
+                    <ComboBoxItem Content="身份" Tag="Identity" />
+                    <ComboBoxItem Content="偏好" Tag="Preference" />
+                </ComboBox>
+                <TextBox x:Name="ClarificationQuestionBox" PlaceholderText="問題，例如：你講嗰個朋友係咪阿珍？" TextWrapping="Wrap" AcceptsReturn="True" />
+                <TextBox x:Name="ClarificationResponseBox" PlaceholderText="參與者原話（可留空）" TextWrapping="Wrap" AcceptsReturn="True" />
+                <TextBox x:Name="ClarificationCorrectionBox" PlaceholderText="講者確認時輸入更正後完整文字" TextWrapping="Wrap" AcceptsReturn="True" />
+                <TextBox x:Name="ClarificationCanonicalBox" PlaceholderText="可選：標準名稱／詞語" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6">
+                    <Button Content="講者確認／更正" Click="SpeakerConfirmedButton_Click" />
+                    <Button Content="兩個可能" Click="TwoPossibilitiesButton_Click" />
+                    <Button Content="唔記得" Click="DoesNotRememberButton_Click" />
+                    <Button Content="唔想講住" Click="ParticipantRefusedButton_Click" />
+                </StackPanel>
+                <TextBlock x:Name="ClarificationStatusText" TextWrapping="Wrap" HorizontalAlignment="Center" />
+            </StackPanel>
             <Button x:Name="PlaySpeechButton" Content="播放最近回覆" IsEnabled="False" Click="PlaySpeechButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="PlaySourceButton" Content="播放最近本機錄音（管理員）" IsEnabled="False" Click="PlaySourceButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">

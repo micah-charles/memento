@@ -32,6 +32,7 @@ public sealed partial class MainWindow : Window
     private Session? _session;
     private Turn? _turn;
     private SourceMetadata? _lastSource;
+    private TranscriptRevision? _pendingClarificationRevision;
     private DerivedSpeechAsset? _latestSpeechAsset;
     private bool _processing;
     private bool _recordingEnabled;
@@ -78,6 +79,7 @@ public sealed partial class MainWindow : Window
                 }
             }
             _latestSpeechAsset = _repository.GetLatestDerivedSpeechAsset();
+            RefreshClarificationRevision();
             PlaySpeechButton.IsEnabled = _latestSpeechAsset is not null && _speechPlayback is not null;
             UpdateRecordControl();
             if (_recoverableAudioCount > 0)
@@ -156,6 +158,8 @@ public sealed partial class MainWindow : Window
                 // Source; that mismatch could expose a confusing retry action.
                 _session = null;
                 _lastSource = null;
+                _pendingClarificationRevision = null;
+                ClarificationPanel.Visibility = Visibility.Collapsed;
             }
             finally
             {
@@ -173,6 +177,8 @@ public sealed partial class MainWindow : Window
         {
             var privacyMode = CloudConsentCheckBox.IsChecked == true ? PrivacyMode.Normal : PrivacyMode.LocalCaptureOnly;
             var startedAt = DateTimeOffset.UtcNow;
+            _pendingClarificationRevision = null;
+            ClarificationPanel.Visibility = Visibility.Collapsed;
             _session = _repository.AddSession(startedAt, privacyMode);
             _turn = _repository.AddTurn(_session.SessionId, _repository.GetNextTurnSequence(_session.SessionId), "participant", startedAt);
             _repository.AddConsent(_session.SessionId, ConsentScope.LocalCapture, privacyMode, true, "privacy-1");
@@ -201,6 +207,8 @@ public sealed partial class MainWindow : Window
             EndActiveTurnSafely();
             _session = null;
             _lastSource = null;
+            _pendingClarificationRevision = null;
+            ClarificationPanel.Visibility = Visibility.Collapsed;
             RecordButton.Content = "開始錄音";
             ConsentCheckBox.IsEnabled = true;
             CloudConsentCheckBox.IsEnabled = true;
@@ -223,6 +231,7 @@ public sealed partial class MainWindow : Window
             var request = new ConversationRequest(_session.SessionId, _lastSource.TurnId, _lastSource.FilePath, _session.PrivacyMode, true, DateTimeOffset.UtcNow, SourceId: _lastSource.SourceId);
             var result = await _voiceConversation.ExecuteAsync(request);
             _latestSpeechAsset = result.SpeechAsset ?? _repository.GetLatestDerivedSpeechAsset();
+            RefreshClarificationRevision();
             if (result.Conversation.Response is null)
             {
                 StartRetryWorkerIfAvailable();
@@ -296,6 +305,113 @@ public sealed partial class MainWindow : Window
             _sourcePlaybackCancellation.Dispose();
             _sourcePlaybackCancellation = null;
             UpdateRecordControl();
+        }
+    }
+
+    private void SpeakerConfirmedButton_Click(object sender, RoutedEventArgs e)
+        => RecordClarificationOutcome(ClarificationOutcome.SpeakerConfirmed);
+
+    private void TwoPossibilitiesButton_Click(object sender, RoutedEventArgs e)
+        => RecordClarificationOutcome(ClarificationOutcome.TwoPossibilities);
+
+    private void DoesNotRememberButton_Click(object sender, RoutedEventArgs e)
+        => RecordClarificationOutcome(ClarificationOutcome.ParticipantDoesNotRemember);
+
+    private void ParticipantRefusedButton_Click(object sender, RoutedEventArgs e)
+        => RecordClarificationOutcome(ClarificationOutcome.ParticipantRefused);
+
+    private void RecordClarificationOutcome(ClarificationOutcome outcome)
+    {
+        if (_pendingClarificationRevision is null || _session is null || _session.EndedAt is null)
+        {
+            ClarificationStatusText.Text = "目前沒有可以澄清嘅轉錄。";
+            return;
+        }
+
+        var question = ClarificationQuestionBox.Text.Trim();
+        if (question.Length == 0)
+        {
+            ClarificationStatusText.Text = "請先輸入想確認嘅問題。";
+            return;
+        }
+
+        var correction = ClarificationCorrectionBox.Text.Trim();
+        var requiresCorrection = outcome is ClarificationOutcome.SpeakerConfirmed or ClarificationOutcome.CorrectedPreviousCorrection;
+        if (requiresCorrection && correction.Length == 0)
+        {
+            ClarificationStatusText.Text = "講者確認時，請輸入更正後完整文字；原始轉錄會保留。";
+            return;
+        }
+        if (!requiresCorrection && correction.Length > 0)
+        {
+            ClarificationStatusText.Text = "如果要記錄更正，請按「講者確認／更正」；不確定答案不會被當成更正。";
+            return;
+        }
+
+        var entityKind = GetSelectedClarificationEntityKind();
+        var response = string.IsNullOrWhiteSpace(ClarificationResponseBox.Text) ? null : ClarificationResponseBox.Text.Trim();
+        var canonical = string.IsNullOrWhiteSpace(ClarificationCanonicalBox.Text) ? null : ClarificationCanonicalBox.Text.Trim();
+        try
+        {
+            var chain = new ClarificationProtocol(_repository).RecordOutcome(
+                _session,
+                _pendingClarificationRevision,
+                entityKind,
+                question,
+                response,
+                outcome,
+                requiresCorrection ? correction : null,
+                requiresCorrection ? canonical : null);
+
+            _pendingClarificationRevision = null;
+            ClarificationPanel.Visibility = Visibility.Collapsed;
+            ClarificationStatusText.Text = chain.CorrectedRevision is null
+                ? "已記錄參與者答案；原始轉錄保持不變。"
+                : "已記錄講者更正；原始及更正後轉錄都已保留。";
+            StatusText.Text = chain.CorrectedRevision is null
+                ? "已記錄澄清結果。"
+                : "已記錄講者更正；可以稍後審閱記憶候選。";
+            UpdateRecordControl();
+        }
+        catch (Exception)
+        {
+            ClarificationStatusText.Text = "未能記錄澄清結果；原始轉錄仍然保留。";
+        }
+    }
+
+    private ClarificationEntityKind GetSelectedClarificationEntityKind()
+    {
+        var tag = (ClarificationEntityKindBox.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+        return Enum.TryParse<ClarificationEntityKind>(tag, out var entityKind)
+            ? entityKind
+            : ClarificationEntityKind.None;
+    }
+
+    private void RefreshClarificationRevision()
+    {
+        _pendingClarificationRevision = null;
+        ClarificationPanel.Visibility = Visibility.Collapsed;
+        if (_lastSource is null || _session is null || _session.EndedAt is null || string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        try
+        {
+            _pendingClarificationRevision = _repository.ListTranscriptRevisions(_lastSource.SourceId)
+                .OrderByDescending(revision => revision.RevisionNumber)
+                .ThenByDescending(revision => revision.CreatedAt)
+                .FirstOrDefault();
+            if (_pendingClarificationRevision is null) return;
+            ClarificationTranscriptText.Text = $"最近轉錄：{_pendingClarificationRevision.Text}";
+            ClarificationQuestionBox.Text = string.Empty;
+            ClarificationResponseBox.Text = string.Empty;
+            ClarificationCorrectionBox.Text = string.Empty;
+            ClarificationCanonicalBox.Text = string.Empty;
+            ClarificationStatusText.Text = "原始轉錄會保留；只有講者確認／更正才會建立新 revision。";
+            ClarificationPanel.Visibility = Visibility.Visible;
+        }
+        catch
+        {
+            _pendingClarificationRevision = null;
         }
     }
 
@@ -493,6 +609,8 @@ public sealed partial class MainWindow : Window
             var result = _deletion.DeleteSource(_adminActorId, sourceId, "participant requested deletion");
             _lastSource = null;
             _session = null;
+            _pendingClarificationRevision = null;
+            ClarificationPanel.Visibility = Visibility.Collapsed;
             _latestSpeechAsset = _repository.GetLatestDerivedSpeechAsset();
             StatusText.Text = result.MediaRemoved
                 ? "最近錄音及相關資料已刪除；已保留最小 audit tombstone。"
@@ -529,6 +647,8 @@ public sealed partial class MainWindow : Window
         {
             var result = _withdrawal.WithdrawSource(_adminActorId, _lastSource.SourceId, "participant requested future cloud processing withdrawal");
             _lastSource = _repository.GetSource(result.SourceId);
+            _pendingClarificationRevision = null;
+            ClarificationPanel.Visibility = Visibility.Collapsed;
             StatusText.Text = "已停止此錄音日後雲端處理；歷史資料及原始錄音仍然保留。";
             UpdateRecordControl();
         }
@@ -730,6 +850,8 @@ public sealed partial class MainWindow : Window
             EndActiveTurnSafely();
             _session = null;
             _lastSource = null;
+            _pendingClarificationRevision = null;
+            ClarificationPanel.Visibility = Visibility.Collapsed;
             StatusText.Text = "錄音中斷，已保留暫存檔；請檢查咪高風或 Windows 權限。";
             RecordButton.Content = "開始錄音";
             ConsentCheckBox.IsEnabled = true;
@@ -748,6 +870,7 @@ public sealed partial class MainWindow : Window
         ProcessButton.IsEnabled = !_processing && _sourcePlaybackCancellation is null && _voiceConversation is not null && _capture?.State != AudioCaptureState.Capturing && _lastSource?.FilePath is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) && _session?.EndedAt is not null && _session.PrivacyMode != PrivacyMode.LocalCaptureOnly && CloudConsentCheckBox.IsChecked == true;
         PlaySpeechButton.IsEnabled = !_processing && _sourcePlaybackCancellation is null && _latestSpeechAsset is not null && _speechPlayback is not null;
         var adminIdle = !_processing && _capture?.State != AudioCaptureState.Capturing && _sourcePlaybackCancellation is null;
+        ClarificationPanel.IsHitTestVisible = adminIdle && _pendingClarificationRevision is not null;
         SearchCurrentInformationButton.IsEnabled = !_processing && _currentInfoCancellation is null && _sourcePlaybackCancellation is null && _capture?.State != AudioCaptureState.Capturing && _currentInformation is not null;
         AdminReviewButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
         DeleteLatestSourceButton.IsEnabled = adminIdle && _deletion is not null && _lastSource is not null;
