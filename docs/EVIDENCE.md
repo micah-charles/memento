@@ -176,6 +176,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - The retry worker now reclaims `Processing` jobs whose five-minute lease expired, covering crash/restart recovery without retrying an actively running job.
 - Archive health checks now count only stale `Processing` jobs as due, so active work is not reported as overdue while crashed work remains visible for recovery.
 - Clarification outcomes now verify Source/session ownership and the persisted initial transcript revision before writing corrected revisions, preventing cross-session or orphaned provenance records.
+- Archive repository writes now enforce matching Source, Turn, Session, and transcript-revision context when those records already exist; regression coverage exercises mismatched and sessionless Source contexts.
 - Async memory extraction now requires cloud consent before provider execution and re-checks consent and Source withdrawal after the provider returns, preventing post-revocation candidate persistence.
 - Capture shutdown recovery now swallows input/writer cleanup failures, records the failure, and preserves the temporary audio marker without blocking session close.
 - Family Admin review now re-reads the current candidate list before writing an annotation, so stale, reviewed, or withdrawn claims cannot receive a new review record.

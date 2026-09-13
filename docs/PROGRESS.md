@@ -100,6 +100,7 @@
 - The WinUI capture flow now creates a participant Turn before opening the microphone, links the finalized Source and provider work to that Turn, and closes the Turn on normal stop, capture failure, shutdown recovery, or microphone-start failure. `ArchiveRepository` also persists turn closure and provides a restart-safe next sequence number.
 - In-flight transcription, response, and speech-output calls now re-check Source withdrawal and cloud consent before writing success metadata, persisting derived speech, or handing audio to playback; deterministic withdrawal/consent race tests cover these boundaries.
 - OpenAI response and extraction requests label transcript text as untrusted participant data and explicitly prohibit embedded commands from changing privacy or memory authority.
+- Archive repository writes now enforce matching Source, Turn, Session, and transcript-revision context when those records already exist; foreign keys still handle missing-ID relationships.
 
 ## M10–M13 implementation attempt — 2026-09-13
 
@@ -112,6 +113,7 @@
 - M12 added self-contained JSONL table exports, an SQLite snapshot, optional collision-safe media copies, per-file SHA-256 manifest entries, and password-based AES-GCM backup/restore. File and bundle re-encryption now supports explicit password rotation without exposing plaintext beyond a temporary local staging path. Repeated exports get unique directories and do not overwrite an earlier snapshot.
 - M13 added an archive health check for SQLite integrity, schema version, recoverable audio, due conversation jobs, tampered/missing finalized source or derived speech assets, and search-index row parity; authenticated source-scoped deletion now removes dependent content, including unambiguous session-level provider/derived assets, attempts media removal, and leaves a minimal tombstone; security scans and package vulnerability checks remain clean.
 - Encrypted restore rejects duplicate archive entry names before extraction, preventing ambiguous overwrite semantics in a crafted backup.
+- Encrypted restore also rejects distinct ZIP entry names that normalize to the same output path, such as a `nested/../archive.sqlite` alias.
 - M13 now also supports an authenticated Source withdrawal policy: historical records and original media remain available locally, while queued/future cloud transcription and extraction, local search hits, and default exports exclude the withdrawn Source; retryable jobs are terminally blocked, and a minimal withdrawal annotation records the actor and reason. An explicit complete export can include withdrawn records for admin-controlled handling.
 - The WinUI shell now exposes the M12/M13 health-check, media export, encrypted-backup, and disposable restore/verification operations with plain Cantonese status messages; these actions still require supervised native UI verification.
 - The Family Admin shell now exposes a confirmation-gated deletion of the latest finalized Source; it removes dependent content through the authenticated deletion service and preserves only a minimal audit tombstone.
