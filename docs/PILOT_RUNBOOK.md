@@ -1,6 +1,6 @@
 # MEMENTO supervised pilot runbook
 
-**Status:** Preparation only; M14 has not started.
+**Status:** Preparation documented and automated preflight verified; real-user M14 pilot has not started.
 
 Do not run a real participant pilot until every item below has an owner and recorded evidence.
 
