@@ -31,6 +31,7 @@ public sealed partial class MainWindow : Window
     private DerivedSpeechAsset? _latestSpeechAsset;
     private bool _processing;
     private bool _recordingEnabled;
+    private bool _initializing;
     private CancellationTokenSource? _retryCancellation;
     private Task? _retryTask;
 
@@ -50,30 +51,48 @@ public sealed partial class MainWindow : Window
         _retryWorker = retryWorker;
         _credentialAvailable = credentialAvailable;
         InitializeComponent();
+        _initializing = true;
         Closed += MainWindow_Closed;
-        _recordingEnabled = !string.Equals(_repository.GetSetting("recording_enabled"), "0", StringComparison.Ordinal);
-        RecordingEnabledCheckBox.IsChecked = _recordingEnabled;
-        StatusText.Text = _recordingEnabled ? "本機錄音已啟用。" : "本機錄音已停用。";
-        _lastSource = _repository.GetLatestFinalizedSource();
-        if (_lastSource?.SessionId is not null)
-            _session = _repository.GetSession(_lastSource.SessionId);
-        _latestSpeechAsset = _repository.GetLatestDerivedSpeechAsset();
-        PlaySpeechButton.IsEnabled = _latestSpeechAsset is not null && _speechPlayback is not null;
-        UpdateRecordControl();
-        if (_recoverableAudioCount > 0)
-            StatusText.Text = $"有 {_recoverableAudioCount} 段未完成錄音，已保留待處理 · Local archive";
+        try
+        {
+            _recordingEnabled = !string.Equals(_repository.GetSetting("recording_enabled"), "0", StringComparison.Ordinal);
+            RecordingEnabledCheckBox.IsChecked = _recordingEnabled;
+            StatusText.Text = _recordingEnabled ? "本機錄音已啟用。" : "本機錄音已停用。";
+            _lastSource = _repository.GetLatestFinalizedSource();
+            if (_lastSource?.SessionId is not null)
+            {
+                _session = _repository.GetSession(_lastSource.SessionId);
+                if (_session is not null)
+                {
+                    ConsentCheckBox.IsChecked = _repository.HasGrantedConsent(_session.SessionId, ConsentScope.LocalCapture);
+                    CloudConsentCheckBox.IsChecked = _session.PrivacyMode != PrivacyMode.LocalCaptureOnly
+                        && _repository.HasGrantedConsent(_session.SessionId, ConsentScope.CloudTranscription);
+                }
+            }
+            _latestSpeechAsset = _repository.GetLatestDerivedSpeechAsset();
+            PlaySpeechButton.IsEnabled = _latestSpeechAsset is not null && _speechPlayback is not null;
+            UpdateRecordControl();
+            if (_recoverableAudioCount > 0)
+                StatusText.Text = $"有 {_recoverableAudioCount} 段未完成錄音，已保留待處理 · Local archive";
+        }
+        finally
+        {
+            _initializing = false;
+        }
         StartRetryWorkerIfAvailable();
     }
 
     private void ConsentChanged(object sender, RoutedEventArgs e)
     {
+        if (_initializing) return;
         UpdateRecordControl();
-        if (_session is not null && ConsentCheckBox.IsChecked != true)
-            _repository.AddConsent(_session.SessionId, ConsentScope.LocalCapture, _session.PrivacyMode, false, "privacy-1");
+        if (_session is not null)
+            _repository.AddConsent(_session.SessionId, ConsentScope.LocalCapture, _session.PrivacyMode, ConsentCheckBox.IsChecked == true, "privacy-1");
     }
 
     private void RecordingEnabledChanged(object sender, RoutedEventArgs e)
     {
+        if (_initializing) return;
         _recordingEnabled = RecordingEnabledCheckBox.IsChecked == true;
         _repository.SetSetting("recording_enabled", _recordingEnabled ? "1" : "0");
         UpdateRecordControl();
@@ -82,10 +101,9 @@ public sealed partial class MainWindow : Window
 
     private void CloudConsentChanged(object sender, RoutedEventArgs e)
     {
-        if (_session is not null && _session.EndedAt is null && CloudConsentCheckBox.IsChecked == true)
-            _repository.AddConsent(_session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
-        else if (_session is not null && _session.EndedAt is not null && _session.PrivacyMode != PrivacyMode.LocalCaptureOnly && CloudConsentCheckBox.IsChecked != true)
-            _repository.AddConsent(_session.SessionId, ConsentScope.CloudTranscription, _session.PrivacyMode, false, "privacy-1");
+        if (_initializing) return;
+        if (_session is not null && _session.PrivacyMode != PrivacyMode.LocalCaptureOnly)
+            _repository.AddConsent(_session.SessionId, ConsentScope.CloudTranscription, _session.PrivacyMode, CloudConsentCheckBox.IsChecked == true, "privacy-1");
         UpdateRecordControl();
     }
 

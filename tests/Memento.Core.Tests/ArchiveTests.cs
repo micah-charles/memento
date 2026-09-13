@@ -125,6 +125,25 @@ public sealed class ArchiveTests
         Assert.Equal("0", new ArchiveRepository(reopened).GetSetting("recording_enabled"));
     }
 
+    [Fact]
+    public void Latest_consent_event_wins_after_restart()
+    {
+        using var fixture = new ArchiveFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        Assert.True(repository.HasGrantedConsent(session.SessionId, ConsentScope.CloudTranscription));
+
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, false, "privacy-1");
+        Assert.False(repository.HasGrantedConsent(session.SessionId, ConsentScope.CloudTranscription));
+
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        Assert.True(repository.HasGrantedConsent(session.SessionId, ConsentScope.CloudTranscription));
+    }
+
     private static string Scalar(SqliteConnection connection, string sql)
     {
         using var command = connection.CreateCommand();
