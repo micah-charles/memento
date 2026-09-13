@@ -74,6 +74,55 @@ public sealed class DeletionTests
         Assert.Empty(new ArchiveSearchService(archive).Search("阿珍"));
     }
 
+    [Fact]
+    public void Session_level_source_deletion_removes_unambiguous_session_assets()
+    {
+        using var fixture = new DeletionFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-session-level"));
+        repository.AddProviderInteraction(new ProviderInteraction("interaction-session-level", session.SessionId, null, "test", "response", "test-v1", null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, null, true, null, null, DateTimeOffset.UtcNow));
+        var derivedBytes = File.ReadAllBytes(fixture.DerivedPath);
+        repository.AddDerivedSpeechAsset(new DerivedSpeechAsset("derived-session-level", session.SessionId, null, fixture.DerivedPath, "wav", derivedBytes.LongLength, Convert.ToHexString(SHA256.HashData(derivedBytes)).ToLowerInvariant(), "test", "test-v1", "test", null, DateTimeOffset.UtcNow));
+
+        var result = new ArchiveDeletionService(repository, new FixedTestAdminAuthorizer("admin-1"))
+            .DeleteSource("admin-1", source.SourceId, "participant requested deletion");
+
+        Assert.True(result.MediaRemoved);
+        Assert.Empty(result.Findings);
+        Assert.False(File.Exists(source.FilePath));
+        Assert.False(File.Exists(fixture.DerivedPath));
+        using var connection = archive.OpenConnection();
+        Assert.Equal(0L, Scalar(connection, "SELECT COUNT(*) FROM provider_interactions WHERE session_id = '" + session.SessionId + "'"));
+        Assert.Equal(0L, Scalar(connection, "SELECT COUNT(*) FROM derived_speech_assets WHERE session_id = '" + session.SessionId + "'"));
+    }
+
+    [Fact]
+    public void Session_level_source_deletion_retains_ambiguous_session_assets_with_finding()
+    {
+        using var fixture = new DeletionFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-session-level-first"));
+        var otherSource = repository.AddSource(fixture.OtherSource(session.SessionId, "source-session-level-second"));
+        repository.AddProviderInteraction(new ProviderInteraction("interaction-ambiguous", session.SessionId, null, "test", "response", "test-v1", null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, null, true, null, null, DateTimeOffset.UtcNow));
+        var derivedBytes = File.ReadAllBytes(fixture.DerivedPath);
+        repository.AddDerivedSpeechAsset(new DerivedSpeechAsset("derived-ambiguous", session.SessionId, null, fixture.DerivedPath, "wav", derivedBytes.LongLength, Convert.ToHexString(SHA256.HashData(derivedBytes)).ToLowerInvariant(), "test", "test-v1", "test", null, DateTimeOffset.UtcNow));
+
+        var result = new ArchiveDeletionService(repository, new FixedTestAdminAuthorizer("admin-1"))
+            .DeleteSource("admin-1", source.SourceId, "participant requested deletion");
+
+        Assert.True(result.MediaRemoved);
+        Assert.Contains(result.Findings, finding => finding.Contains("Session-level provider metadata", StringComparison.Ordinal));
+        Assert.NotNull(repository.GetSource(otherSource.SourceId));
+        Assert.True(File.Exists(fixture.DerivedPath));
+        using var connection = archive.OpenConnection();
+        Assert.Equal(1L, Scalar(connection, "SELECT COUNT(*) FROM provider_interactions WHERE provider_interaction_id = 'interaction-ambiguous'"));
+        Assert.Equal(1L, Scalar(connection, "SELECT COUNT(*) FROM derived_speech_assets WHERE derived_speech_asset_id = 'derived-ambiguous'"));
+    }
+
     private static long Scalar(Microsoft.Data.Sqlite.SqliteConnection connection, string sql)
     {
         using var command = connection.CreateCommand();
