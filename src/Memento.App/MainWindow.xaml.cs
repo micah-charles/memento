@@ -2,6 +2,7 @@ using Memento.Core.Audio;
 using Memento.Core.Admin;
 using Memento.Core.Conversation;
 using Memento.Core.Domain;
+using Memento.Core.External;
 using Memento.Core.Storage;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
@@ -23,6 +24,7 @@ public sealed partial class MainWindow : Window
     private readonly FamilyAdminReviewService? _adminReview;
     private readonly ArchiveDeletionService? _deletion;
     private readonly ArchiveWithdrawalService? _withdrawal;
+    private readonly CurrentInformationService? _currentInformation;
     private readonly string? _adminActorId;
     private readonly ConversationJobWorker? _retryWorker;
     private readonly Func<bool>? _credentialAvailable;
@@ -36,8 +38,9 @@ public sealed partial class MainWindow : Window
     private CancellationTokenSource? _retryCancellation;
     private Task? _retryTask;
     private CancellationTokenSource? _sourcePlaybackCancellation;
+    private CancellationTokenSource? _currentInfoCancellation;
 
-    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null, ConversationJobWorker? retryWorker = null, Func<bool>? credentialAvailable = null, string? dataRoot = null, ArchiveDeletionService? deletion = null, ArchiveWithdrawalService? withdrawal = null, ISourceAudioPlayback? sourceAudioPlayback = null)
+    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null, ConversationJobWorker? retryWorker = null, Func<bool>? credentialAvailable = null, string? dataRoot = null, ArchiveDeletionService? deletion = null, ArchiveWithdrawalService? withdrawal = null, ISourceAudioPlayback? sourceAudioPlayback = null, CurrentInformationService? currentInformation = null)
     {
         _repository = repository;
         _audioRoot = audioRoot;
@@ -50,6 +53,7 @@ public sealed partial class MainWindow : Window
         _adminReview = adminReview;
         _deletion = deletion;
         _withdrawal = withdrawal;
+        _currentInformation = currentInformation;
         _adminActorId = adminActorId;
         _retryWorker = retryWorker;
         _credentialAvailable = credentialAvailable;
@@ -291,6 +295,65 @@ public sealed partial class MainWindow : Window
         catch (Exception)
         {
             SearchResultsText.Text = "未能完成本機搜尋。";
+        }
+    }
+
+    private void CurrentInfoBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != Windows.System.VirtualKey.Enter) return;
+        SearchCurrentInformationButton_Click(sender, new RoutedEventArgs());
+        e.Handled = true;
+    }
+
+    private async void SearchCurrentInformationButton_Click(object sender, RoutedEventArgs e)
+    {
+        var query = CurrentInfoBox.Text.Trim();
+        if (query.Length == 0)
+        {
+            CurrentInfoResultsText.Text = "請輸入要查詢嘅天氣、交通或其他目前資訊。";
+            return;
+        }
+        if (_currentInformation is null || _processing || _sourcePlaybackCancellation is not null) return;
+        if (_session?.PrivacyMode == PrivacyMode.LocalCaptureOnly)
+        {
+            CurrentInfoResultsText.Text = "本次對話設定為只保留本機，未能使用雲端目前資訊查詢。";
+            return;
+        }
+        if (CloudConsentCheckBox.IsChecked != true)
+        {
+            CurrentInfoResultsText.Text = "請先同意使用雲端目前資訊查詢。";
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        _currentInfoCancellation?.Dispose();
+        _currentInfoCancellation = cancellation;
+        SearchCurrentInformationButton.IsEnabled = false;
+        CurrentInfoResultsText.Text = "查詢中…";
+        try
+        {
+            var result = await _currentInformation.SearchAsync(query, cancellation.Token);
+            CurrentInfoResultsText.Text = result.Sources.Count == 0
+                ? "未收到 allowlisted source。"
+                : string.Join(Environment.NewLine + Environment.NewLine, result.Sources.Select(source => $"{source.Title}\n{source.Snippet}\n{source.Url}"));
+            StatusText.Text = "目前資訊已收到；外部資料未加入本機記憶。";
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            CurrentInfoResultsText.Text = "已取消目前資訊查詢。";
+        }
+        catch (Exception)
+        {
+            CurrentInfoResultsText.Text = "未能完成目前資訊查詢；請檢查雲端 credential 或網絡。";
+        }
+        finally
+        {
+            if (ReferenceEquals(_currentInfoCancellation, cancellation))
+            {
+                _currentInfoCancellation.Dispose();
+                _currentInfoCancellation = null;
+            }
+            UpdateRecordControl();
         }
     }
 
@@ -582,6 +645,7 @@ public sealed partial class MainWindow : Window
     {
         _retryCancellation?.Cancel();
         _sourcePlaybackCancellation?.Cancel();
+        _currentInfoCancellation?.Cancel();
         if (_capture?.State == AudioCaptureState.Capturing)
         {
             _capture.AbortForRecovery();
@@ -611,6 +675,7 @@ public sealed partial class MainWindow : Window
         ProcessButton.IsEnabled = !_processing && _sourcePlaybackCancellation is null && _voiceConversation is not null && _capture?.State != AudioCaptureState.Capturing && _lastSource?.FilePath is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) && _session?.EndedAt is not null && _session.PrivacyMode != PrivacyMode.LocalCaptureOnly && CloudConsentCheckBox.IsChecked == true;
         PlaySpeechButton.IsEnabled = !_processing && _sourcePlaybackCancellation is null && _latestSpeechAsset is not null && _speechPlayback is not null;
         var adminIdle = !_processing && _capture?.State != AudioCaptureState.Capturing && _sourcePlaybackCancellation is null;
+        SearchCurrentInformationButton.IsEnabled = !_processing && _currentInfoCancellation is null && _currentInformation is not null;
         AdminReviewButton.IsEnabled = _adminReview is not null && _deletion is not null;
         DeleteLatestSourceButton.IsEnabled = adminIdle && _deletion is not null && _lastSource is not null;
         WithdrawLatestSourceButton.IsEnabled = adminIdle && _withdrawal is not null && _lastSource is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase);

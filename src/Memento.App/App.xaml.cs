@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Memento.Core.Audio;
 using Memento.Core.Conversation;
+using Memento.Core.External;
 using Memento.Core.Memory;
 using Memento.Core.Security;
 using Memento.Core.Storage;
@@ -36,6 +37,11 @@ public partial class App : Application
         var conversationProvider = new OpenAiResponsesProvider(_httpClient, credentials, "gpt-5.6-terra");
         var speechOutputProvider = new OpenAiSpeechOutputProvider(_httpClient, credentials);
         var extractionProvider = new OpenAiMemoryExtractionProvider(_httpClient, credentials, "gpt-5.6-terra");
+        var currentInformation = new CurrentInformationService(new OpenAiWebSearchProvider(
+            _httpClient,
+            credentials,
+            "gpt-5.6-terra",
+            ["hko.gov.hk", "gov.hk", "td.gov.hk", "news.gov.hk"]));
         var voiceConversation = new BoundedVoiceConversationService(
             Repository,
             transcriptionProvider,
@@ -56,7 +62,7 @@ public partial class App : Application
         var deletion = adminAuthorized ? new Memento.Core.Admin.ArchiveDeletionService(Repository, adminAuthorizer) : null;
         var withdrawal = adminAuthorized ? new Memento.Core.Admin.ArchiveWithdrawalService(Repository, adminAuthorizer) : null;
         var sourceAudioPlayback = adminAuthorized ? new WaveFileSourceAudioPlayback() : null;
-        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, voiceConversation, new WaveFileSpeechOutputPlayback(derivedAudioStore), adminReview, adminActorId, retryWorker, () => !string.IsNullOrWhiteSpace(credentials.GetApiKey()), dataDirectory, deletion, withdrawal, sourceAudioPlayback);
+        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, voiceConversation, new WaveFileSpeechOutputPlayback(derivedAudioStore), adminReview, adminActorId, retryWorker, () => !string.IsNullOrWhiteSpace(credentials.GetApiKey()), dataDirectory, deletion, withdrawal, sourceAudioPlayback, currentInformation);
         _window.Activate();
     }
 }

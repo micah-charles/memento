@@ -143,6 +143,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 ## M10–M13 implementation evidence — 2026-09-13
 
 - Added the `ISearchProvider`/`CurrentInformationService` boundary and an `OpenAiWebSearchProvider` that sends an allowlisted Responses web-search request with `store=false`, filters citations to HTTPS hosts in the allowlist, and returns retrieval time, source URLs, and `IsUntrustedExternalInformation=true`; no service method writes personal memory.
+- The WinUI shell now exposes an explicit current-information query using the same allowlist; it requires the cloud-consent control, refuses `LOCAL_CAPTURE_ONLY` sessions, and renders the returned source URL/snippet as untrusted external information without adding archive records.
 - Added `FamilyAdminReviewService` with an `IAdminAuthorizer` boundary, candidate listing, attributed review annotations, and explicit candidate status transitions. The test authorizer is fixed and clearly a fixture; it is not production identity management.
 - Added `ArchiveExporter` JSONL/media/snapshot export with SHA-256 manifest entries and `ArchiveBackupProtector` AES-GCM password backup/restore.
 - `ArchiveBackupProtector.ReencryptFile` was verified with a rotated password: the new password restores the same snapshot, while the old password is rejected.

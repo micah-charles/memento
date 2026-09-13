@@ -16,7 +16,7 @@
             <TextBlock Text="本機錄音會儲存在呢部電腦，唔會自動上載。" FontSize="18" HorizontalAlignment="Center" TextWrapping="Wrap" />
             <CheckBox x:Name="RecordingEnabledCheckBox" Content="啟用本機錄音功能" HorizontalAlignment="Center" Checked="RecordingEnabledChanged" Unchecked="RecordingEnabledChanged" />
             <CheckBox x:Name="ConsentCheckBox" Content="我同意本機錄音" HorizontalAlignment="Center" Checked="ConsentChanged" Unchecked="ConsentChanged" />
-            <CheckBox x:Name="CloudConsentCheckBox" Content="我同意完成錄音後送到雲端轉錄及回覆" HorizontalAlignment="Center" Checked="CloudConsentChanged" Unchecked="CloudConsentChanged" />
+            <CheckBox x:Name="CloudConsentCheckBox" Content="我同意完成錄音後送到雲端轉錄、回覆及目前資訊查詢" HorizontalAlignment="Center" Checked="CloudConsentChanged" Unchecked="CloudConsentChanged" />
             <Button x:Name="RecordButton" Content="開始錄音" IsEnabled="False" Click="RecordButton_Click" HorizontalAlignment="Center" Padding="28,10" />
             <Button x:Name="ProcessButton" Content="轉錄及回覆最近錄音" IsEnabled="False" Click="ProcessButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="PlaySpeechButton" Content="播放最近回覆" IsEnabled="False" Click="PlaySpeechButton_Click" HorizontalAlignment="Center" Padding="20,8" />
@@ -26,6 +26,11 @@
                 <Button x:Name="SearchArchiveButton" Content="搜尋" Click="SearchArchiveButton_Click" Padding="18,8" />
             </StackPanel>
             <TextBlock x:Name="SearchResultsText" TextWrapping="Wrap" MaxWidth="620" HorizontalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                <TextBox x:Name="CurrentInfoBox" PlaceholderText="查詢香港天氣／交通" Width="280" KeyDown="CurrentInfoBox_KeyDown" />
+                <Button x:Name="SearchCurrentInformationButton" Content="查詢目前資訊" Click="SearchCurrentInformationButton_Click" Padding="18,8" />
+            </StackPanel>
+            <TextBlock x:Name="CurrentInfoResultsText" TextWrapping="Wrap" MaxWidth="620" HorizontalAlignment="Center" />
             <Button x:Name="AdminReviewButton" Content="家庭管理審閱" Click="AdminReviewButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="DeleteLatestSourceButton" Content="刪除最近本機錄音" Click="DeleteLatestSourceButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="WithdrawLatestSourceButton" Content="停止日後雲端處理" Click="WithdrawLatestSourceButton_Click" HorizontalAlignment="Center" Padding="20,8" />
