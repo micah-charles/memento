@@ -55,6 +55,8 @@ public sealed class DurableResponseJobProcessor : IConversationJobProcessor
         }
 
         var currentSource = _repository.GetSource(job.SourceId) ?? throw new InvalidDataException("The queued Source was removed while speech output was running.");
+        if (!_repository.HasGrantedConsent(job.SessionId, ConsentScope.CloudTranscription))
+            throw new CloudNotPermittedException();
         if (string.Equals(currentSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
             throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
         _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), job.SessionId, job.TurnId, speech.Provider, "speech_output", speech.Model, null, speech.RequestId, started, speech.CompletedAt, null, null, true, null, null, DateTimeOffset.UtcNow));

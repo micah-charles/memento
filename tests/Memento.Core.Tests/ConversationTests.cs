@@ -27,6 +27,7 @@ public sealed class ConversationTests
         archive.Initialize();
         var repository = new ArchiveRepository(archive);
         var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
         File.WriteAllBytes(fixture.AudioPath, [1, 2, 3]);
         var orchestrator = new ConversationOrchestrator(repository, new DeterministicConversationProvider());
 
@@ -374,6 +375,28 @@ public sealed class ConversationTests
     }
 
     [Fact]
+    public async Task Orchestrator_does_not_persist_response_after_consent_revoked_during_provider_call()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        File.WriteAllBytes(fixture.AudioPath, [1, 2]);
+        var provider = new ConsentRevokingResponseProvider(repository, session.SessionId);
+        var request = new ConversationRequest(session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, "synthetic transcript");
+
+        await Assert.ThrowsAsync<CloudNotPermittedException>(() => new ConversationOrchestrator(repository, provider).ExecuteAsync(request));
+
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM provider_interactions WHERE session_id = $session AND succeeded = 1";
+        command.Parameters.AddWithValue("$session", session.SessionId);
+        Assert.Equal(0L, Convert.ToInt64(command.ExecuteScalar()));
+    }
+
+    [Fact]
     public async Task OpenAi_speech_adapter_returns_derived_audio_bytes_without_archive_side_effects()
     {
         var handler = new SpeechHttpHandler();
@@ -399,6 +422,7 @@ public sealed class ConversationTests
         archive.Initialize();
         var repository = new ArchiveRepository(archive);
         var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
         File.WriteAllBytes(fixture.AudioPath, [4, 5, 6]);
         var orchestrator = new ConversationOrchestrator(repository, new FailingProvider());
 
@@ -532,6 +556,17 @@ public sealed class ConversationTests
         {
             withdrawal.WithdrawSource("admin", sourceId, "test withdrawal during response call");
             return Task.FromResult(new ConversationResponse(Provider, "conversation", Model, null, "withdraw-response-test", "should not persist", null, null, DateTimeOffset.UtcNow));
+        }
+    }
+
+    private sealed class ConsentRevokingResponseProvider(ArchiveRepository repository, string sessionId) : IConversationProvider
+    {
+        public string Provider => "revoke-during-response";
+        public string Model => "revoke-during-response-v1";
+        public Task<ConversationResponse> SendAsync(ConversationRequest request, CancellationToken cancellationToken = default)
+        {
+            repository.AddConsent(sessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, false, "privacy-1");
+            return Task.FromResult(new ConversationResponse(Provider, "conversation", Model, null, "revoke-response-test", "should not persist", null, null, DateTimeOffset.UtcNow));
         }
     }
 

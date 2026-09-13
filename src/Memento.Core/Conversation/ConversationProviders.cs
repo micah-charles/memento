@@ -112,6 +112,8 @@ public sealed class ConversationOrchestrator
             if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
                 throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
         }
+        if (!_repository.HasGrantedConsent(request.SessionId, ConsentScope.CloudTranscription))
+            throw new CloudNotPermittedException();
 
         var started = DateTimeOffset.UtcNow;
         ConversationResponse response;
@@ -135,6 +137,8 @@ public sealed class ConversationOrchestrator
         // A Source can be withdrawn while a provider request is in flight. Do
         // not persist the response metadata or hand the response to a later
         // speech/extraction stage after that policy change.
+        if (!_repository.HasGrantedConsent(request.SessionId, ConsentScope.CloudTranscription))
+            throw new CloudNotPermittedException();
         EnsureSourceStillAvailable(request);
         var successfulInteraction = _repository.AddProviderInteraction(new ProviderInteraction(
             Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, response.Provider, response.Capability,

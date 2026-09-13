@@ -103,6 +103,7 @@ public sealed class BoundedVoiceConversationService
                 throw;
             }
 
+            EnsureCloudConsent(request.SessionId);
             EnsureSourceStillAvailable(request);
             _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, speech.Provider, "speech_output", speech.Model, null, speech.RequestId, speechStarted, speech.CompletedAt, null, null, true, null, null, DateTimeOffset.UtcNow));
             if (_speechStore is not null)
@@ -110,6 +111,7 @@ public sealed class BoundedVoiceConversationService
                 speechAsset = _speechStore.Store(request.SessionId, request.TurnId, speech);
                 if (_speechPlayback is not null)
                 {
+                    EnsureCloudConsent(request.SessionId);
                     EnsureSourceStillAvailable(request);
                     await _speechPlayback.PlayAsync(speechAsset, cancellationToken).ConfigureAwait(false);
                 }
@@ -131,5 +133,11 @@ public sealed class BoundedVoiceConversationService
         var source = _repository.GetSource(request.SourceId) ?? throw new InvalidDataException("The requested Source was removed while speech output was running.");
         if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
             throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
+    }
+
+    private void EnsureCloudConsent(string sessionId)
+    {
+        if (!_repository.HasGrantedConsent(sessionId, ConsentScope.CloudTranscription))
+            throw new CloudNotPermittedException();
     }
 }
