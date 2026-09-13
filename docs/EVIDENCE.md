@@ -131,6 +131,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - Added migrations 6–8 for retryable conversation jobs, separate Evidence/Memory Claim/link records, and person/entity/alias links; migration 14 links extraction jobs to the exact transcript revision they must process; migration 15 records authenticated deletion tombstones; migration 16 adds a rebuildable FTS5 lexical index.
 - The WinUI shell exposes the local FTS5/substring search service for transcript, Evidence, and candidate Claim text; withdrawn Sources remain excluded from displayed results.
 - `ArchiveSearchService.Rebuild()` was verified after clearing the FTS table, recreating all canonical transcript/Evidence/Claim rows and restoring Cantonese search results.
+- The shell exposes the same rebuild operation as `修復本機搜尋索引`; it reports the rebuilt row count in Cantonese status text.
 - `ConversationSessionWriter` persists session/turn/source work and supports retry state transitions without deleting the local Source.
 - `MemoryExtractionService` writes candidate Evidence and candidate Claims separately, with an explicit supports/weakens/contradicts/clarifies/contextualises link. `ProvenanceGraph.Validate` rejects mismatched source chains and unconfirmed AI inference promotion.
 - `EntityResolutionService` adds people, speaker-confirmed aliases, and explicit Evidence links. Existing transcript and audio records remain unchanged.

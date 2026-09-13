@@ -376,6 +376,19 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void RebuildSearchButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var count = new ArchiveSearchService(_repository.Archive).Rebuild();
+            StatusText.Text = $"本機搜尋索引已修復：{count} 項。";
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "未能修復本機搜尋索引；原有資料仍然保留。";
+        }
+    }
+
     private void ExportButton_Click(object sender, RoutedEventArgs e)
     {
         try
