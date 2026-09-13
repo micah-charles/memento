@@ -46,15 +46,20 @@ public sealed class OpenAiResponsesProvider : IConversationProvider
 
     private static string? ExtractOutputText(JsonElement root)
     {
+        if (root.ValueKind != JsonValueKind.Object) return null;
         if (root.TryGetProperty("output_text", out var direct) && direct.ValueKind == JsonValueKind.String)
             return direct.GetString();
         if (!root.TryGetProperty("output", out var output) || output.ValueKind != JsonValueKind.Array) return null;
         var texts = new List<string>();
         foreach (var item in output.EnumerateArray())
         {
+            if (item.ValueKind != JsonValueKind.Object) continue;
             if (!item.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Array) continue;
             foreach (var part in content.EnumerateArray())
+            {
+                if (part.ValueKind != JsonValueKind.Object) continue;
                 if (part.TryGetProperty("text", out var text) && text.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(text.GetString())) texts.Add(text.GetString()!);
+            }
         }
         return texts.Count == 0 ? null : string.Join("\n", texts);
     }

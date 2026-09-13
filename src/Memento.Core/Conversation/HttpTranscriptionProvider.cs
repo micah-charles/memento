@@ -57,6 +57,8 @@ public sealed class OpenAiTranscriptionProvider : ITranscriptionProvider
             throw new ProviderRequestException($"OpenAI transcription failed with HTTP {(int)response.StatusCode}.", (int)response.StatusCode);
         await using var body = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         using var document = await JsonDocument.ParseAsync(body, cancellationToken: cancellationToken).ConfigureAwait(false);
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+            throw new ProviderRequestException("OpenAI transcription response was not a JSON object.", (int)response.StatusCode);
         if (!document.RootElement.TryGetProperty("text", out var text) || text.ValueKind != JsonValueKind.String)
             throw new ProviderRequestException("OpenAI transcription response did not contain text.", (int)response.StatusCode);
         return new TranscriptionResult(Provider, Model, requestId, text.GetString() ?? string.Empty, DateTimeOffset.UtcNow);

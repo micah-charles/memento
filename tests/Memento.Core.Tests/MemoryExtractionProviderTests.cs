@@ -34,6 +34,28 @@ public sealed class MemoryExtractionProviderTests
     }
 
     [Fact]
+    public async Task OpenAi_memory_extraction_rejects_non_object_candidates()
+    {
+        var handler = new ExtractionHandler("{\"output_text\":\"{\\\"candidates\\\":[1]}\"}");
+        using var http = new HttpClient(handler);
+        var provider = new OpenAiMemoryExtractionProvider(http, new FixedCredentialProvider(), "gpt-test");
+        var revision = new TranscriptRevision("revision-invalid", "source-invalid", null, 1, "initial", "測試", 1, null, DateTimeOffset.UtcNow);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => provider.ExtractAsync(revision));
+    }
+
+    [Fact]
+    public async Task OpenAi_memory_extraction_rejects_non_string_subject_ids()
+    {
+        var handler = new ExtractionHandler("{\"output_text\":\"{\\\"candidates\\\":[{\\\"statement\\\":\\\"測試\\\",\\\"predicate\\\":\\\"said\\\",\\\"object\\\":\\\"測試\\\",\\\"certainty\\\":\\\"Stated\\\",\\\"evidence_kind\\\":\\\"DirectStatement\\\",\\\"subject_person_id\\\":123}]}\"}");
+        using var http = new HttpClient(handler);
+        var provider = new OpenAiMemoryExtractionProvider(http, new FixedCredentialProvider(), "gpt-test");
+        var revision = new TranscriptRevision("revision-invalid-subject", "source-invalid-subject", null, 1, "initial", "測試", 1, null, DateTimeOffset.UtcNow);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => provider.ExtractAsync(revision));
+    }
+
+    [Fact]
     public async Task Async_extraction_service_persists_candidates_as_unreviewed_records()
     {
         var directory = Path.Combine(Path.GetTempPath(), "memento-extraction-tests", Guid.NewGuid().ToString("N"));

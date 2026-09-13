@@ -58,6 +58,8 @@ public sealed class OpenAiWebSearchProvider : ISearchProvider
 
     private ExternalInformationResult ParseResponse(JsonElement root, string query)
     {
+        if (root.ValueKind != JsonValueKind.Object)
+            return new ExternalInformationResult(query, Provider, DateTimeOffset.UtcNow, [], true);
         var summary = root.TryGetProperty("output_text", out var directText) && directText.ValueKind == JsonValueKind.String
             ? directText.GetString() ?? string.Empty
             : string.Empty;
@@ -67,12 +69,14 @@ public sealed class OpenAiWebSearchProvider : ISearchProvider
         {
             foreach (var item in output.EnumerateArray())
             {
+                if (item.ValueKind != JsonValueKind.Object) continue;
                 if (item.TryGetProperty("action", out var action) && action.TryGetProperty("sources", out var actionSources) && actionSources.ValueKind == JsonValueKind.Array)
                     AddSources(actionSources, sources, summary);
                 if (item.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var part in content.EnumerateArray())
                     {
+                        if (part.ValueKind != JsonValueKind.Object) continue;
                         if (part.TryGetProperty("text", out var text) && text.ValueKind == JsonValueKind.String && string.IsNullOrWhiteSpace(summary))
                             summary = text.GetString() ?? string.Empty;
                         if (part.TryGetProperty("annotations", out var annotations) && annotations.ValueKind == JsonValueKind.Array)
@@ -98,6 +102,7 @@ public sealed class OpenAiWebSearchProvider : ISearchProvider
     {
         foreach (var source in sourceArray.EnumerateArray())
         {
+            if (source.ValueKind != JsonValueKind.Object) continue;
             var url = source.TryGetProperty("url", out var urlElement) && urlElement.ValueKind == JsonValueKind.String ? urlElement.GetString() : null;
             var title = source.TryGetProperty("title", out var titleElement) && titleElement.ValueKind == JsonValueKind.String ? titleElement.GetString() : null;
             AddSource(url, title, sources, snippet);

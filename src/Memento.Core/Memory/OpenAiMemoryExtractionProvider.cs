@@ -64,17 +64,26 @@ public sealed class OpenAiMemoryExtractionProvider : IAsyncMemoryExtractionProvi
         try
         {
             using var document = JsonDocument.Parse(text);
-            if (!document.RootElement.TryGetProperty("candidates", out var candidates) || candidates.ValueKind != JsonValueKind.Array)
+            if (document.RootElement.ValueKind != JsonValueKind.Object || !document.RootElement.TryGetProperty("candidates", out var candidates) || candidates.ValueKind != JsonValueKind.Array)
                 throw new InvalidDataException("Structured extraction output did not contain candidates.");
             var result = new List<ExtractionCandidate>();
             foreach (var item in candidates.EnumerateArray())
             {
+                if (item.ValueKind != JsonValueKind.Object)
+                    throw new InvalidDataException("Structured extraction candidate was not an object.");
                 var statement = RequiredString(item, "statement");
                 var predicate = RequiredString(item, "predicate");
                 var value = RequiredString(item, "object");
                 var certainty = ParseEnum<ParticipantCertainty>(RequiredString(item, "certainty"), "certainty");
                 var kind = ParseEnum<EvidenceKind>(RequiredString(item, "evidence_kind"), "evidence_kind");
-                var subject = item.TryGetProperty("subject_person_id", out var subjectElement) && subjectElement.ValueKind != JsonValueKind.Null ? subjectElement.GetString() : null;
+                var subject = item.TryGetProperty("subject_person_id", out var subjectElement)
+                    ? subjectElement.ValueKind switch
+                    {
+                        JsonValueKind.Null => null,
+                        JsonValueKind.String => subjectElement.GetString(),
+                        _ => throw new InvalidDataException("Structured extraction field 'subject_person_id' must be a string or null.")
+                    }
+                    : null;
                 result.Add(new ExtractionCandidate(statement, predicate, value, certainty, kind, subject));
             }
 
@@ -98,15 +107,20 @@ public sealed class OpenAiMemoryExtractionProvider : IAsyncMemoryExtractionProvi
 
     private static string? ExtractOutputText(JsonElement root)
     {
+        if (root.ValueKind != JsonValueKind.Object) return null;
         if (root.TryGetProperty("output_text", out var direct) && direct.ValueKind == JsonValueKind.String)
             return direct.GetString();
         if (!root.TryGetProperty("output", out var output) || output.ValueKind != JsonValueKind.Array) return null;
         foreach (var item in output.EnumerateArray())
         {
+            if (item.ValueKind != JsonValueKind.Object) continue;
             if (!item.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Array) continue;
             foreach (var part in content.EnumerateArray())
+            {
+                if (part.ValueKind != JsonValueKind.Object) continue;
                 if (part.TryGetProperty("text", out var text) && text.ValueKind == JsonValueKind.String)
                     return text.GetString();
+            }
         }
 
         return null;

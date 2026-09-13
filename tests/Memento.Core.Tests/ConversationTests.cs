@@ -99,6 +99,17 @@ public sealed class ConversationTests
     }
 
     [Fact]
+    public async Task OpenAi_transcription_adapter_rejects_a_non_object_response()
+    {
+        using var fixture = new ConversationFixture();
+        File.WriteAllBytes(fixture.AudioPath, [1]);
+        using var http = new HttpClient(new FixedResponseHandler("[]"));
+        var provider = new OpenAiTranscriptionProvider(http, new DelegateApiCredentialProvider(() => "test-key"));
+
+        await Assert.ThrowsAsync<ProviderRequestException>(() => provider.TranscribeAsync(fixture.AudioPath));
+    }
+
+    [Fact]
     public async Task OpenAi_responses_adapter_sends_transcript_with_store_disabled()
     {
         using var fixture = new ConversationFixture();
@@ -114,6 +125,18 @@ public sealed class ConversationTests
         Assert.Contains("input_text", handler.Body, StringComparison.Ordinal);
         Assert.Contains("\"store\":false", handler.Body, StringComparison.Ordinal);
         Assert.Equal("v1/responses", handler.RequestUri!.AbsolutePath.Trim('/'));
+    }
+
+    [Fact]
+    public async Task OpenAi_responses_adapter_rejects_a_non_object_response()
+    {
+        using var fixture = new ConversationFixture();
+        File.WriteAllBytes(fixture.AudioPath, [1]);
+        using var http = new HttpClient(new FixedResponseHandler("[]"));
+        var provider = new OpenAiResponsesProvider(http, new DelegateApiCredentialProvider(() => "test-key"), "gpt-test");
+        var request = new ConversationRequest("session", null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, "測試");
+
+        await Assert.ThrowsAsync<ProviderRequestException>(() => provider.SendAsync(request));
     }
 
     [Fact]
@@ -368,6 +391,15 @@ public sealed class ConversationTests
             Body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
             return new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent([1, 2, 3]) };
         }
+    }
+
+    private sealed class FixedResponseHandler(string responseBody) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent(responseBody, System.Text.Encoding.UTF8, "application/json")
+            });
     }
 
     private sealed class InlineTranscriptionProvider : ITranscriptionProvider
