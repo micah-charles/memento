@@ -44,7 +44,7 @@ To create a portable self-contained bundle:
 .\scripts\Publish-Memento.ps1
 ```
 
-The publish step also writes `artifacts\MEMENTO-win-x64.zip.sha256`; compare it with `Get-FileHash` before installing a copied bundle.
+The publish step also writes `artifacts\MEMENTO-win-x64.zip.sha256`; `Install-Memento.ps1` verifies that sidecar automatically when it is present.
 
 To install that bundle for the current Windows user and create a Start Menu shortcut:
 

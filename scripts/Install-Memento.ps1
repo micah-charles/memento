@@ -15,6 +15,16 @@ if (-not (Test-Path -LiteralPath $BundlePath -PathType Leaf)) {
     throw "Bundle not found: $BundlePath. Run scripts\Publish-Memento.ps1 first."
 }
 
+$hashPath = "$BundlePath.sha256"
+if (Test-Path -LiteralPath $hashPath -PathType Leaf) {
+    $expectedHash = (Get-Content -LiteralPath $hashPath -Raw).Trim().Split()[0].ToLowerInvariant()
+    $actualHash = (Get-FileHash -LiteralPath $BundlePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($expectedHash -notmatch '^[0-9a-f]{64}$' -or $expectedHash -ne $actualHash) {
+        throw "Bundle SHA-256 verification failed: $BundlePath"
+    }
+    Write-Output "Verified bundle SHA-256: $actualHash"
+}
+
 $running = Get-Process -Name 'Memento.App' -ErrorAction SilentlyContinue
 if ($null -ne $running) {
     throw 'MEMENTO is still running. Close it before installing an update.'
