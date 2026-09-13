@@ -81,9 +81,15 @@ public sealed class AsyncMemoryExtractionService
     {
         if (revision.SourceId != source.SourceId) throw new InvalidOperationException("Transcript revision and Source do not match.");
         if (source.SessionId != session.SessionId) throw new InvalidOperationException("Source and session do not match.");
+        if (session.PrivacyMode == PrivacyMode.LocalCaptureOnly || !_repository.HasGrantedConsent(session.SessionId, ConsentScope.CloudTranscription))
+            throw new CloudNotPermittedException();
         if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) || string.Equals(_repository.GetSource(source.SourceId)?.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
             throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
         var candidates = await _provider.ExtractAsync(revision, cancellationToken).ConfigureAwait(false);
+        if (!_repository.HasGrantedConsent(session.SessionId, ConsentScope.CloudTranscription))
+            throw new CloudNotPermittedException();
+        if (string.Equals(_repository.GetSource(source.SourceId)?.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
+            throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
         return MemoryExtractionPersistence.Persist(_repository, _provider.Provider, _provider.Model, session, source, revision, candidates);
     }
 }

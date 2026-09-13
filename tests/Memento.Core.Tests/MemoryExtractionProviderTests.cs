@@ -66,6 +66,7 @@ public sealed class MemoryExtractionProviderTests
             archive.Initialize();
             var repository = new ArchiveRepository(archive);
             var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+            repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
             var source = repository.AddSource(new SourceMetadata("source-async-extract", "audio", session.SessionId, null, "audio.wav", "PCM WAV", 48000, 1, 16, 4, 1, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
             var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-async-extract", source.SourceId, null, 1, "initial", "我鍾意食魚蛋", 0.9, null, DateTimeOffset.UtcNow));
             var provider = new InlineExtractionProvider();
@@ -114,6 +115,37 @@ public sealed class MemoryExtractionProviderTests
         }
     }
 
+    [Fact]
+    public async Task Async_extraction_does_not_persist_after_consent_is_revoked_during_provider_call()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "memento-extraction-revocation-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            using var archive = new SqliteArchive(Path.Combine(directory, "data", "memory.db"));
+            archive.Initialize();
+            var repository = new ArchiveRepository(archive);
+            var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+            repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+            var source = repository.AddSource(new SourceMetadata("source-revoked-after-provider", "audio", session.SessionId, null, "audio.wav", "PCM WAV", 48000, 1, 16, 4, 1, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+            var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-revoked-after-provider", source.SourceId, null, 1, "initial", "我鍾意食魚蛋", 0.9, null, DateTimeOffset.UtcNow));
+            var provider = new ConsentRevokingExtractionProvider(repository, session.SessionId);
+
+            await Assert.ThrowsAsync<CloudNotPermittedException>(() => new AsyncMemoryExtractionService(repository, provider).ExtractAndPersistAsync(session, source, revision));
+
+            Assert.Empty(repository.ListCandidateClaims());
+            using var connection = archive.OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT COUNT(*) FROM evidence_records WHERE source_id = $source";
+            command.Parameters.AddWithValue("$source", source.SourceId);
+            Assert.Equal(0L, (long)(command.ExecuteScalar() ?? 0L));
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
     private sealed class FixedCredentialProvider : IApiCredentialProvider
     {
         public string? GetApiKey() => "test-key";
@@ -125,6 +157,17 @@ public sealed class MemoryExtractionProviderTests
         public string Model => "inline-extraction-v1";
         public Task<IReadOnlyList<ExtractionCandidate>> ExtractAsync(TranscriptRevision revision, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<ExtractionCandidate>>([new ExtractionCandidate(revision.Text, "said", revision.Text, ParticipantCertainty.Stated)]);
+    }
+
+    private sealed class ConsentRevokingExtractionProvider(ArchiveRepository repository, string sessionId) : IAsyncMemoryExtractionProvider
+    {
+        public string Provider => "consent-revoking-extraction";
+        public string Model => "consent-revoking-extraction-v1";
+        public Task<IReadOnlyList<ExtractionCandidate>> ExtractAsync(TranscriptRevision revision, CancellationToken cancellationToken = default)
+        {
+            repository.AddConsent(sessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, false, "privacy-1");
+            return Task.FromResult<IReadOnlyList<ExtractionCandidate>>([new ExtractionCandidate(revision.Text, "said", revision.Text, ParticipantCertainty.Stated)]);
+        }
     }
 
     private sealed class ExtractionHandler(string responseBody) : HttpMessageHandler
