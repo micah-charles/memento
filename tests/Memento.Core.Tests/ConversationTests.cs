@@ -124,6 +124,7 @@ public sealed class ConversationTests
         archive.Initialize();
         var repository = new ArchiveRepository(archive);
         var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
         File.WriteAllBytes(fixture.AudioPath, [1, 2]);
         var source = repository.AddSource(new SourceMetadata("source-pipeline", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
         var service = new BoundedVoiceConversationService(repository, new InlineTranscriptionProvider(), new DeterministicConversationProvider(), new DeterministicSpeechOutputProvider(), queueExtractionJobs: true);
@@ -151,6 +152,7 @@ public sealed class ConversationTests
         archive.Initialize();
         var repository = new ArchiveRepository(archive);
         var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
         File.WriteAllBytes(fixture.AudioPath, [1, 2]);
         var source = repository.AddSource(new SourceMetadata("source-derived", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
         var store = new DerivedAudioStore(repository, Path.Combine(fixture.DirectoryPath, "derived", "audio"));
@@ -184,6 +186,7 @@ public sealed class ConversationTests
         archive.Initialize();
         var repository = new ArchiveRepository(archive);
         var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
         File.WriteAllBytes(fixture.AudioPath, [1, 2]);
         var source = repository.AddSource(new SourceMetadata("source-retry", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
         var service = new BoundedVoiceConversationService(repository, new FailingTranscriptionProvider(), new DeterministicConversationProvider());
@@ -215,6 +218,41 @@ public sealed class ConversationTests
         var job = Assert.Single(repository.ListRetryableConversationJobs(DateTimeOffset.UtcNow.AddMinutes(1)));
         Assert.Equal("durable_response", job.JobType);
         Assert.Single(repository.ListTranscriptRevisions(source.SourceId));
+    }
+
+    [Fact]
+    public async Task Bounded_pipeline_rechecks_persisted_consent_before_transcription()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        File.WriteAllBytes(fixture.AudioPath, [1, 2]);
+        var source = repository.AddSource(new SourceMetadata("source-consent-recheck", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, false, "privacy-1");
+        var service = new BoundedVoiceConversationService(repository, new FailingTranscriptionProvider(), new DeterministicConversationProvider());
+
+        await Assert.ThrowsAsync<CloudNotPermittedException>(() => service.ExecuteAsync(new ConversationRequest(session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, SourceId: source.SourceId)));
+    }
+
+    [Fact]
+    public async Task Orchestrator_rejects_a_source_from_another_session()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var requestedSession = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var sourceSession = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        File.WriteAllBytes(fixture.AudioPath, [1, 2]);
+        var source = repository.AddSource(new SourceMetadata("source-wrong-session", "audio", sourceSession.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        var provider = new CountingProvider();
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => new ConversationOrchestrator(repository, provider).ExecuteAsync(new ConversationRequest(requestedSession.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, SourceId: source.SourceId)));
+
+        Assert.Equal(0, provider.Calls);
     }
 
     [Fact]

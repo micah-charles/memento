@@ -104,8 +104,14 @@ public sealed class ConversationOrchestrator
             throw new CloudConsentRequiredException();
         if (!File.Exists(request.LocalAudioPath))
             throw new FileNotFoundException("Local audio source is required before provider transmission.", request.LocalAudioPath);
-        if (request.SourceId is not null && string.Equals(_repository.GetSource(request.SourceId)?.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
-            throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
+        if (request.SourceId is not null)
+        {
+            var source = _repository.GetSource(request.SourceId) ?? throw new InvalidDataException("The requested Source was not found.");
+            if (!string.Equals(source.SessionId, request.SessionId, StringComparison.Ordinal))
+                throw new InvalidDataException("The requested Source does not belong to the requested session.");
+            if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
+                throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
+        }
 
         var started = DateTimeOffset.UtcNow;
         try
