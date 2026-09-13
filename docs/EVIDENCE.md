@@ -145,7 +145,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - Added `ArchiveExporter` JSONL/media/snapshot export with SHA-256 manifest entries and `ArchiveBackupProtector` AES-GCM password backup/restore.
 - `ArchiveBackupProtector.ReencryptFile` was verified with a rotated password: the new password restores the same snapshot, while the old password is rejected.
 - Export directories now use unique run IDs, and duplicate media basenames are preserved with collision-safe names instead of aborting an export.
-- Added `ArchiveHealthCheck` for SQLite integrity, schema version, recoverable audio, and due conversation jobs.
+- Added `ArchiveHealthCheck` for SQLite integrity, schema version, recoverable audio, due conversation jobs, media integrity, and canonical/search-index row parity.
 - The WinUI shell now exposes explicit local health-check, media export, password-encrypted backup, disposable restore/manifest-verification, and Family Admin withdrawal actions; backup snapshots are staged under a temporary directory and removed after encryption, while restore never overwrites the active archive.
 - Family Admin now has explicit confirmation flows for deleting the latest finalized Source and withdrawing it from future cloud processing. Deletion records a minimal tombstone and reports media-removal failures; withdrawal retains local history/media and writes an attributed annotation while filtering future processing, search, and default exports.
 - `dotnet test tests/Memento.Core.Tests/Memento.Core.Tests.csproj --configuration Release` passed **62/62**; full solution build passed with 0 warnings and 0 errors; the NuGet vulnerability scan reported no vulnerable packages.
