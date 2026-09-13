@@ -17,3 +17,5 @@ Scripts must not read or upload personal data by default.
 ```
 
 These helpers do not provide MSIX package identity, signing, or enterprise uninstall registration. Cloud features additionally require a Windows Credential Manager generic credential named `MEMENTO/OpenAI`.
+
+Inside the app, `啟用本機錄音功能` is a persistent recording toggle. The shell also provides explicit health-check, media export, and password-encrypted backup actions; backups are written under `%LOCALAPPDATA%\MEMENTO\backups` and should be tested with a disposable restore before pilot use.
