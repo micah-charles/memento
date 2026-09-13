@@ -51,8 +51,9 @@ public partial class App : Application
         var retryWorker = new ConversationJobWorker(Repository, retryProcessor);
         var adminAuthorizer = new WindowsAdministratorAuthorizer();
         var adminReview = new Memento.Core.Admin.FamilyAdminReviewService(Repository, adminAuthorizer);
-        var deletion = new Memento.Core.Admin.ArchiveDeletionService(Repository, adminAuthorizer);
-        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, voiceConversation, new WaveFileSpeechOutputPlayback(derivedAudioStore), adminReview, adminAuthorizer.GetCurrentActorId(), retryWorker, () => !string.IsNullOrWhiteSpace(credentials.GetApiKey()), dataDirectory, deletion);
+        var adminActorId = adminAuthorizer.GetCurrentActorId();
+        var deletion = adminAuthorizer.IsAuthorized(adminActorId) ? new Memento.Core.Admin.ArchiveDeletionService(Repository, adminAuthorizer) : null;
+        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, voiceConversation, new WaveFileSpeechOutputPlayback(derivedAudioStore), adminReview, adminActorId, retryWorker, () => !string.IsNullOrWhiteSpace(credentials.GetApiKey()), dataDirectory, deletion);
         _window.Activate();
     }
 }
