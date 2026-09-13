@@ -203,10 +203,10 @@ public static class ArchiveBackupProtector
         var tag = new byte[16];
         using var aes = new AesGcm(key, tag.Length);
         aes.Encrypt(nonce, plain, cipher, tag);
-        var destinationDirectory = Path.GetDirectoryName(Path.GetFullPath(destinationPath));
-        if (destinationDirectory is not null) Directory.CreateDirectory(destinationDirectory);
-        using var stream = File.Create(destinationPath);
-        stream.Write(Magic); stream.Write(salt); stream.Write(nonce); stream.Write(tag); stream.Write(cipher);
+        WriteAtomically(destinationPath, stream =>
+        {
+            stream.Write(Magic); stream.Write(salt); stream.Write(nonce); stream.Write(tag); stream.Write(cipher);
+        });
     }
 
     public static void DecryptFile(string sourcePath, string destinationPath, string password)
@@ -222,9 +222,7 @@ public static class ArchiveBackupProtector
         var plain = new byte[cipher.Length];
         using var aes = new AesGcm(key, tag.Length);
         aes.Decrypt(nonce, cipher, tag, plain);
-        var destinationDirectory = Path.GetDirectoryName(Path.GetFullPath(destinationPath));
-        if (destinationDirectory is not null) Directory.CreateDirectory(destinationDirectory);
-        File.WriteAllBytes(destinationPath, plain);
+        WriteAtomically(destinationPath, stream => stream.Write(plain));
     }
 
     public static void ReencryptFile(string sourcePath, string destinationPath, string oldPassword, string newPassword)
@@ -317,6 +315,28 @@ public static class ArchiveBackupProtector
             using var input = entry.Open();
             using var output = File.Create(target);
             input.CopyTo(output);
+        }
+    }
+
+    private static void WriteAtomically(string destinationPath, Action<FileStream> write)
+    {
+        var destination = Path.GetFullPath(destinationPath);
+        var directory = Path.GetDirectoryName(destination);
+        if (directory is not null) Directory.CreateDirectory(directory);
+        var temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.WriteThrough))
+            {
+                write(stream);
+                stream.Flush(flushToDisk: true);
+            }
+
+            File.Move(temporary, destination, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporary)) File.Delete(temporary);
         }
     }
 

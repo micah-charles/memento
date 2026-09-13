@@ -107,6 +107,24 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void Backup_file_replacement_is_complete_before_destination_is_replaced()
+    {
+        using var fixture = new OperationsFixture();
+        Directory.CreateDirectory(fixture.ExportRoot);
+        var source = Path.Combine(fixture.ExportRoot, "source.bin");
+        var destination = Path.Combine(fixture.ExportRoot, "backup.memento");
+        var restored = Path.Combine(fixture.ExportRoot, "restored.bin");
+        File.WriteAllBytes(source, [1, 2, 3, 4]);
+        File.WriteAllText(destination, "stale partial output");
+
+        ArchiveBackupProtector.EncryptFile(source, destination, "test-password");
+        ArchiveBackupProtector.DecryptFile(destination, restored, "test-password");
+
+        Assert.Equal(File.ReadAllBytes(source), File.ReadAllBytes(restored));
+        Assert.Empty(Directory.GetFiles(fixture.ExportRoot, "backup.memento.*.tmp"));
+    }
+
+    [Fact]
     public void Health_check_reports_recoverable_audio_and_due_jobs()
     {
         using var fixture = new OperationsFixture();
