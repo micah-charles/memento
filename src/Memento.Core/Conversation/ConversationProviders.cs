@@ -10,7 +10,8 @@ public sealed record ConversationRequest(
     PrivacyMode PrivacyMode,
     bool CloudConsent,
     DateTimeOffset RequestedAt,
-    string? TranscriptText = null);
+    string? TranscriptText = null,
+    string? SourceId = null);
 
 public sealed record ConversationResponse(
     string Provider,
