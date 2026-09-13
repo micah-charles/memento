@@ -1,6 +1,6 @@
 # MEMENTO known issues and open questions
 
-**Last updated:** 2026-09-13
+**Last updated:** 2026-09-14
 
 These are deliberately visible. They are not reasons to invent a confident answer.
 

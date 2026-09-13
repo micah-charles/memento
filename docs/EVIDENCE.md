@@ -194,3 +194,4 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - OpenAI response and extraction adapters wrap transcripts in `<memento-transcript>` markers and state that the content is untrusted data, while retaining `store=false` and local schema/provenance gates. Marker-like strings inside participant text are replaced before wrapping, and regression tests confirm that only the outer closing marker remains.
 - The full Release verification after marker-boundary hardening passed **104/104** tests; the rebuilt bundle was installed from its matching SHA-256 sidecar and the read-only deployment preflight passed.
 - Current-information source parsing rejects allowlisted-host URLs that include user-info or a non-default HTTPS port; the external search regression response exercises both cases.
+- The consolidated M14 deployment and pilot-preparation record is maintained in [evidence/M14.md](evidence/M14.md).
