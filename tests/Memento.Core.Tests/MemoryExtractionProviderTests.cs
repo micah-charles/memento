@@ -29,7 +29,8 @@ public sealed class MemoryExtractionProviderTests
         Assert.Contains("\"store\":false", handler.Body, StringComparison.Ordinal);
         Assert.Contains("\"type\":\"json_schema\"", handler.Body, StringComparison.Ordinal);
         using var requestDocument = System.Text.Json.JsonDocument.Parse(handler.Body);
-        Assert.Equal("我鍾意食魚蛋", requestDocument.RootElement.GetProperty("input").GetString());
+        Assert.Contains("<memento-transcript>\n我鍾意食魚蛋\n</memento-transcript>", requestDocument.RootElement.GetProperty("input").GetString(), StringComparison.Ordinal);
+        Assert.Contains("untrusted data", requestDocument.RootElement.GetProperty("instructions").GetString(), StringComparison.Ordinal);
         Assert.Equal("Bearer test-key", handler.Authorization);
     }
 

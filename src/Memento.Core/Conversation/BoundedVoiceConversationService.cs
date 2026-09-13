@@ -46,6 +46,9 @@ public sealed class BoundedVoiceConversationService
         try
         {
             transcript = await _transcription.TranscribeAsync(request.LocalAudioPath, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var currentSourceAfterTranscription = _repository.GetSource(request.SourceId!) ?? throw new InvalidDataException("The requested Source was removed while transcription was running.");
+            if (string.Equals(currentSourceAfterTranscription.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase)) throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
+            if (!_repository.HasGrantedConsent(request.SessionId, ConsentScope.CloudTranscription)) throw new CloudNotPermittedException();
             _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, transcript.Provider, "transcription", transcript.Model, null, transcript.RequestId, started, transcript.CompletedAt, null, null, true, null, null, DateTimeOffset.UtcNow));
             var revision = _repository.ListTranscriptRevisions(request.SourceId).OrderByDescending(item => item.RevisionNumber).FirstOrDefault();
             if (revision is null)
@@ -71,6 +74,8 @@ public sealed class BoundedVoiceConversationService
         }
 
         if (!_repository.HasGrantedConsent(request.SessionId, ConsentScope.CloudTranscription)) throw new CloudNotPermittedException();
+        var currentSource = _repository.GetSource(request.SourceId!) ?? throw new InvalidDataException("The requested Source was removed while transcription was running.");
+        if (string.Equals(currentSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase)) throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
         var responseRequest = request with { TranscriptText = transcript.Text };
         var conversation = await _conversation.ExecuteAsync(responseRequest, cancellationToken).ConfigureAwait(false);
         if (conversation.Response is null && request.SourceId is not null && conversation.Interaction is not null && IsRetryableProviderFailure(conversation.Interaction.ErrorCode))
@@ -98,12 +103,16 @@ public sealed class BoundedVoiceConversationService
                 throw;
             }
 
+            EnsureSourceStillAvailable(request);
             _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, speech.Provider, "speech_output", speech.Model, null, speech.RequestId, speechStarted, speech.CompletedAt, null, null, true, null, null, DateTimeOffset.UtcNow));
             if (_speechStore is not null)
             {
                 speechAsset = _speechStore.Store(request.SessionId, request.TurnId, speech);
                 if (_speechPlayback is not null)
+                {
+                    EnsureSourceStillAvailable(request);
                     await _speechPlayback.PlayAsync(speechAsset, cancellationToken).ConfigureAwait(false);
+                }
             }
         }
 
@@ -115,4 +124,12 @@ public sealed class BoundedVoiceConversationService
 
     private static bool IsRetryableProviderFailure(string? errorCode)
         => string.Equals(errorCode, nameof(ProviderRequestException), StringComparison.Ordinal) || string.Equals(errorCode, nameof(HttpRequestException), StringComparison.Ordinal) || string.Equals(errorCode, nameof(TaskCanceledException), StringComparison.Ordinal);
+
+    private void EnsureSourceStillAvailable(ConversationRequest request)
+    {
+        if (request.SourceId is null) return;
+        var source = _repository.GetSource(request.SourceId) ?? throw new InvalidDataException("The requested Source was removed while speech output was running.");
+        if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
+            throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
+    }
 }

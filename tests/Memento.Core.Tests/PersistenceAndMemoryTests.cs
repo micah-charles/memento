@@ -180,6 +180,25 @@ public sealed class PersistenceAndMemoryTests
     }
 
     [Fact]
+    public async Task Transcription_does_not_persist_after_source_withdrawal_during_provider_call()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-withdraw-during-transcription"));
+        var withdrawal = new Memento.Core.Admin.ArchiveWithdrawalService(repository, new Memento.Core.Admin.FixedTestAdminAuthorizer("admin"));
+        var provider = new WithdrawalDuringTranscriptionProvider(withdrawal, source.SourceId);
+        var job = new ConversationJob("job-withdraw-during-transcription", session.SessionId, null, source.SourceId, "durable_transcription", ConversationJobStatus.Pending, 0, DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+
+        await Assert.ThrowsAsync<CloudNotPermittedException>(() => new DurableTranscriptionJobProcessor(repository, provider).ProcessAsync(job));
+
+        Assert.Empty(repository.ListTranscriptRevisions(source.SourceId));
+        Assert.Equal("withdrawn", repository.GetSource(source.SourceId)!.RecoveryStatus);
+    }
+
+    [Fact]
     public async Task Worker_does_not_retry_policy_blocked_jobs()
     {
         using var fixture = new PersistenceFixture();
@@ -368,6 +387,18 @@ public sealed class PersistenceAndMemoryTests
             Calls++;
             Assert.Equal("yue", language);
             return Task.FromResult(new TranscriptionResult(Provider, Model, "fake-request", "synthetic transcript", DateTimeOffset.UtcNow));
+        }
+    }
+
+    private sealed class WithdrawalDuringTranscriptionProvider(Memento.Core.Admin.ArchiveWithdrawalService withdrawal, string sourceId) : ITranscriptionProvider
+    {
+        public string Provider => "withdraw-during-transcription";
+        public string Model => "withdraw-during-transcription-v1";
+
+        public Task<TranscriptionResult> TranscribeAsync(string localAudioPath, string? language = null, CancellationToken cancellationToken = default)
+        {
+            withdrawal.WithdrawSource("admin", sourceId, "test withdrawal during provider call");
+            return Task.FromResult(new TranscriptionResult(Provider, Model, "withdraw-test", "should not persist", DateTimeOffset.UtcNow));
         }
     }
 }

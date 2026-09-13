@@ -39,11 +39,10 @@ public sealed class DurableResponseJobProcessor : IConversationJobProcessor
 
         if (_speechOutput is null) return;
         var started = DateTimeOffset.UtcNow;
+        SpeechOutputResult speech;
         try
         {
-            var speech = await _speechOutput.SynthesizeAsync(execution.Response.Text, cancellationToken).ConfigureAwait(false);
-            _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), job.SessionId, job.TurnId, speech.Provider, "speech_output", speech.Model, null, speech.RequestId, started, speech.CompletedAt, null, null, true, null, null, DateTimeOffset.UtcNow));
-            _speechStore!.Store(job.SessionId, job.TurnId, speech);
+            speech = await _speechOutput.SynthesizeAsync(execution.Response.Text, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -54,5 +53,11 @@ public sealed class DurableResponseJobProcessor : IConversationJobProcessor
             _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), job.SessionId, job.TurnId, _speechOutput.Provider, "speech_output", _speechOutput.Model, null, null, started, DateTimeOffset.UtcNow, null, null, false, error.GetType().Name, error.Message, DateTimeOffset.UtcNow));
             throw;
         }
+
+        var currentSource = _repository.GetSource(job.SourceId) ?? throw new InvalidDataException("The queued Source was removed while speech output was running.");
+        if (string.Equals(currentSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
+            throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
+        _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), job.SessionId, job.TurnId, speech.Provider, "speech_output", speech.Model, null, speech.RequestId, started, speech.CompletedAt, null, null, true, null, null, DateTimeOffset.UtcNow));
+        _speechStore!.Store(job.SessionId, job.TurnId, speech);
     }
 }

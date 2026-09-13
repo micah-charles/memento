@@ -114,14 +114,10 @@ public sealed class ConversationOrchestrator
         }
 
         var started = DateTimeOffset.UtcNow;
+        ConversationResponse response;
         try
         {
-            var response = await _provider.SendAsync(request, cancellationToken).ConfigureAwait(false);
-            var interaction = _repository.AddProviderInteraction(new ProviderInteraction(
-                Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, response.Provider, response.Capability,
-                response.Model, response.ModelSnapshot, response.RequestId, started, response.CompletedAt,
-                response.InputAudioMs, response.OutputAudioMs, true, null, null, DateTimeOffset.UtcNow));
-            return new ConversationExecution(true, response, interaction, null);
+            response = await _provider.SendAsync(request, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -135,5 +131,23 @@ public sealed class ConversationOrchestrator
                 error.GetType().Name, error.Message, DateTimeOffset.UtcNow));
             return new ConversationExecution(true, null, interaction, error.Message);
         }
+
+        // A Source can be withdrawn while a provider request is in flight. Do
+        // not persist the response metadata or hand the response to a later
+        // speech/extraction stage after that policy change.
+        EnsureSourceStillAvailable(request);
+        var successfulInteraction = _repository.AddProviderInteraction(new ProviderInteraction(
+            Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, response.Provider, response.Capability,
+            response.Model, response.ModelSnapshot, response.RequestId, started, response.CompletedAt,
+            response.InputAudioMs, response.OutputAudioMs, true, null, null, DateTimeOffset.UtcNow));
+        return new ConversationExecution(true, response, successfulInteraction, null);
+    }
+
+    private void EnsureSourceStillAvailable(ConversationRequest request)
+    {
+        if (request.SourceId is null) return;
+        var source = _repository.GetSource(request.SourceId) ?? throw new InvalidDataException("The requested Source was removed while conversation was running.");
+        if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
+            throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
     }
 }

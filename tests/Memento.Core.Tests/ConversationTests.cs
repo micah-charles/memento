@@ -124,6 +124,10 @@ public sealed class ConversationTests
         Assert.Equal("回覆內容", result.Text);
         Assert.Contains("input_text", handler.Body, StringComparison.Ordinal);
         Assert.Contains("\"store\":false", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("untrusted participant data", handler.Body, StringComparison.Ordinal);
+        using var requestDocument = System.Text.Json.JsonDocument.Parse(handler.Body);
+        var sentText = requestDocument.RootElement.GetProperty("input")[0].GetProperty("content")[0].GetProperty("text").GetString();
+        Assert.Equal("<memento-transcript>\n我今日去飲茶\n</memento-transcript>", sentText);
         Assert.Equal("v1/responses", handler.RequestUri!.AbsolutePath.Trim('/'));
     }
 
@@ -202,6 +206,51 @@ public sealed class ConversationTests
     }
 
     [Fact]
+    public async Task Bounded_pipeline_does_not_persist_or_play_speech_after_withdrawal_during_synthesis()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        File.WriteAllBytes(fixture.AudioPath, [1, 2]);
+        var source = repository.AddSource(new SourceMetadata("source-speech-withdraw", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        var withdrawal = new Memento.Core.Admin.ArchiveWithdrawalService(repository, new Memento.Core.Admin.FixedTestAdminAuthorizer("admin"));
+        var store = new DerivedAudioStore(repository, Path.Combine(fixture.DirectoryPath, "derived", "audio"));
+        var playback = new RecordingSpeechPlayback();
+        var service = new BoundedVoiceConversationService(repository, new InlineTranscriptionProvider(), new DeterministicConversationProvider(), new WithdrawalDuringSpeechProvider(withdrawal, source.SourceId), store, playback);
+
+        await Assert.ThrowsAsync<CloudNotPermittedException>(() => service.ExecuteAsync(new ConversationRequest(session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, SourceId: source.SourceId)));
+
+        Assert.Empty(repository.ListDerivedSpeechAssets(session.SessionId));
+        Assert.Null(playback.Asset);
+        Assert.Equal("withdrawn", repository.GetSource(source.SourceId)!.RecoveryStatus);
+    }
+
+    [Fact]
+    public async Task Durable_response_does_not_persist_speech_after_withdrawal_during_synthesis()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        File.WriteAllBytes(fixture.AudioPath, [1, 2]);
+        var source = repository.AddSource(new SourceMetadata("source-worker-speech-withdraw", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        repository.AddTranscriptRevision(new TranscriptRevision("revision-worker-speech-withdraw", source.SourceId, null, 1, "initial", "synthetic persisted transcript", 1, null, DateTimeOffset.UtcNow));
+        var job = new ConversationJob("job-worker-speech-withdraw", session.SessionId, null, source.SourceId, "durable_response", ConversationJobStatus.Failed, 0, DateTimeOffset.UtcNow, "temporary provider failure", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var withdrawal = new Memento.Core.Admin.ArchiveWithdrawalService(repository, new Memento.Core.Admin.FixedTestAdminAuthorizer("admin"));
+        var store = new DerivedAudioStore(repository, Path.Combine(fixture.DirectoryPath, "derived", "audio"));
+
+        await Assert.ThrowsAsync<CloudNotPermittedException>(() => new DurableResponseJobProcessor(repository, new DeterministicConversationProvider(), new WithdrawalDuringSpeechProvider(withdrawal, source.SourceId), store).ProcessAsync(job));
+
+        Assert.Empty(repository.ListDerivedSpeechAssets(session.SessionId));
+        Assert.Equal("withdrawn", repository.GetSource(source.SourceId)!.RecoveryStatus);
+    }
+
+    [Fact]
     public async Task Retryable_transcription_failure_queues_a_durable_job_without_touching_source()
     {
         using var fixture = new ConversationFixture();
@@ -261,6 +310,28 @@ public sealed class ConversationTests
     }
 
     [Fact]
+    public async Task Bounded_pipeline_does_not_persist_after_source_withdrawal_during_transcription()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        File.WriteAllBytes(fixture.AudioPath, [1, 2]);
+        var source = repository.AddSource(new SourceMetadata("source-bounded-withdraw", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        var withdrawal = new Memento.Core.Admin.ArchiveWithdrawalService(repository, new Memento.Core.Admin.FixedTestAdminAuthorizer("admin"));
+        var response = new CountingProvider();
+        var service = new BoundedVoiceConversationService(repository, new WithdrawalDuringTranscriptionProvider(withdrawal, source.SourceId), response);
+
+        await Assert.ThrowsAsync<CloudNotPermittedException>(() => service.ExecuteAsync(new ConversationRequest(session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, SourceId: source.SourceId)));
+
+        Assert.Equal(0, response.Calls);
+        Assert.Empty(repository.ListTranscriptRevisions(source.SourceId));
+        Assert.Equal("withdrawn", repository.GetSource(source.SourceId)!.RecoveryStatus);
+    }
+
+    [Fact]
     public async Task Orchestrator_rejects_a_source_from_another_session()
     {
         using var fixture = new ConversationFixture();
@@ -276,6 +347,30 @@ public sealed class ConversationTests
         await Assert.ThrowsAsync<InvalidDataException>(() => new ConversationOrchestrator(repository, provider).ExecuteAsync(new ConversationRequest(requestedSession.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, SourceId: source.SourceId)));
 
         Assert.Equal(0, provider.Calls);
+    }
+
+    [Fact]
+    public async Task Orchestrator_does_not_persist_response_after_source_withdrawal_during_provider_call()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        File.WriteAllBytes(fixture.AudioPath, [1, 2]);
+        var source = repository.AddSource(new SourceMetadata("source-response-withdraw", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        var withdrawal = new Memento.Core.Admin.ArchiveWithdrawalService(repository, new Memento.Core.Admin.FixedTestAdminAuthorizer("admin"));
+        var provider = new WithdrawalDuringResponseProvider(withdrawal, source.SourceId);
+        var request = new ConversationRequest(session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, "synthetic transcript", source.SourceId);
+
+        await Assert.ThrowsAsync<CloudNotPermittedException>(() => new ConversationOrchestrator(repository, provider).ExecuteAsync(request));
+
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM provider_interactions WHERE session_id = $session AND succeeded = 1";
+        command.Parameters.AddWithValue("$session", session.SessionId);
+        Assert.Equal(0L, Convert.ToInt64(command.ExecuteScalar()));
     }
 
     [Fact]
@@ -416,6 +511,39 @@ public sealed class ConversationTests
         public string Model => "failing-transcribe-v1";
         public Task<TranscriptionResult> TranscribeAsync(string localAudioPath, string? language = null, CancellationToken cancellationToken = default)
             => throw new ProviderRequestException("simulated network failure", 503);
+    }
+
+    private sealed class WithdrawalDuringTranscriptionProvider(Memento.Core.Admin.ArchiveWithdrawalService withdrawal, string sourceId) : ITranscriptionProvider
+    {
+        public string Provider => "withdraw-during-transcription";
+        public string Model => "withdraw-during-transcription-v1";
+        public Task<TranscriptionResult> TranscribeAsync(string localAudioPath, string? language = null, CancellationToken cancellationToken = default)
+        {
+            withdrawal.WithdrawSource("admin", sourceId, "test withdrawal during provider call");
+            return Task.FromResult(new TranscriptionResult(Provider, Model, "withdraw-test", "should not persist", DateTimeOffset.UtcNow));
+        }
+    }
+
+    private sealed class WithdrawalDuringResponseProvider(Memento.Core.Admin.ArchiveWithdrawalService withdrawal, string sourceId) : IConversationProvider
+    {
+        public string Provider => "withdraw-during-response";
+        public string Model => "withdraw-during-response-v1";
+        public Task<ConversationResponse> SendAsync(ConversationRequest request, CancellationToken cancellationToken = default)
+        {
+            withdrawal.WithdrawSource("admin", sourceId, "test withdrawal during response call");
+            return Task.FromResult(new ConversationResponse(Provider, "conversation", Model, null, "withdraw-response-test", "should not persist", null, null, DateTimeOffset.UtcNow));
+        }
+    }
+
+    private sealed class WithdrawalDuringSpeechProvider(Memento.Core.Admin.ArchiveWithdrawalService withdrawal, string sourceId) : ISpeechOutputProvider
+    {
+        public string Provider => "withdraw-during-speech";
+        public string Model => "withdraw-during-speech-v1";
+        public Task<SpeechOutputResult> SynthesizeAsync(string text, CancellationToken cancellationToken = default)
+        {
+            withdrawal.WithdrawSource("admin", sourceId, "test withdrawal during speech synthesis");
+            return Task.FromResult(new SpeechOutputResult(Provider, Model, "test", "wav", "withdraw-speech-test", [1, 2, 3], DateTimeOffset.UtcNow));
+        }
     }
 
     private sealed class RecordingSpeechPlayback : ISpeechOutputPlayback

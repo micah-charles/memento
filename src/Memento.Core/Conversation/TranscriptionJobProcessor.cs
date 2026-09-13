@@ -39,6 +39,11 @@ public sealed class DurableTranscriptionJobProcessor : IConversationJobProcessor
         var sourcePath = _repository.GetSourceFilePath(job.SourceId);
         if (string.IsNullOrWhiteSpace(sourcePath)) throw new FileNotFoundException("The queued Source has no local file path.", job.SourceId);
         var result = await _provider.TranscribeAsync(sourcePath, _languageHint, cancellationToken).ConfigureAwait(false);
+        var currentSource = _repository.GetSource(job.SourceId) ?? throw new InvalidDataException("The queued Source was removed while transcription was running.");
+        if (string.Equals(currentSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
+            throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
+        if (!_repository.HasGrantedConsent(job.SessionId, ConsentScope.CloudTranscription))
+            throw new CloudNotPermittedException();
         if (string.IsNullOrWhiteSpace(result.Text)) throw new InvalidDataException("Transcription provider returned no text.");
         _repository.AddTranscriptRevision(new TranscriptRevision(Guid.NewGuid().ToString("N"), job.SourceId, job.TurnId, 1, "initial", result.Text, null, null, result.CompletedAt));
         var revision = _repository.ListTranscriptRevisions(job.SourceId).OrderByDescending(item => item.RevisionNumber).First();
