@@ -39,6 +39,10 @@ public sealed class OperationsTests
         var annotation = service.AnnotateClaim("admin-1", claim, "family_assessment", "Family review supports the candidate.", "supported");
 
         Assert.Equal("admin-1", annotation.ActorId);
+        var claimEvidence = repository.ListEvidenceForClaim(claim.MemoryClaimId);
+        var supportingEvidence = Assert.Single(claimEvidence);
+        Assert.Equal("supports", supportingEvidence.Relationship);
+        Assert.Equal(extraction.Evidence[0].EvidenceId, supportingEvidence.Evidence.EvidenceId);
         Assert.Empty(service.ListCandidates("admin-1"));
         Assert.Equal(ClaimStatus.Candidate, claim.Status);
         Assert.NotNull(extraction);

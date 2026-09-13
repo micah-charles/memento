@@ -213,6 +213,8 @@ public sealed record EvidenceClaimLink(
     string Relationship,
     DateTimeOffset CreatedAt);
 
+public sealed record ClaimEvidence(EvidenceRecord Evidence, string Relationship);
+
 public sealed record PersonEntity(
     string PersonEntityId,
     string DisplayName,

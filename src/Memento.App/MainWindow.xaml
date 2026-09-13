@@ -20,6 +20,7 @@
             <Button x:Name="RecordButton" Content="開始錄音" IsEnabled="False" Click="RecordButton_Click" HorizontalAlignment="Center" Padding="28,10" />
             <Button x:Name="ProcessButton" Content="轉錄及回覆最近錄音" IsEnabled="False" Click="ProcessButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="PlaySpeechButton" Content="播放最近回覆" IsEnabled="False" Click="PlaySpeechButton_Click" HorizontalAlignment="Center" Padding="20,8" />
+            <Button x:Name="PlaySourceButton" Content="播放最近本機錄音（管理員）" IsEnabled="False" Click="PlaySourceButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
                 <TextBox x:Name="SearchBox" PlaceholderText="搜尋本機記錄" Width="280" KeyDown="SearchBox_KeyDown" />
                 <Button x:Name="SearchArchiveButton" Content="搜尋" Click="SearchArchiveButton_Click" Padding="18,8" />

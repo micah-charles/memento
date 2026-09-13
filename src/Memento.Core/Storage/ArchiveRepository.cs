@@ -502,6 +502,48 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return claims;
     }
 
+    public IReadOnlyList<ClaimEvidence> ListEvidenceForClaim(string claimId)
+    {
+        if (string.IsNullOrWhiteSpace(claimId)) throw new ArgumentException("A claim ID is required.", nameof(claimId));
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT e.evidence_id, e.kind, e.source_id, e.session_id, e.turn_id, e.transcript_revision_id,
+                   e.statement, e.original_expression, e.participant_certainty, e.speaker_confirmed,
+                   e.created_at, e.audio_start_ms, e.audio_end_ms, e.extraction_provider, e.extraction_model,
+                   l.relationship
+            FROM evidence_records e
+            JOIN evidence_claim_links l ON l.evidence_id = e.evidence_id
+            WHERE l.memory_claim_id = $claim
+            ORDER BY e.created_at, e.evidence_id
+            """;
+        command.Parameters.AddWithValue("$claim", claimId);
+        using var reader = command.ExecuteReader();
+        var evidence = new List<ClaimEvidence>();
+        while (reader.Read())
+        {
+            var record = new EvidenceRecord(
+                reader.GetString(0),
+                Enum.Parse<EvidenceKind>(reader.GetString(1)),
+                reader.GetString(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3),
+                reader.IsDBNull(4) ? null : reader.GetString(4),
+                reader.IsDBNull(5) ? null : reader.GetString(5),
+                reader.GetString(6),
+                reader.GetString(7),
+                Enum.Parse<ParticipantCertainty>(reader.GetString(8)),
+                reader.GetInt64(9) == 1,
+                DateTimeOffset.Parse(reader.GetString(10), null, System.Globalization.DateTimeStyles.RoundtripKind),
+                reader.IsDBNull(11) ? null : reader.GetInt64(11),
+                reader.IsDBNull(12) ? null : reader.GetInt64(12),
+                reader.IsDBNull(13) ? null : reader.GetString(13),
+                reader.IsDBNull(14) ? null : reader.GetString(14));
+            evidence.Add(new ClaimEvidence(record, reader.GetString(15)));
+        }
+
+        return evidence;
+    }
+
     public void UpdateMemoryClaimStatus(string claimId, ClaimStatus status)
     {
         using var connection = archive.OpenConnection();

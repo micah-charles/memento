@@ -19,6 +19,7 @@ public sealed partial class MainWindow : Window
     private readonly string _dataRoot;
     private readonly BoundedVoiceConversationService? _voiceConversation;
     private readonly ISpeechOutputPlayback? _speechPlayback;
+    private readonly ISourceAudioPlayback? _sourceAudioPlayback;
     private readonly FamilyAdminReviewService? _adminReview;
     private readonly ArchiveDeletionService? _deletion;
     private readonly ArchiveWithdrawalService? _withdrawal;
@@ -34,8 +35,9 @@ public sealed partial class MainWindow : Window
     private bool _initializing;
     private CancellationTokenSource? _retryCancellation;
     private Task? _retryTask;
+    private CancellationTokenSource? _sourcePlaybackCancellation;
 
-    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null, ConversationJobWorker? retryWorker = null, Func<bool>? credentialAvailable = null, string? dataRoot = null, ArchiveDeletionService? deletion = null, ArchiveWithdrawalService? withdrawal = null)
+    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null, ConversationJobWorker? retryWorker = null, Func<bool>? credentialAvailable = null, string? dataRoot = null, ArchiveDeletionService? deletion = null, ArchiveWithdrawalService? withdrawal = null, ISourceAudioPlayback? sourceAudioPlayback = null)
     {
         _repository = repository;
         _audioRoot = audioRoot;
@@ -44,6 +46,7 @@ public sealed partial class MainWindow : Window
         _dataRoot = dataRoot is null ? Path.GetFullPath(Path.Combine(audioRoot, "..", "..")) : Path.GetFullPath(dataRoot);
         _voiceConversation = voiceConversation;
         _speechPlayback = speechPlayback;
+        _sourceAudioPlayback = sourceAudioPlayback;
         _adminReview = adminReview;
         _deletion = deletion;
         _withdrawal = withdrawal;
@@ -231,6 +234,36 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async void PlaySourceButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_sourceAudioPlayback is null || _lastSource is null || _processing || _capture?.State == AudioCaptureState.Capturing)
+            return;
+
+        _sourcePlaybackCancellation?.Dispose();
+        _sourcePlaybackCancellation = new CancellationTokenSource();
+        PlaySourceButton.IsEnabled = false;
+        StatusText.Text = "播放最近本機錄音中…";
+        try
+        {
+            await _sourceAudioPlayback.PlayAsync(_lastSource, _sourcePlaybackCancellation.Token);
+            StatusText.Text = "已播放最近本機錄音。";
+        }
+        catch (OperationCanceledException) when (_sourcePlaybackCancellation.IsCancellationRequested)
+        {
+            StatusText.Text = "已停止播放本機錄音。";
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "未能播放本機錄音；檔案可能已損壞或輸出裝置不可用。";
+        }
+        finally
+        {
+            _sourcePlaybackCancellation.Dispose();
+            _sourcePlaybackCancellation = null;
+            UpdateRecordControl();
+        }
+    }
+
     private void SearchBox_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key != Windows.System.VirtualKey.Enter) return;
@@ -282,11 +315,34 @@ public sealed partial class MainWindow : Window
         }
 
         var claim = candidates[0];
+        IReadOnlyList<ClaimEvidence> claimEvidence;
+        try
+        {
+            claimEvidence = _repository.ListEvidenceForClaim(claim.MemoryClaimId);
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "未能讀取候選記憶嘅原始證據。";
+            return;
+        }
+
+        var evidenceSummary = claimEvidence.Count == 0
+            ? "未有可顯示嘅 supporting Evidence。"
+            : string.Join(Environment.NewLine + Environment.NewLine, claimEvidence.Select(item =>
+                $"[{item.Relationship}] {item.Evidence.Statement}" +
+                $"\n確定程度：{item.Evidence.ParticipantCertainty}；講者確認：{(item.Evidence.SpeakerConfirmed ? "是" : "未有")}" +
+                $"\nSource：{item.Evidence.SourceId}"));
+        var reviewContent = new TextBlock
+        {
+            Text = $"候選記憶：{claim.Statement}\n\n原始證據：\n{evidenceSummary}",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 16
+        };
         var dialog = new ContentDialog
         {
             XamlRoot = RootGrid.XamlRoot,
             Title = "家庭管理審閱",
-            Content = new TextBlock { Text = claim.Statement, TextWrapping = TextWrapping.Wrap, FontSize = 18 },
+            Content = new ScrollViewer { Content = reviewContent, MaxHeight = 420 },
             PrimaryButtonText = "支持候選記憶",
             SecondaryButtonText = "拒絕候選記憶",
             CloseButtonText = "稍後處理",
@@ -525,6 +581,7 @@ public sealed partial class MainWindow : Window
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
         _retryCancellation?.Cancel();
+        _sourcePlaybackCancellation?.Cancel();
         if (_capture?.State == AudioCaptureState.Capturing)
         {
             _capture.AbortForRecovery();
@@ -550,11 +607,14 @@ public sealed partial class MainWindow : Window
 
     private void UpdateRecordControl()
     {
-        RecordButton.IsEnabled = _recordingEnabled && ConsentCheckBox.IsChecked == true && ConsentCheckBox.IsEnabled && !_processing;
-        ProcessButton.IsEnabled = !_processing && _voiceConversation is not null && _capture?.State != AudioCaptureState.Capturing && _lastSource?.FilePath is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) && _session?.EndedAt is not null && _session.PrivacyMode != PrivacyMode.LocalCaptureOnly && CloudConsentCheckBox.IsChecked == true;
-        PlaySpeechButton.IsEnabled = !_processing && _latestSpeechAsset is not null && _speechPlayback is not null;
-        DeleteLatestSourceButton.IsEnabled = !_processing && _deletion is not null && !string.IsNullOrWhiteSpace(_adminActorId) && _lastSource is not null && _capture?.State != AudioCaptureState.Capturing;
-        WithdrawLatestSourceButton.IsEnabled = !_processing && _withdrawal is not null && !string.IsNullOrWhiteSpace(_adminActorId) && _lastSource is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) && _capture?.State != AudioCaptureState.Capturing;
+        RecordButton.IsEnabled = _recordingEnabled && ConsentCheckBox.IsChecked == true && ConsentCheckBox.IsEnabled && !_processing && _sourcePlaybackCancellation is null;
+        ProcessButton.IsEnabled = !_processing && _sourcePlaybackCancellation is null && _voiceConversation is not null && _capture?.State != AudioCaptureState.Capturing && _lastSource?.FilePath is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) && _session?.EndedAt is not null && _session.PrivacyMode != PrivacyMode.LocalCaptureOnly && CloudConsentCheckBox.IsChecked == true;
+        PlaySpeechButton.IsEnabled = !_processing && _sourcePlaybackCancellation is null && _latestSpeechAsset is not null && _speechPlayback is not null;
+        var adminIdle = !_processing && _capture?.State != AudioCaptureState.Capturing && _sourcePlaybackCancellation is null;
+        AdminReviewButton.IsEnabled = _adminReview is not null && _deletion is not null;
+        DeleteLatestSourceButton.IsEnabled = adminIdle && _deletion is not null && _lastSource is not null;
+        WithdrawLatestSourceButton.IsEnabled = adminIdle && _withdrawal is not null && _lastSource is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase);
+        PlaySourceButton.IsEnabled = adminIdle && _sourceAudioPlayback is not null && _lastSource is not null;
     }
 
     private void StartRetryWorkerIfAvailable()

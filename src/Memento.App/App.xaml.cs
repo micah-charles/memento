@@ -52,9 +52,11 @@ public partial class App : Application
         var adminAuthorizer = new WindowsAdministratorAuthorizer();
         var adminReview = new Memento.Core.Admin.FamilyAdminReviewService(Repository, adminAuthorizer);
         var adminActorId = adminAuthorizer.GetCurrentActorId();
-        var deletion = adminAuthorizer.IsAuthorized(adminActorId) ? new Memento.Core.Admin.ArchiveDeletionService(Repository, adminAuthorizer) : null;
-        var withdrawal = adminAuthorizer.IsAuthorized(adminActorId) ? new Memento.Core.Admin.ArchiveWithdrawalService(Repository, adminAuthorizer) : null;
-        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, voiceConversation, new WaveFileSpeechOutputPlayback(derivedAudioStore), adminReview, adminActorId, retryWorker, () => !string.IsNullOrWhiteSpace(credentials.GetApiKey()), dataDirectory, deletion, withdrawal);
+        var adminAuthorized = adminAuthorizer.IsAuthorized(adminActorId);
+        var deletion = adminAuthorized ? new Memento.Core.Admin.ArchiveDeletionService(Repository, adminAuthorizer) : null;
+        var withdrawal = adminAuthorized ? new Memento.Core.Admin.ArchiveWithdrawalService(Repository, adminAuthorizer) : null;
+        var sourceAudioPlayback = adminAuthorized ? new WaveFileSourceAudioPlayback() : null;
+        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, voiceConversation, new WaveFileSpeechOutputPlayback(derivedAudioStore), adminReview, adminActorId, retryWorker, () => !string.IsNullOrWhiteSpace(credentials.GetApiKey()), dataDirectory, deletion, withdrawal, sourceAudioPlayback);
         _window.Activate();
     }
 }
