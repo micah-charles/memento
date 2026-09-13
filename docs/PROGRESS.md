@@ -50,6 +50,7 @@
 - Added crash-safe PCM WAV capture under a date-organized local `raw/audio` directory.
 - Capture writes a `.capture.tmp` file, flushes each append, validates the WAV, computes SHA-256, atomically renames the file, and only then registers finalized `SourceMetadata`.
 - Added a provider-neutral `IAudioInput` boundary and a Windows NAudio `WaveInEvent` adapter. The UI now requires an explicit local-recording checkbox and exposes large start/stop controls.
+- The capture control remains enabled for stopping while the consent controls are locked during recording; Family Admin review is disabled while capture or processing is active.
 - Capture failures now end the in-progress session in the WinUI shell while leaving the `.capture.tmp` recovery marker available for inspection.
 - Capture identifiers are validated as single safe file-name components before any WAV path is created, preventing path traversal through malformed session/source IDs.
 - If a new capture fails, the shell clears its active session/Source pairing so a previous recording cannot be accidentally processed with the failed session's identity.

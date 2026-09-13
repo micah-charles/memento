@@ -126,6 +126,7 @@ public sealed class ArchiveRepository(SqliteArchive archive)
     public SourceMetadata AddSource(SourceMetadata source)
     {
         using var connection = archive.OpenConnection();
+        EnsureTurnBelongsToSession(connection, source.SessionId, source.TurnId, "Source");
         using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO sources(source_id, source_type, session_id, turn_id, file_path, format, sample_rate, channels, bit_depth, byte_length, duration_ms, sha256, started_at, finalized_at, recovery_status, created_at)
@@ -154,6 +155,7 @@ public sealed class ArchiveRepository(SqliteArchive archive)
     public ProviderInteraction AddProviderInteraction(ProviderInteraction interaction)
     {
         using var connection = archive.OpenConnection();
+        EnsureTurnBelongsToSession(connection, interaction.SessionId, interaction.TurnId, "Provider interaction");
         using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO provider_interactions(provider_interaction_id, session_id, turn_id, provider, capability, model, model_snapshot, request_id, started_at, completed_at, input_audio_ms, output_audio_ms, succeeded, error_code, error_message, created_at)
@@ -183,6 +185,7 @@ public sealed class ArchiveRepository(SqliteArchive archive)
     {
         if (asset.ByteLength <= 0) throw new ArgumentOutOfRangeException(nameof(asset), "Derived speech output must contain bytes.");
         using var connection = archive.OpenConnection();
+        EnsureTurnBelongsToSession(connection, asset.SessionId, asset.TurnId, "Derived speech asset");
         using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO derived_speech_assets(derived_speech_asset_id, session_id, turn_id, file_path, format, byte_length, sha256, provider, model, voice, request_id, created_at)
@@ -233,6 +236,7 @@ public sealed class ArchiveRepository(SqliteArchive archive)
     public TranscriptRevision AddTranscriptRevision(TranscriptRevision revision)
     {
         using var connection = archive.OpenConnection();
+        EnsureSourceContext(connection, revision.SourceId, null, revision.TurnId, "Transcript revision");
         using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO transcript_revisions(transcript_revision_id, source_id, turn_id, revision_number, revision_kind, text, confidence, parent_revision_id, created_at)
@@ -297,6 +301,11 @@ public sealed class ArchiveRepository(SqliteArchive archive)
     public ClarificationEvent AddClarificationEvent(ClarificationEvent clarification)
     {
         using var connection = archive.OpenConnection();
+        EnsureTurnBelongsToSession(connection, clarification.SessionId, clarification.TurnId, "Clarification event");
+        EnsureSourceContext(connection, clarification.SourceId, clarification.SessionId, clarification.TurnId, "Clarification event");
+        EnsureRevisionContext(connection, clarification.SourceId, clarification.TurnId, clarification.InitialRevisionId, "Clarification event initial revision");
+        if (clarification.CorrectedRevisionId is not null)
+            EnsureRevisionContext(connection, clarification.SourceId, clarification.TurnId, clarification.CorrectedRevisionId, "Clarification event corrected revision");
         using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO clarification_events(clarification_event_id, session_id, turn_id, source_id, trigger_kind, question_text, initial_revision_id, participant_response_text, corrected_revision_id, outcome, occurred_at, created_at)
@@ -340,6 +349,10 @@ public sealed class ArchiveRepository(SqliteArchive archive)
     public ConversationJob AddConversationJob(ConversationJob job)
     {
         using var connection = archive.OpenConnection();
+        EnsureTurnBelongsToSession(connection, job.SessionId, job.TurnId, "Conversation job");
+        EnsureSourceContext(connection, job.SourceId, job.SessionId, job.TurnId, "Conversation job");
+        if (job.TranscriptRevisionId is not null)
+            EnsureRevisionContext(connection, job.SourceId, job.TurnId, job.TranscriptRevisionId, "Conversation job transcript revision");
         using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO conversation_jobs(conversation_job_id, session_id, turn_id, source_id, job_type, status, attempt_count, next_attempt_at, last_error, created_at, updated_at, transcript_revision_id)
@@ -407,6 +420,10 @@ public sealed class ArchiveRepository(SqliteArchive archive)
     public EvidenceRecord AddEvidence(EvidenceRecord evidence)
     {
         using var connection = archive.OpenConnection();
+        EnsureTurnBelongsToSession(connection, evidence.SessionId, evidence.TurnId, "Evidence");
+        EnsureSourceContext(connection, evidence.SourceId, evidence.SessionId, evidence.TurnId, "Evidence");
+        if (evidence.TranscriptRevisionId is not null)
+            EnsureRevisionContext(connection, evidence.SourceId, evidence.TurnId, evidence.TranscriptRevisionId, "Evidence transcript revision");
         using var command = connection.CreateCommand();
         command.CommandText = "INSERT INTO evidence_records(evidence_id, kind, source_id, session_id, turn_id, transcript_revision_id, statement, original_expression, participant_certainty, speaker_confirmed, created_at, audio_start_ms, audio_end_ms, extraction_provider, extraction_model) VALUES ($id, $kind, $source, $session, $turn, $revision, $statement, $original, $certainty, $confirmed, $created, $audioStart, $audioEnd, $provider, $model)";
         command.Parameters.AddWithValue("$id", evidence.EvidenceId);
@@ -605,6 +622,10 @@ public sealed class ArchiveRepository(SqliteArchive archive)
     public ResponseEpisode AddResponseEpisode(ResponseEpisode episode)
     {
         using var connection = archive.OpenConnection();
+        EnsureEvidenceBelongsToSession(connection, episode.StimulusEvidenceId, episode.SessionId, "Response episode stimulus");
+        EnsureEvidenceBelongsToSession(connection, episode.ResponseEvidenceId, episode.SessionId, "Response episode response");
+        if (episode.FollowUpEvidenceId is not null)
+            EnsureEvidenceBelongsToSession(connection, episode.FollowUpEvidenceId, episode.SessionId, "Response episode follow-up");
         using var command = connection.CreateCommand();
         command.CommandText = "INSERT INTO response_episodes(response_episode_id, session_id, stimulus_evidence_id, response_evidence_id, follow_up_evidence_id, observed_details, observation_basis, created_at) VALUES ($id, $session, $stimulus, $response, $followUp, $details, $basis, $created)";
         command.Parameters.AddWithValue("$id", episode.ResponseEpisodeId);
@@ -644,4 +665,56 @@ public sealed class ArchiveRepository(SqliteArchive archive)
 
     private static string NewId() => Guid.NewGuid().ToString("N");
     private static string Format(DateTimeOffset timestamp) => timestamp.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static void EnsureTurnBelongsToSession(SqliteConnection connection, string? sessionId, string? turnId, string context)
+    {
+        if (sessionId is null || turnId is null) return;
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT session_id FROM turns WHERE turn_id = $turn";
+        command.Parameters.AddWithValue("$turn", turnId);
+        var turnSessionId = command.ExecuteScalar()?.ToString();
+        if (turnSessionId is not null && !string.Equals(turnSessionId, sessionId, StringComparison.Ordinal))
+            throw new InvalidOperationException($"{context} turn does not belong to the supplied session.");
+    }
+
+    private static void EnsureSourceContext(SqliteConnection connection, string sourceId, string? sessionId, string? turnId, string context)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT session_id, turn_id FROM sources WHERE source_id = $source";
+        command.Parameters.AddWithValue("$source", sourceId);
+        using var reader = command.ExecuteReader();
+        if (!reader.Read()) return;
+
+        var sourceSessionId = reader.IsDBNull(0) ? null : reader.GetString(0);
+        var sourceTurnId = reader.IsDBNull(1) ? null : reader.GetString(1);
+        if (sessionId is not null && !string.Equals(sourceSessionId, sessionId, StringComparison.Ordinal))
+            throw new InvalidOperationException($"{context} does not belong to the supplied session.");
+        if (turnId is not null && !string.Equals(sourceTurnId, turnId, StringComparison.Ordinal))
+            throw new InvalidOperationException($"{context} does not belong to the supplied turn.");
+    }
+
+    private static void EnsureRevisionContext(SqliteConnection connection, string sourceId, string? turnId, string revisionId, string context)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT source_id, turn_id FROM transcript_revisions WHERE transcript_revision_id = $revision";
+        command.Parameters.AddWithValue("$revision", revisionId);
+        using var reader = command.ExecuteReader();
+        if (!reader.Read()) return;
+
+        if (!string.Equals(reader.GetString(0), sourceId, StringComparison.Ordinal))
+            throw new InvalidOperationException($"{context} does not belong to the supplied source.");
+        var revisionTurnId = reader.IsDBNull(1) ? null : reader.GetString(1);
+        if (turnId is not null && !string.Equals(revisionTurnId, turnId, StringComparison.Ordinal))
+            throw new InvalidOperationException($"{context} does not belong to the supplied turn.");
+    }
+
+    private static void EnsureEvidenceBelongsToSession(SqliteConnection connection, string evidenceId, string sessionId, string context)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT session_id FROM evidence_records WHERE evidence_id = $evidence";
+        command.Parameters.AddWithValue("$evidence", evidenceId);
+        var evidenceSessionId = command.ExecuteScalar()?.ToString();
+        if (evidenceSessionId is not null && !string.Equals(evidenceSessionId, sessionId, StringComparison.Ordinal))
+            throw new InvalidOperationException($"{context} does not belong to the supplied session.");
+    }
 }

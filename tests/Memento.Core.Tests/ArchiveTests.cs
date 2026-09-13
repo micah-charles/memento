@@ -78,6 +78,23 @@ public sealed class ArchiveTests
         var error = Assert.Throws<SqliteException>(() => repository.AddTurn("missing-session", 0, "participant", DateTimeOffset.UtcNow));
 
         Assert.Contains("FOREIGN KEY", error.Message, StringComparison.OrdinalIgnoreCase);
+
+        var firstSession = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var secondSession = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var firstTurn = repository.AddTurn(firstSession.SessionId, 0, "participant", DateTimeOffset.UtcNow);
+        var secondTurn = repository.AddTurn(secondSession.SessionId, 0, "participant", DateTimeOffset.UtcNow);
+        var source = repository.AddSource(new SourceMetadata("source-context", "audio", firstSession.SessionId, firstTurn.TurnId, null, null, null, null, null, null, null, null, null, null, "not_applicable", DateTimeOffset.UtcNow));
+        var sessionlessSource = repository.AddSource(new SourceMetadata("source-sessionless-context", "audio", null, null, null, null, null, null, null, null, null, null, null, null, "not_applicable", DateTimeOffset.UtcNow));
+
+        Assert.Throws<InvalidOperationException>(() => repository.AddSource(new SourceMetadata("source-context-mismatch", "audio", secondSession.SessionId, firstTurn.TurnId, null, null, null, null, null, null, null, null, null, null, "not_applicable", DateTimeOffset.UtcNow)));
+        Assert.Throws<InvalidOperationException>(() => repository.AddTranscriptRevision(new TranscriptRevision("revision-context-mismatch", source.SourceId, secondTurn.TurnId, 1, "initial", "mismatch", null, null, DateTimeOffset.UtcNow)));
+        Assert.Throws<InvalidOperationException>(() => repository.AddProviderInteraction(new ProviderInteraction("interaction-context-mismatch", secondSession.SessionId, firstTurn.TurnId, "test", "transcription", "test", null, null, DateTimeOffset.UtcNow, null, null, null, false, "test", "mismatch", DateTimeOffset.UtcNow)));
+        Assert.Throws<InvalidOperationException>(() => repository.AddConversationJob(new ConversationJob("job-context-mismatch", secondSession.SessionId, null, source.SourceId, "durable_transcription", ConversationJobStatus.Pending, 0, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow)));
+        Assert.Throws<InvalidOperationException>(() => repository.AddConversationJob(new ConversationJob("job-sessionless-context", firstSession.SessionId, null, sessionlessSource.SourceId, "durable_transcription", ConversationJobStatus.Pending, 0, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow)));
+
+        var firstRevision = repository.AddTranscriptRevision(new TranscriptRevision("revision-context", source.SourceId, firstTurn.TurnId, 1, "initial", "valid", null, null, DateTimeOffset.UtcNow));
+        Assert.Throws<InvalidOperationException>(() => repository.AddEvidence(new EvidenceRecord("evidence-context-mismatch", EvidenceKind.DirectStatement, source.SourceId, secondSession.SessionId, firstTurn.TurnId, firstRevision.TranscriptRevisionId, "mismatch", "mismatch", ParticipantCertainty.Stated, false, DateTimeOffset.UtcNow)));
+        Assert.Throws<InvalidOperationException>(() => repository.AddClarificationEvent(new ClarificationEvent("clarification-context-mismatch", secondSession.SessionId, firstTurn.TurnId, source.SourceId, "name", "?", firstRevision.TranscriptRevisionId, null, null, ClarificationOutcome.ParticipantRefused, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow)));
     }
 
     [Fact]
