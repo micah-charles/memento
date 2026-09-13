@@ -1,0 +1,118 @@
+using Memento.Core.Domain;
+using Memento.Core.Storage;
+
+namespace Memento.Core.Audio;
+
+public sealed class ConsentRequiredException() : InvalidOperationException("Local recording requires explicit local-capture consent.");
+
+public enum AudioCaptureState
+{
+    Idle,
+    Capturing,
+    Finalized,
+    Recoverable,
+    Failed
+}
+
+public sealed class AudioDataEventArgs(byte[] buffer, int bytesRecorded) : EventArgs
+{
+    public byte[] Buffer { get; } = buffer;
+    public int BytesRecorded { get; } = bytesRecorded;
+}
+
+public interface IAudioInput : IDisposable
+{
+    PcmWaveFormat Format { get; }
+    event EventHandler<AudioDataEventArgs>? DataAvailable;
+    event EventHandler<Exception>? CaptureError;
+    void Start();
+    void Stop();
+}
+
+public sealed class AudioCaptureController
+{
+    private readonly ArchiveRepository _repository;
+    private readonly string _audioRootDirectory;
+    private PcmWaveWriter? _writer;
+    private IAudioInput? _input;
+    private string? _sessionId;
+    private string? _turnId;
+
+    public AudioCaptureController(ArchiveRepository repository, string audioRootDirectory)
+    {
+        _repository = repository;
+        _audioRootDirectory = audioRootDirectory;
+    }
+
+    public AudioCaptureState State { get; private set; } = AudioCaptureState.Idle;
+    public string? Failure { get; private set; }
+
+    public void Start(string sessionId, string? turnId, bool localCaptureConsent, Func<PcmWaveFormat, IAudioInput> inputFactory, DateTimeOffset? startedAt = null)
+    {
+        if (!localCaptureConsent) throw new ConsentRequiredException();
+        if (State == AudioCaptureState.Capturing) throw new InvalidOperationException("Capture is already active.");
+        _sessionId = sessionId;
+        _turnId = turnId;
+        var input = inputFactory(new PcmWaveFormat(48000, 1, 16));
+        _input = input;
+        _writer = PcmWaveWriter.Create(_audioRootDirectory, sessionId, startedAt ?? DateTimeOffset.UtcNow, input.Format);
+        input.DataAvailable += OnDataAvailable;
+        input.CaptureError += OnCaptureError;
+        try
+        {
+            input.Start();
+            State = AudioCaptureState.Capturing;
+        }
+        catch
+        {
+            State = AudioCaptureState.Failed;
+            input.Dispose();
+            _writer.Dispose();
+            throw;
+        }
+    }
+
+    public SourceMetadata Stop()
+    {
+        if (State != AudioCaptureState.Capturing || _writer is null || _input is null || _sessionId is null)
+            throw new InvalidOperationException("Capture is not active.");
+        _input.Stop();
+        _input.DataAvailable -= OnDataAvailable;
+        _input.CaptureError -= OnCaptureError;
+        _input.Dispose();
+        var asset = _writer.FinalizeAsset();
+        _writer.Dispose();
+        var source = new SourceMetadata(asset.SourceId, "audio", _sessionId, _turnId, asset.FilePath, "PCM WAV", asset.Format.SampleRate, asset.Format.Channels, asset.Format.BitsPerSample, asset.ByteLength, asset.DurationMs, asset.Sha256, asset.StartedAt, asset.FinalizedAt, "finalized", DateTimeOffset.UtcNow);
+        _repository.AddSource(source);
+        State = AudioCaptureState.Finalized;
+        _writer = null;
+        _input = null;
+        return source;
+    }
+
+    public void AbortForRecovery()
+    {
+        if (_input is not null)
+        {
+            _input.DataAvailable -= OnDataAvailable;
+            _input.CaptureError -= OnCaptureError;
+            _input.Dispose();
+            _input = null;
+        }
+        _writer?.Dispose();
+        _writer = null;
+        State = AudioCaptureState.Recoverable;
+    }
+
+    private void OnDataAvailable(object? sender, AudioDataEventArgs e)
+    {
+        try { _writer?.Append(e.Buffer.AsSpan(0, e.BytesRecorded)); }
+        catch (Exception error) { OnCaptureError(sender, error); }
+    }
+
+    private void OnCaptureError(object? sender, Exception error)
+    {
+        Failure = error.Message;
+        State = AudioCaptureState.Failed;
+    }
+}

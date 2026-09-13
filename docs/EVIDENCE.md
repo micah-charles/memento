@@ -91,3 +91,13 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - `dotnet list tests/Memento.Core.Tests/Memento.Core.Tests.csproj package --vulnerable --include-transitive` reported no vulnerable packages after the native SQLite provider pin.
 - The initial framework-dependent launch failed with a Windows “This application could not be started” window. After enabling self-contained Windows App SDK deployment, a direct launch produced a `MEMENTO` main window title and created the local database. Native-window visual/manual verification remains unavailable, so M01 is recorded as BLOCKED rather than PASS. Full details: [evidence/M01.md](evidence/M01.md).
 - Implementation commit: `0cbf9fa` (`feat: establish M01 local storage foundation`); this is not a passing M01 checkpoint.
+
+## M02 implementation evidence — 2026-09-13
+
+- `Memento.Core.Audio` contains a PCM WAV writer, validator, recovery scanner, capture controller, and provider-neutral audio-input contract. `WaveInAudioInput` adapts the Windows NAudio `WaveInEvent` path without exposing NAudio types to the archive/domain layer.
+- The app UI requires an explicit `我同意本機錄音` consent checkbox before enabling `開始錄音`; while active it changes to `停止錄音` and displays a local-only recording state.
+- `dotnet test tests/Memento.Core.Tests/Memento.Core.Tests.csproj --configuration Release` passed 9/9 after the M02 additions.
+- `dotnet build src/Memento.App/Memento.App.csproj --configuration Release` passed with 0 warnings and 0 errors.
+- Automated tests cover deterministic fake-input capture, consent denial, finalized WAV structure, SHA-256, Source registration, recoverable `.capture.tmp` files, and corrupt partial preservation. They do not prove microphone hardware, Windows permission prompts, unplug/disconnect, disk exhaustion, or a real process crash.
+- Manual/native-window verification is unavailable because the Computer Use native surface currently reports `apps: []`; no visual PASS is claimed.
+- Gate decision: **PARTIAL/BLOCKED** pending target-machine microphone and GUI verification. No cloud transmission is implemented in M02.

@@ -1,6 +1,6 @@
 # MEMENTO known issues and open questions
 
-**Last updated:** 2026-09-12
+**Last updated:** 2026-09-13
 
 These are deliberately visible. They are not reasons to invent a confident answer.
 
@@ -17,6 +17,7 @@ These are deliberately visible. They are not reasons to invent a confident answe
 | K-009 | OpenAI pricing, model aliases, endpoint retention, and platform docs may change. | Medium: stale planning claims. | Re-check before every milestone. |
 | K-010 | Legal status varies by jurisdiction, purpose, household/commercial context, and guest situation. | High: consent/disclosure risk. | Obtain appropriate advice before pilot or sharing. |
 | K-011 | Native WinUI visual/manual verification is unavailable in the current execution surface. | High: M01 gate cannot be honestly passed from this environment alone. | Run M01 on target Windows hardware with native GUI observation. |
+| K-012 | M02's real Windows microphone path is implemented through NAudio but has not been exercised against a physical device or permission/disconnect failure. | High: audio is primary evidence and the M02 gate needs real-device verification. | Run the app with a consented microphone and fault-injection/physical interruption checks before pilot use. |
 
 ## M00 limitations
 

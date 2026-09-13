@@ -6,6 +6,9 @@ namespace Memento.App;
 public partial class App : Application
 {
     private Window? _window;
+    internal static SqliteArchive? Archive { get; private set; }
+    internal static ArchiveRepository? Repository { get; private set; }
+    internal static string? DataDirectory { get; private set; }
 
     public App() => InitializeComponent();
 
@@ -14,10 +17,12 @@ public partial class App : Application
         var dataDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "MEMENTO");
-        using var archive = new SqliteArchive(Path.Combine(dataDirectory, "data", "memory.db"));
-        archive.Initialize();
+        DataDirectory = dataDirectory;
+        Archive = new SqliteArchive(Path.Combine(dataDirectory, "data", "memory.db"));
+        Archive.Initialize();
+        Repository = new ArchiveRepository(Archive);
 
-        _window = new MainWindow();
+        _window = new MainWindow(Repository, Path.Combine(dataDirectory, "raw", "audio"));
         _window.Activate();
     }
 }
