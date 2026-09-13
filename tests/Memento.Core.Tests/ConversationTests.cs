@@ -126,18 +126,38 @@ public sealed class ConversationTests
         var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
         File.WriteAllBytes(fixture.AudioPath, [1, 2]);
         var source = repository.AddSource(new SourceMetadata("source-pipeline", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
-        var service = new BoundedVoiceConversationService(repository, new InlineTranscriptionProvider(), new DeterministicConversationProvider());
+        var service = new BoundedVoiceConversationService(repository, new InlineTranscriptionProvider(), new DeterministicConversationProvider(), new DeterministicSpeechOutputProvider());
 
         var result = await service.ExecuteAsync(new ConversationRequest(session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, SourceId: source.SourceId));
 
         Assert.Equal("synthetic yue transcript", result.Transcription.Text);
         Assert.NotNull(result.Conversation.Response);
+        Assert.NotNull(result.SpeechOutput);
+        Assert.Equal("wav", result.SpeechOutput!.Format);
         Assert.Single(repository.ListTranscriptRevisions(source.SourceId));
         using var connection = archive.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT COUNT(*) FROM provider_interactions WHERE session_id = $session AND succeeded = 1";
         command.Parameters.AddWithValue("$session", session.SessionId);
         Assert.Equal(2L, Convert.ToInt64(command.ExecuteScalar()));
+    }
+
+    [Fact]
+    public async Task OpenAi_speech_adapter_returns_derived_audio_bytes_without_archive_side_effects()
+    {
+        var handler = new SpeechHttpHandler();
+        using var http = new HttpClient(handler);
+        var provider = new OpenAiSpeechOutputProvider(http, new DelegateApiCredentialProvider(() => "test-key"), "tts-test", "alloy");
+
+        var result = await provider.SynthesizeAsync("你好");
+
+        Assert.Equal("openai", result.Provider);
+        Assert.Equal("tts-test", result.Model);
+        Assert.Equal("wav", result.Format);
+        Assert.Equal([1, 2, 3], result.AudioBytes);
+        Assert.Equal("v1/audio/speech", handler.RequestUri!.AbsolutePath.Trim('/'));
+        Assert.Contains("alloy", handler.Body);
+        Assert.Contains("input", handler.Body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -214,6 +234,18 @@ public sealed class ConversationTests
             {
                 Content = new StringContent("{\"output_text\":\"回覆內容\"}", System.Text.Encoding.UTF8, "application/json")
             };
+        }
+    }
+
+    private sealed class SpeechHttpHandler : HttpMessageHandler
+    {
+        public Uri? RequestUri { get; private set; }
+        public string Body { get; private set; } = string.Empty;
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            RequestUri = request.RequestUri;
+            Body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent([1, 2, 3]) };
         }
     }
 

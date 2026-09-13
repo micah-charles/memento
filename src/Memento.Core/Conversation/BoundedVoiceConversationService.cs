@@ -3,7 +3,7 @@ using Memento.Core.Storage;
 
 namespace Memento.Core.Conversation;
 
-public sealed record BoundedVoiceConversationResult(TranscriptionResult Transcription, ConversationExecution Conversation);
+public sealed record BoundedVoiceConversationResult(TranscriptionResult Transcription, ConversationExecution Conversation, SpeechOutputResult? SpeechOutput);
 
 /// <summary>Turn-based fallback pipeline: local finalized audio, durable transcription, then a bounded response.</summary>
 public sealed class BoundedVoiceConversationService
@@ -11,12 +11,14 @@ public sealed class BoundedVoiceConversationService
     private readonly ArchiveRepository _repository;
     private readonly ITranscriptionProvider _transcription;
     private readonly ConversationOrchestrator _conversation;
+    private readonly ISpeechOutputProvider? _speechOutput;
 
-    public BoundedVoiceConversationService(ArchiveRepository repository, ITranscriptionProvider transcription, IConversationProvider conversation)
+    public BoundedVoiceConversationService(ArchiveRepository repository, ITranscriptionProvider transcription, IConversationProvider conversation, ISpeechOutputProvider? speechOutput = null)
     {
         _repository = repository;
         _transcription = transcription;
         _conversation = new ConversationOrchestrator(repository, conversation);
+        _speechOutput = speechOutput;
     }
 
     public async Task<BoundedVoiceConversationResult> ExecuteAsync(ConversationRequest request, CancellationToken cancellationToken = default)
@@ -46,6 +48,9 @@ public sealed class BoundedVoiceConversationService
 
         var responseRequest = request with { TranscriptText = transcript.Text };
         var conversation = await _conversation.ExecuteAsync(responseRequest, cancellationToken).ConfigureAwait(false);
-        return new BoundedVoiceConversationResult(transcript, conversation);
+        SpeechOutputResult? speech = null;
+        if (_speechOutput is not null && conversation.Response is not null)
+            speech = await _speechOutput.SynthesizeAsync(conversation.Response.Text, cancellationToken).ConfigureAwait(false);
+        return new BoundedVoiceConversationResult(transcript, conversation, speech);
     }
 }
