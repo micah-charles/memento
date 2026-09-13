@@ -1,6 +1,6 @@
 # MEMENTO roadmap
 
-**Status:** M01–M09 implementation in progress; evidence gates remain explicit
+**Status:** M00–M13 implementation is present; live and target-machine evidence gates remain explicit; M14 pilot preparation only
 **Last reviewed:** 2026-09-13
 
 Every milestone requires implementation, automated tests, manual verification, evidence, documentation, and a Git checkpoint. Passing compilation is not a gate. No milestone may weaken the evidence rules or privacy modes.
