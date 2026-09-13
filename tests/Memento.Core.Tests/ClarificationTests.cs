@@ -120,6 +120,28 @@ public sealed class ClarificationTests
         Assert.Single(repository.ListTranscriptRevisions(sessionlessSource.SourceId));
     }
 
+    [Fact]
+    public void Clarification_chain_rolls_back_corrected_revision_when_event_insert_fails()
+    {
+        using var fixture = new ClarificationFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-chain-rollback"));
+        var protocol = new ClarificationProtocol(repository);
+        var initial = protocol.AddInitialRevision(source.SourceId, null, "阿珍", 0.4);
+        var existing = new ClarificationEvent("clarification-duplicate", session.SessionId, null, source.SourceId, "PersonName", "舊問題", initial.TranscriptRevisionId, null, null, ClarificationOutcome.ParticipantRefused, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        repository.AddClarificationEvent(existing);
+        var corrected = new TranscriptRevision("revision-chain-fail", source.SourceId, null, 2, "corrected", "阿貞", 1, initial.TranscriptRevisionId, DateTimeOffset.UtcNow);
+        var duplicateEvent = existing with { QuestionText = "新問題", ParticipantResponseText = "係阿貞", CorrectedRevisionId = corrected.TranscriptRevisionId, Outcome = ClarificationOutcome.SpeakerConfirmed };
+
+        Assert.ThrowsAny<Microsoft.Data.Sqlite.SqliteException>(() => repository.AddClarificationChain(corrected, duplicateEvent, null));
+
+        var revisions = repository.ListTranscriptRevisions(source.SourceId);
+        Assert.Single(revisions);
+        Assert.Equal(initial.TranscriptRevisionId, revisions[0].TranscriptRevisionId);
+    }
+
     private sealed class ClarificationFixture : IDisposable
     {
         private readonly string _directory = Path.Combine(Path.GetTempPath(), "memento-clarification-tests", Guid.NewGuid().ToString("N"));

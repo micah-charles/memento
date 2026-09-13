@@ -84,21 +84,24 @@ public sealed class ClarificationProtocol
             .FirstOrDefault(revision => string.Equals(revision.TranscriptRevisionId, initialRevision.TranscriptRevisionId, StringComparison.Ordinal));
         if (persistedInitial is null)
             throw new InvalidOperationException("The initial transcript revision was not found for the clarification Source.");
+        initialRevision = persistedInitial;
 
         var now = occurredAt ?? DateTimeOffset.UtcNow;
         TranscriptRevision? corrected = null;
         if (!string.IsNullOrWhiteSpace(correctedText))
         {
-            corrected = _repository.AddTranscriptRevision(new TranscriptRevision(Guid.NewGuid().ToString("N"), initialRevision.SourceId, initialRevision.TurnId, initialRevision.RevisionNumber + 1, "corrected", correctedText, 1d, initialRevision.TranscriptRevisionId, now));
+            corrected = new TranscriptRevision(Guid.NewGuid().ToString("N"), initialRevision.SourceId, initialRevision.TurnId, initialRevision.RevisionNumber + 1, "corrected", correctedText, 1d, initialRevision.TranscriptRevisionId, now);
         }
 
-        var clarification = _repository.AddClarificationEvent(new ClarificationEvent(Guid.NewGuid().ToString("N"), session.SessionId, initialRevision.TurnId, initialRevision.SourceId, entityKind.ToString(), questionText, initialRevision.TranscriptRevisionId, participantResponseText, corrected?.TranscriptRevisionId, outcome, now, DateTimeOffset.UtcNow));
+        var clarification = new ClarificationEvent(Guid.NewGuid().ToString("N"), session.SessionId, initialRevision.TurnId, initialRevision.SourceId, entityKind.ToString(), questionText, initialRevision.TranscriptRevisionId, participantResponseText, corrected?.TranscriptRevisionId, outcome, now, DateTimeOffset.UtcNow);
         VocabularyEntry? vocabulary = null;
         if (corrected is not null && outcome is ClarificationOutcome.SpeakerConfirmed or ClarificationOutcome.CorrectedPreviousCorrection)
         {
             var canonical = string.IsNullOrWhiteSpace(canonicalText) ? corrected.Text : canonicalText;
-            vocabulary = _repository.AddVocabularyEntry(new VocabularyEntry(Guid.NewGuid().ToString("N"), canonical, initialRevision.Text, context, true, clarification.ClarificationEventId, DateTimeOffset.UtcNow));
+            vocabulary = new VocabularyEntry(Guid.NewGuid().ToString("N"), canonical, initialRevision.Text, context, true, clarification.ClarificationEventId, DateTimeOffset.UtcNow);
         }
+
+        _repository.AddClarificationChain(corrected, clarification, vocabulary);
 
         // A corrected transcript is a new extraction input. Queue it only when the
         // session has already granted cloud processing; the worker re-checks this

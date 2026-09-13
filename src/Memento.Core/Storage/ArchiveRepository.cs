@@ -348,6 +348,88 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return entry;
     }
 
+    /// <summary>
+    /// Persists a clarification event together with its optional corrected
+    /// revision and vocabulary entry. The correction chain is one unit: a
+    /// failure after the revision insert cannot leave an orphaned correction.
+    /// </summary>
+    public void AddClarificationChain(TranscriptRevision? corrected, ClarificationEvent clarification, VocabularyEntry? vocabulary)
+    {
+        if (corrected is null && clarification.CorrectedRevisionId is not null)
+            throw new InvalidOperationException("The clarification event references a missing corrected revision.");
+        if (corrected is not null && !string.Equals(corrected.TranscriptRevisionId, clarification.CorrectedRevisionId, StringComparison.Ordinal))
+            throw new InvalidOperationException("The clarification corrected revision does not match its event.");
+        if (vocabulary is not null && !string.Equals(vocabulary.SourceClarificationEventId, clarification.ClarificationEventId, StringComparison.Ordinal))
+            throw new InvalidOperationException("The vocabulary entry does not reference its clarification event.");
+
+        using var connection = archive.OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        EnsureTurnBelongsToSession(connection, clarification.SessionId, clarification.TurnId, "Clarification event", transaction);
+        EnsureSourceContext(connection, clarification.SourceId, clarification.SessionId, clarification.TurnId, "Clarification event", transaction);
+        EnsureRevisionContext(connection, clarification.SourceId, clarification.TurnId, clarification.InitialRevisionId, "Clarification event initial revision", transaction);
+        if (corrected is not null)
+        {
+            if (corrected.ParentRevisionId is null || !string.Equals(corrected.ParentRevisionId, clarification.InitialRevisionId, StringComparison.Ordinal))
+                throw new InvalidOperationException("The corrected revision must point to the clarification initial revision.");
+            EnsureSourceContext(connection, corrected.SourceId, clarification.SessionId, corrected.TurnId, "Corrected transcript revision", transaction);
+            EnsureRevisionContext(connection, corrected.SourceId, corrected.TurnId, corrected.ParentRevisionId, "Corrected transcript parent revision", transaction);
+            using var revision = connection.CreateCommand();
+            revision.Transaction = transaction;
+            revision.CommandText = "INSERT INTO transcript_revisions(transcript_revision_id, source_id, turn_id, revision_number, revision_kind, text, confidence, parent_revision_id, created_at) VALUES ($id, $source, $turn, $number, $kind, $text, $confidence, $parent, $created)";
+            revision.Parameters.AddWithValue("$id", corrected.TranscriptRevisionId);
+            revision.Parameters.AddWithValue("$source", corrected.SourceId);
+            revision.Parameters.AddWithValue("$turn", (object?)corrected.TurnId ?? DBNull.Value);
+            revision.Parameters.AddWithValue("$number", corrected.RevisionNumber);
+            revision.Parameters.AddWithValue("$kind", corrected.RevisionKind);
+            revision.Parameters.AddWithValue("$text", corrected.Text);
+            revision.Parameters.AddWithValue("$confidence", (object?)corrected.Confidence ?? DBNull.Value);
+            revision.Parameters.AddWithValue("$parent", corrected.ParentRevisionId);
+            revision.Parameters.AddWithValue("$created", Format(corrected.CreatedAt));
+            revision.ExecuteNonQuery();
+            ArchiveSearchIndex.Upsert(connection, transaction, "transcript_revision", corrected.TranscriptRevisionId, corrected.Text, corrected.SourceId, null);
+        }
+
+        if (clarification.CorrectedRevisionId is not null)
+            EnsureRevisionContext(connection, clarification.SourceId, clarification.TurnId, clarification.CorrectedRevisionId, "Clarification event corrected revision", transaction);
+        using (var eventCommand = connection.CreateCommand())
+        {
+            eventCommand.Transaction = transaction;
+            eventCommand.CommandText = "INSERT INTO clarification_events(clarification_event_id, session_id, turn_id, source_id, trigger_kind, question_text, initial_revision_id, participant_response_text, corrected_revision_id, outcome, occurred_at, created_at) VALUES ($id, $session, $turn, $source, $trigger, $question, $initial, $response, $corrected, $outcome, $occurred, $created)";
+            eventCommand.Parameters.AddWithValue("$id", clarification.ClarificationEventId);
+            eventCommand.Parameters.AddWithValue("$session", clarification.SessionId);
+            eventCommand.Parameters.AddWithValue("$turn", (object?)clarification.TurnId ?? DBNull.Value);
+            eventCommand.Parameters.AddWithValue("$source", clarification.SourceId);
+            eventCommand.Parameters.AddWithValue("$trigger", clarification.TriggerKind);
+            eventCommand.Parameters.AddWithValue("$question", clarification.QuestionText);
+            eventCommand.Parameters.AddWithValue("$initial", clarification.InitialRevisionId);
+            eventCommand.Parameters.AddWithValue("$response", (object?)clarification.ParticipantResponseText ?? DBNull.Value);
+            eventCommand.Parameters.AddWithValue("$corrected", (object?)clarification.CorrectedRevisionId ?? DBNull.Value);
+            eventCommand.Parameters.AddWithValue("$outcome", clarification.Outcome.ToString());
+            eventCommand.Parameters.AddWithValue("$occurred", Format(clarification.OccurredAt));
+            eventCommand.Parameters.AddWithValue("$created", Format(clarification.CreatedAt));
+            eventCommand.ExecuteNonQuery();
+        }
+
+        if (vocabulary is not null)
+        {
+            if (!vocabulary.SpeakerConfirmed)
+                throw new InvalidOperationException("Clarification vocabulary entries must be speaker-confirmed.");
+            EnsureSpeakerConfirmationEvent(connection, vocabulary.SourceClarificationEventId, "Speaker-confirmed vocabulary", transaction);
+            using var vocabularyCommand = connection.CreateCommand();
+            vocabularyCommand.Transaction = transaction;
+            vocabularyCommand.CommandText = "INSERT INTO vocabulary_entries(vocabulary_entry_id, canonical_text, previous_recognition, context, speaker_confirmed, source_clarification_event_id, created_at) VALUES ($id, $canonical, $previous, $context, $confirmed, $event, $created)";
+            vocabularyCommand.Parameters.AddWithValue("$id", vocabulary.VocabularyEntryId);
+            vocabularyCommand.Parameters.AddWithValue("$canonical", vocabulary.CanonicalText);
+            vocabularyCommand.Parameters.AddWithValue("$previous", vocabulary.PreviousRecognition);
+            vocabularyCommand.Parameters.AddWithValue("$context", (object?)vocabulary.Context ?? DBNull.Value);
+            vocabularyCommand.Parameters.AddWithValue("$confirmed", 1);
+            vocabularyCommand.Parameters.AddWithValue("$event", vocabulary.SourceClarificationEventId);
+            vocabularyCommand.Parameters.AddWithValue("$created", Format(vocabulary.CreatedAt));
+            vocabularyCommand.ExecuteNonQuery();
+        }
+        transaction.Commit();
+    }
+
     public ConversationJob AddConversationJob(ConversationJob job)
     {
         using var connection = archive.OpenConnection();
