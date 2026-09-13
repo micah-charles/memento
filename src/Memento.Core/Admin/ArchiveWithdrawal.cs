@@ -48,7 +48,7 @@ public sealed class ArchiveWithdrawalService
         using (var jobs = connection.CreateCommand())
         {
             jobs.Transaction = transaction;
-            jobs.CommandText = "UPDATE conversation_jobs SET status = 'Failed', next_attempt_at = NULL, last_error = 'Source withdrawn from future cloud processing.', updated_at = $updated WHERE source_id = $source AND status IN ('Pending', 'Failed')";
+            jobs.CommandText = "UPDATE conversation_jobs SET status = 'Failed', next_attempt_at = NULL, last_error = 'Source withdrawn from future cloud processing.', updated_at = $updated WHERE source_id = $source AND (status = 'Pending' OR (status = 'Failed' AND next_attempt_at IS NOT NULL))";
             jobs.Parameters.AddWithValue("$source", sourceId);
             jobs.Parameters.AddWithValue("$updated", timestamp.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture));
             blockedJobCount = jobs.ExecuteNonQuery();
