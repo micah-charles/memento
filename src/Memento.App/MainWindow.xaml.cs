@@ -111,6 +111,8 @@ public sealed partial class MainWindow : Window
         if (_initializing) return;
         if (_session is not null && _session.PrivacyMode != PrivacyMode.LocalCaptureOnly)
             _repository.AddConsent(_session.SessionId, ConsentScope.CloudTranscription, _session.PrivacyMode, CloudConsentCheckBox.IsChecked == true, "privacy-1");
+        if (CloudConsentCheckBox.IsChecked != true)
+            _currentInfoCancellation?.Cancel();
         UpdateRecordControl();
     }
 
@@ -333,6 +335,11 @@ public sealed partial class MainWindow : Window
         try
         {
             var result = await _currentInformation.SearchAsync(query, cancellation.Token);
+            if (CloudConsentCheckBox.IsChecked != true || _session?.PrivacyMode == PrivacyMode.LocalCaptureOnly)
+            {
+                CurrentInfoResultsText.Text = "雲端同意已撤回，未顯示目前資訊結果。";
+                return;
+            }
             CurrentInfoResultsText.Text = result.Sources.Count == 0
                 ? "未收到 allowlisted source。"
                 : string.Join(Environment.NewLine + Environment.NewLine, result.Sources.Select(source => $"{source.Title}\n{source.Snippet}\n{source.Url}"));
