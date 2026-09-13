@@ -26,6 +26,52 @@ public sealed class PersistenceAndMemoryTests
     }
 
     [Fact]
+    public async Task Worker_retries_failed_processor_with_bounded_backoff()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-worker"));
+        var job = new ConversationSessionWriter(repository).QueueTranscription(session, null, source, DateTimeOffset.Parse("2026-09-13T10:00:00Z"));
+        var processor = new FlakyProcessor();
+        var worker = new ConversationJobWorker(repository, processor, TimeSpan.FromSeconds(10));
+
+        var first = await worker.RunOnceAsync(DateTimeOffset.Parse("2026-09-13T10:00:01Z"));
+        var hidden = await worker.RunOnceAsync(DateTimeOffset.Parse("2026-09-13T10:00:05Z"));
+        var second = await worker.RunOnceAsync(DateTimeOffset.Parse("2026-09-13T10:00:12Z"));
+
+        Assert.Equal(1, first.Failed);
+        Assert.Equal(0, hidden.Examined);
+        Assert.Equal(1, second.Succeeded);
+        Assert.Equal(2, processor.Calls);
+        Assert.Empty(repository.ListRetryableConversationJobs(DateTimeOffset.Parse("2026-09-13T10:01:00Z")));
+    }
+
+    [Fact]
+    public async Task Durable_transcription_processor_persists_one_initial_revision_and_is_idempotent()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var sourcePath = Path.Combine(fixture.DirectoryPath, "source.wav");
+        File.WriteAllBytes(sourcePath, [1, 2]);
+        var source = repository.AddSource(new SourceMetadata("source-transcription", "audio", session.SessionId, null, sourcePath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        var job = new ConversationSessionWriter(repository).QueueTranscription(session, null, source);
+        var provider = new FakeTranscriptionProvider();
+        var processor = new DurableTranscriptionJobProcessor(repository, provider, "yue");
+
+        await processor.ProcessAsync(job);
+        await processor.ProcessAsync(job);
+
+        Assert.Equal(1, provider.Calls);
+        var revisions = repository.ListTranscriptRevisions(source.SourceId);
+        Assert.Single(revisions);
+        Assert.Equal("synthetic transcript", revisions[0].Text);
+    }
+
+    [Fact]
     public void Candidate_extraction_keeps_evidence_claim_and_link_separate()
     {
         using var fixture = new PersistenceFixture();
@@ -84,8 +130,33 @@ public sealed class PersistenceAndMemoryTests
     {
         private readonly string _directory = Path.Combine(Path.GetTempPath(), "memento-persistence-tests", Guid.NewGuid().ToString("N"));
         public PersistenceFixture() => Directory.CreateDirectory(_directory);
+        public string DirectoryPath => _directory;
         public SqliteArchive CreateArchive() { var archive = new SqliteArchive(Path.Combine(_directory, "data", "memory.db")); archive.Initialize(); return archive; }
         public SourceMetadata Source(string sessionId, string id) => new(id, "audio", sessionId, null, "raw/audio.wav", "PCM WAV", 48000, 1, 16, 100, 1, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow);
         public void Dispose() { if (Directory.Exists(_directory)) Directory.Delete(_directory, true); }
+    }
+
+    private sealed class FlakyProcessor : IConversationJobProcessor
+    {
+        public int Calls { get; private set; }
+        public Task ProcessAsync(ConversationJob job, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            if (Calls == 1) throw new InvalidOperationException("simulated offline");
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeTranscriptionProvider : ITranscriptionProvider
+    {
+        public int Calls { get; private set; }
+        public string Provider => "fake-transcription";
+        public string Model => "fake-transcribe-v1";
+        public Task<TranscriptionResult> TranscribeAsync(string localAudioPath, string? language = null, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            Assert.Equal("yue", language);
+            return Task.FromResult(new TranscriptionResult(Provider, Model, "fake-request", "synthetic transcript", DateTimeOffset.UtcNow));
+        }
     }
 }

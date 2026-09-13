@@ -1,3 +1,5 @@
 # `scripts/`
 
-Reserved for post-M00 migration, export verification, backup validation, and research-maintenance tooling. Scripts must not read or upload personal data by default.
+Scripts must not read or upload personal data by default.
+
+`Publish-Memento.ps1` creates a self-contained `win-x64` publish directory and a zip bundle under `artifacts/`. It does not sign or install an MSIX package; a production installer still requires an owner-selected publisher identity and certificate.

@@ -33,6 +33,8 @@ public sealed partial class MainWindow : Window
             try
             {
                 _capture.Stop();
+                if (_session is not null)
+                    _session = _repository.EndSession(_session);
                 StatusText.Text = "已儲存本機錄音 · Local archive";
             }
             catch (Exception error)
@@ -52,6 +54,7 @@ public sealed partial class MainWindow : Window
         try
         {
             _session = _repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.LocalCaptureOnly);
+            _repository.AddConsent(_session.SessionId, ConsentScope.LocalCapture, PrivacyMode.LocalCaptureOnly, true, "privacy-1");
             _capture = new AudioCaptureController(_repository, _audioRoot);
             _capture.Start(_session.SessionId, null, ConsentCheckBox.IsChecked == true, format => new WaveInAudioInput(format));
             StatusText.Text = "Listening… 本機錄音中";

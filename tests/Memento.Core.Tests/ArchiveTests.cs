@@ -88,6 +88,22 @@ public sealed class ArchiveTests
         Assert.Throws<SqliteException>(() => repository.AddTurn(session.SessionId, 0, "assistant", DateTimeOffset.UtcNow));
     }
 
+    [Fact]
+    public void Session_end_is_persisted_and_cannot_precede_start()
+    {
+        using var fixture = new ArchiveFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var started = DateTimeOffset.Parse("2026-09-13T09:00:00Z");
+        var session = repository.AddSession(started, PrivacyMode.LocalCaptureOnly);
+
+        var ended = repository.EndSession(session, started.AddMinutes(1));
+
+        Assert.Equal(started.AddMinutes(1), ended.EndedAt);
+        Assert.Throws<ArgumentOutOfRangeException>(() => repository.EndSession(session, started.AddSeconds(-1)));
+    }
+
     private static string Scalar(SqliteConnection connection, string sql)
     {
         using var command = connection.CreateCommand();

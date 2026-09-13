@@ -37,6 +37,7 @@ public interface ITranscriptionProvider
 {
     string Provider { get; }
     string Model { get; }
+    Task<TranscriptionResult> TranscribeAsync(string localAudioPath, string? language = null, CancellationToken cancellationToken = default);
 }
 
 public interface IReasoningProvider

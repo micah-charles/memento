@@ -77,6 +77,28 @@ public sealed class ConversationTests
     }
 
     [Fact]
+    public async Task OpenAi_transcription_adapter_sends_local_wav_without_logging_content()
+    {
+        using var fixture = new ConversationFixture();
+        File.WriteAllBytes(fixture.AudioPath, [1, 2, 3]);
+        var handler = new RecordingHttpHandler();
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://api.openai.com/") };
+        var provider = new OpenAiTranscriptionProvider(http, new DelegateApiCredentialProvider(() => "test-key"));
+
+        var result = await provider.TranscribeAsync(fixture.AudioPath, "yue");
+
+        Assert.Equal("阿貞", result.Text);
+        Assert.Equal("openai", result.Provider);
+        Assert.Equal("req-test", result.RequestId);
+        Assert.Equal(HttpMethod.Post, handler.Method);
+        Assert.Equal("v1/audio/transcriptions", handler.RequestUri!.AbsolutePath.TrimStart('/'));
+        Assert.Contains("Bearer test-key", handler.Authorization);
+        Assert.Contains("gpt-transcribe", handler.Body);
+        Assert.Contains("yue", handler.Body);
+        Assert.DoesNotContain("阿貞", handler.Authorization);
+    }
+
+    [Fact]
     public async Task Provider_failure_is_recorded_without_removing_local_audio()
     {
         using var fixture = new ConversationFixture();
@@ -116,6 +138,27 @@ public sealed class ConversationTests
     }
 
     private sealed class ProviderUnavailableException() : InvalidOperationException;
+
+    private sealed class RecordingHttpHandler : HttpMessageHandler
+    {
+        public HttpMethod? Method { get; private set; }
+        public Uri? RequestUri { get; private set; }
+        public string Authorization { get; private set; } = string.Empty;
+        public string Body { get; private set; } = string.Empty;
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Method = request.Method;
+            RequestUri = request.RequestUri;
+            Authorization = request.Headers.Authorization?.ToString() ?? string.Empty;
+            Body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Headers = { { "x-request-id", "req-test" } },
+                Content = new StringContent("{\"text\":\"阿貞\"}", System.Text.Encoding.UTF8, "application/json")
+            };
+        }
+    }
 
     private sealed class ConversationFixture : IDisposable
     {

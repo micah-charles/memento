@@ -19,6 +19,19 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return session;
     }
 
+    public Session EndSession(Session session, DateTimeOffset? endedAt = null)
+    {
+        var ended = endedAt ?? DateTimeOffset.UtcNow;
+        if (ended < session.StartedAt) throw new ArgumentOutOfRangeException(nameof(endedAt), "Session end cannot precede its start.");
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE sessions SET ended_at = $ended WHERE session_id = $id";
+        command.Parameters.AddWithValue("$id", session.SessionId);
+        command.Parameters.AddWithValue("$ended", Format(ended));
+        if (command.ExecuteNonQuery() != 1) throw new InvalidOperationException("Session was not found.");
+        return session with { EndedAt = ended };
+    }
+
     public Turn AddTurn(string sessionId, int sequenceNumber, string speakerType, DateTimeOffset startedAt, DateTimeOffset? endedAt = null, string? turnId = null)
     {
         var turn = new Turn(turnId ?? NewId(), sessionId, sequenceNumber, speakerType, startedAt, endedAt, DateTimeOffset.UtcNow);
@@ -130,6 +143,27 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         command.Parameters.AddWithValue("$created", Format(revision.CreatedAt));
         command.ExecuteNonQuery();
         return revision;
+    }
+
+    public IReadOnlyList<TranscriptRevision> ListTranscriptRevisions(string sourceId)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT transcript_revision_id, source_id, turn_id, revision_number, revision_kind, text, confidence, parent_revision_id, created_at FROM transcript_revisions WHERE source_id = $source ORDER BY revision_number";
+        command.Parameters.AddWithValue("$source", sourceId);
+        using var reader = command.ExecuteReader();
+        var revisions = new List<TranscriptRevision>();
+        while (reader.Read()) revisions.Add(new TranscriptRevision(reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetInt32(3), reader.GetString(4), reader.GetString(5), reader.IsDBNull(6) ? null : reader.GetDouble(6), reader.IsDBNull(7) ? null : reader.GetString(7), DateTimeOffset.Parse(reader.GetString(8), null, System.Globalization.DateTimeStyles.RoundtripKind)));
+        return revisions;
+    }
+
+    public string? GetSourceFilePath(string sourceId)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT file_path FROM sources WHERE source_id = $source";
+        command.Parameters.AddWithValue("$source", sourceId);
+        return command.ExecuteScalar()?.ToString();
     }
 
     public ClarificationEvent AddClarificationEvent(ClarificationEvent clarification)

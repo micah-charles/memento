@@ -36,6 +36,12 @@ Start-Process .\src\Memento.App\bin\Release\net10.0-windows10.0.19041.0\win-x64\
 
 The app is currently an unpackaged self-contained executable. It stores local data under `%LOCALAPPDATA%\MEMENTO`; an installer/MSIX package and Start Menu registration are still deployment work, not required for the current development build.
 
+To create a portable self-contained bundle:
+
+```powershell
+.\scripts\Publish-Memento.ps1
+```
+
 ## Non-goals for M00/M00.1
 
 M00/M00.1 did not build a production application, start WinUI or SQLite runtime code, call an AI API, capture real audio, fine-tune a model, create a voice clone or avatar, require a local LLM/GPU, or create a cloud-hosted permanent family-memory database. Later milestones now implement local capture and archive foundations while live integrations remain gated.
