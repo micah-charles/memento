@@ -119,6 +119,13 @@ public sealed partial class MainWindow : Window
 
     private void RecordButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_capture?.State != AudioCaptureState.Capturing && !_recordingEnabled)
+        {
+            StatusText.Text = "本機錄音已停用。";
+            UpdateRecordControl();
+            return;
+        }
+
         if (_capture?.State != AudioCaptureState.Capturing && ConsentCheckBox.IsChecked != true)
         {
             StatusText.Text = "請先同意本機錄音。";
@@ -343,7 +350,7 @@ public sealed partial class MainWindow : Window
             CurrentInfoResultsText.Text = "本次對話設定為只保留本機，未能使用雲端目前資訊查詢。";
             return;
         }
-        if (CloudConsentCheckBox.IsChecked != true)
+        if (!HasGrantedCloudConsent())
         {
             CurrentInfoResultsText.Text = "請先同意使用雲端目前資訊查詢。";
             return;
@@ -357,7 +364,7 @@ public sealed partial class MainWindow : Window
         try
         {
             var result = await _currentInformation.SearchAsync(query, cancellation.Token);
-            if (CloudConsentCheckBox.IsChecked != true || _session?.PrivacyMode == PrivacyMode.LocalCaptureOnly)
+            if (!HasGrantedCloudConsent())
             {
                 CurrentInfoResultsText.Text = "雲端同意已撤回，未顯示目前資訊結果。";
                 return;
@@ -747,6 +754,12 @@ public sealed partial class MainWindow : Window
         BackupButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
         RestoreButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
     }
+
+    private bool HasGrantedCloudConsent()
+        => _session is not null
+           && _session.PrivacyMode != PrivacyMode.LocalCaptureOnly
+           && CloudConsentCheckBox.IsChecked == true
+           && _repository.HasGrantedConsent(_session.SessionId, ConsentScope.CloudTranscription);
 
     private void EndActiveTurnSafely()
     {
