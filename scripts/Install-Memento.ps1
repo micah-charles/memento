@@ -15,6 +15,11 @@ if (-not (Test-Path -LiteralPath $BundlePath -PathType Leaf)) {
     throw "Bundle not found: $BundlePath. Run scripts\Publish-Memento.ps1 first."
 }
 
+$running = Get-Process -Name 'Memento.App' -ErrorAction SilentlyContinue
+if ($null -ne $running) {
+    throw 'MEMENTO is still running. Close it before installing an update.'
+}
+
 $temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('memento-install-' + [Guid]::NewGuid().ToString('N'))
 $shortcutDirectory = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs\MEMENTO'
 $shortcutPath = Join-Path $shortcutDirectory 'MEMENTO.lnk'
