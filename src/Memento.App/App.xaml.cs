@@ -31,16 +31,23 @@ public partial class App : Application
         var derivedAudioStore = new DerivedAudioStore(Repository, Path.Combine(dataDirectory, "derived", "audio"));
         _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
         var credentials = new WindowsCredentialProvider();
+        var transcriptionProvider = new OpenAiTranscriptionProvider(_httpClient, credentials);
+        var conversationProvider = new OpenAiResponsesProvider(_httpClient, credentials, "gpt-5.6-terra");
+        var speechOutputProvider = new OpenAiSpeechOutputProvider(_httpClient, credentials);
         var voiceConversation = new BoundedVoiceConversationService(
             Repository,
-            new OpenAiTranscriptionProvider(_httpClient, credentials),
-            new OpenAiResponsesProvider(_httpClient, credentials, "gpt-5.6-terra"),
-            new OpenAiSpeechOutputProvider(_httpClient, credentials),
+            transcriptionProvider,
+            conversationProvider,
+            speechOutputProvider,
             derivedAudioStore,
             new WaveFileSpeechOutputPlayback(derivedAudioStore));
+        var retryProcessor = new CompositeConversationJobProcessor(
+            new DurableTranscriptionJobProcessor(Repository, transcriptionProvider),
+            new DurableResponseJobProcessor(Repository, conversationProvider, speechOutputProvider, derivedAudioStore));
+        var retryWorker = new ConversationJobWorker(Repository, retryProcessor);
         var adminAuthorizer = new WindowsAdministratorAuthorizer();
         var adminReview = new Memento.Core.Admin.FamilyAdminReviewService(Repository, adminAuthorizer);
-        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, voiceConversation, new WaveFileSpeechOutputPlayback(derivedAudioStore), adminReview, adminAuthorizer.GetCurrentActorId());
+        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, voiceConversation, new WaveFileSpeechOutputPlayback(derivedAudioStore), adminReview, adminAuthorizer.GetCurrentActorId(), retryWorker, () => !string.IsNullOrWhiteSpace(credentials.GetApiKey()));
         _window.Activate();
     }
 }

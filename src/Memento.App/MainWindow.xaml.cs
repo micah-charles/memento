@@ -19,14 +19,18 @@ public sealed partial class MainWindow : Window
     private readonly ISpeechOutputPlayback? _speechPlayback;
     private readonly FamilyAdminReviewService? _adminReview;
     private readonly string? _adminActorId;
+    private readonly ConversationJobWorker? _retryWorker;
+    private readonly Func<bool>? _credentialAvailable;
     private AudioCaptureController? _capture;
     private Session? _session;
     private SourceMetadata? _lastSource;
     private DerivedSpeechAsset? _latestSpeechAsset;
     private bool _processing;
     private bool _recordingEnabled;
+    private CancellationTokenSource? _retryCancellation;
+    private Task? _retryTask;
 
-    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null)
+    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null, ConversationJobWorker? retryWorker = null, Func<bool>? credentialAvailable = null)
     {
         _repository = repository;
         _audioRoot = audioRoot;
@@ -36,6 +40,8 @@ public sealed partial class MainWindow : Window
         _speechPlayback = speechPlayback;
         _adminReview = adminReview;
         _adminActorId = adminActorId;
+        _retryWorker = retryWorker;
+        _credentialAvailable = credentialAvailable;
         InitializeComponent();
         Closed += MainWindow_Closed;
         _recordingEnabled = !string.Equals(_repository.GetSetting("recording_enabled"), "0", StringComparison.Ordinal);
@@ -48,6 +54,7 @@ public sealed partial class MainWindow : Window
         UpdateRecordControl();
         if (_recoverableAudioCount > 0)
             StatusText.Text = $"有 {_recoverableAudioCount} 段未完成錄音，已保留待處理 · Local archive";
+        StartRetryWorkerIfAvailable();
     }
 
     private void ConsentChanged(object sender, RoutedEventArgs e)
@@ -149,7 +156,15 @@ public sealed partial class MainWindow : Window
             var request = new ConversationRequest(_session.SessionId, _lastSource.TurnId, _lastSource.FilePath, _session.PrivacyMode, true, DateTimeOffset.UtcNow, SourceId: _lastSource.SourceId);
             var result = await _voiceConversation.ExecuteAsync(request);
             _latestSpeechAsset = result.SpeechAsset ?? _repository.GetLatestDerivedSpeechAsset();
-            StatusText.Text = result.Conversation.Response is null ? "錄音已保留；雲端暫時未能回覆。" : "已完成轉錄及回覆。";
+            if (result.Conversation.Response is null)
+            {
+                StartRetryWorkerIfAvailable();
+                StatusText.Text = "錄音已保留；雲端暫時未能回覆，已安排稍後重試。";
+            }
+            else
+            {
+                StatusText.Text = "已完成轉錄及回覆。";
+            }
         }
         catch (OperationCanceledException)
         {
@@ -157,6 +172,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception)
         {
+            StartRetryWorkerIfAvailable();
             StatusText.Text = "雲端處理未能完成；本機錄音仍然保留。";
         }
         finally
@@ -251,6 +267,7 @@ public sealed partial class MainWindow : Window
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
+        _retryCancellation?.Cancel();
         if (_capture?.State == AudioCaptureState.Capturing)
         {
             _capture.AbortForRecovery();
@@ -277,5 +294,36 @@ public sealed partial class MainWindow : Window
         RecordButton.IsEnabled = _recordingEnabled && ConsentCheckBox.IsChecked == true && ConsentCheckBox.IsEnabled && !_processing;
         ProcessButton.IsEnabled = !_processing && _voiceConversation is not null && _capture?.State != AudioCaptureState.Capturing && _lastSource?.FilePath is not null && _session?.EndedAt is not null && _session.PrivacyMode != PrivacyMode.LocalCaptureOnly && CloudConsentCheckBox.IsChecked == true;
         PlaySpeechButton.IsEnabled = !_processing && _latestSpeechAsset is not null && _speechPlayback is not null;
+    }
+
+    private void StartRetryWorkerIfAvailable()
+    {
+        if (_retryWorker is null || _retryTask is not null || _credentialAvailable is null) return;
+        try
+        {
+            if (!_credentialAvailable()) return;
+        }
+        catch
+        {
+            return;
+        }
+
+        _retryCancellation = new CancellationTokenSource();
+        _retryTask = RunRetryWorkerAsync(_retryCancellation.Token);
+    }
+
+    private async Task RunRetryWorkerAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _retryWorker!.RunUntilCancelledAsync(TimeSpan.FromSeconds(30), cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception)
+        {
+            _dispatcherQueue.TryEnqueue(() => StatusText.Text = "背景重試已停止；本機資料仍然保留。");
+        }
     }
 }

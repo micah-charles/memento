@@ -49,6 +49,22 @@ public sealed class PersistenceAndMemoryTests
     }
 
     [Fact]
+    public async Task Composite_job_processor_routes_transcription_and_response_jobs()
+    {
+        var transcription = new RecordingJobProcessor();
+        var response = new RecordingJobProcessor();
+        var router = new CompositeConversationJobProcessor(transcription, response);
+        var transcriptionJob = new ConversationJob("job-route-transcription", "session", null, "source", "durable_transcription", ConversationJobStatus.Pending, 0, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var responseJob = transcriptionJob with { ConversationJobId = "job-route-response", JobType = "durable_response" };
+
+        await router.ProcessAsync(transcriptionJob);
+        await router.ProcessAsync(responseJob);
+
+        Assert.Equal(1, transcription.Calls);
+        Assert.Equal(1, response.Calls);
+    }
+
+    [Fact]
     public async Task Durable_transcription_processor_persists_one_initial_revision_and_is_idempotent()
     {
         using var fixture = new PersistenceFixture();
@@ -185,6 +201,16 @@ public sealed class PersistenceAndMemoryTests
         {
             Calls++;
             if (Calls == 1) throw new InvalidOperationException("simulated offline");
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingJobProcessor : IConversationJobProcessor
+    {
+        public int Calls { get; private set; }
+        public Task ProcessAsync(ConversationJob job, CancellationToken cancellationToken = default)
+        {
+            Calls++;
             return Task.CompletedTask;
         }
     }
