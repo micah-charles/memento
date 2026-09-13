@@ -357,12 +357,16 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) > 0;
     }
 
-    public IReadOnlyList<ConversationJob> ListRetryableConversationJobs(DateTimeOffset now)
+    public IReadOnlyList<ConversationJob> ListRetryableConversationJobs(DateTimeOffset now, TimeSpan? processingLease = null)
     {
+        var lease = processingLease ?? TimeSpan.FromMinutes(5);
+        if (lease <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(processingLease), "Processing lease must be positive.");
+        var staleBefore = now - lease;
         using var connection = archive.OpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT conversation_job_id, session_id, turn_id, source_id, job_type, status, attempt_count, next_attempt_at, last_error, created_at, updated_at, transcript_revision_id FROM conversation_jobs WHERE (status = 'Pending' AND (next_attempt_at IS NULL OR next_attempt_at <= $now)) OR (status = 'Failed' AND next_attempt_at IS NOT NULL AND next_attempt_at <= $now) ORDER BY created_at";
+        command.CommandText = "SELECT conversation_job_id, session_id, turn_id, source_id, job_type, status, attempt_count, next_attempt_at, last_error, created_at, updated_at, transcript_revision_id FROM conversation_jobs WHERE (status = 'Pending' AND (next_attempt_at IS NULL OR next_attempt_at <= $now)) OR (status = 'Failed' AND next_attempt_at IS NOT NULL AND next_attempt_at <= $now) OR (status = 'Processing' AND updated_at <= $staleBefore) ORDER BY created_at";
         command.Parameters.AddWithValue("$now", Format(now));
+        command.Parameters.AddWithValue("$staleBefore", Format(staleBefore));
         using var reader = command.ExecuteReader();
         var jobs = new List<ConversationJob>();
         while (reader.Read()) jobs.Add(new ConversationJob(reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetString(3), reader.GetString(4), Enum.Parse<ConversationJobStatus>(reader.GetString(5)), reader.GetInt32(6), reader.IsDBNull(7) ? null : DateTimeOffset.Parse(reader.GetString(7), null, System.Globalization.DateTimeStyles.RoundtripKind), reader.IsDBNull(8) ? null : reader.GetString(8), DateTimeOffset.Parse(reader.GetString(9), null, System.Globalization.DateTimeStyles.RoundtripKind), DateTimeOffset.Parse(reader.GetString(10), null, System.Globalization.DateTimeStyles.RoundtripKind), reader.IsDBNull(11) ? null : reader.GetString(11)));

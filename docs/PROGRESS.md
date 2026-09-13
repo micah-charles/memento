@@ -84,13 +84,14 @@
 ## M06–M09 implementation attempt — 2026-09-13
 
 - M06 added durable `conversation_jobs` with pending/processing/succeeded/failed states, attempt counts, retry timestamps, and error metadata. `ConversationSessionWriter` maps the continuous session UX onto durable sessions, turns, local Sources, and retryable work; retries re-check cloud consent and policy-blocked jobs become terminal failures instead of looping. When a credential is available, the app starts the routed background worker at launch and keeps it cancellable with the window lifetime.
+- Processing jobs now have a five-minute stale lease; a subsequent worker pass can reclaim work left in `Processing` by a crashed process while leaving fresh active work alone.
 - M07 added candidate `EvidenceRecord`, `MemoryClaim`, and explicit `EvidenceClaimLink` records. Evidence now carries optional audio spans and extraction provider/model metadata; `MemoryExtractionService` uses a deterministic provider boundary and never promotes candidates beyond `candidate` status. An async OpenAI structured-output adapter and persistence service now validate candidate fields before writing the same reviewable records, and consented app sessions queue revision-scoped `durable_extraction` work for the launch worker; corrected transcript revisions therefore receive their own extraction job; no live extraction call has been made.
 - M08 added `ProvenanceGraph.Validate`, which checks Source → transcript revision → Evidence → Claim links, allowed relationships, blocks an unconfirmed AI inference from silently becoming a reviewed claim, and validates observed Response Episodes from stimulus/response Evidence.
 - M09 added person entities, speaker-confirmed aliases, and Evidence-to-entity links. Alias history is additive and does not rewrite transcript or Source records.
 - M06–M09 now include a rebuildable SQLite FTS5 lexical index and `ArchiveSearchService` for transcript, Evidence, and candidate Claim text; its public `Rebuild()` operation recreates the index from canonical tables, while Cantonese substring fallback keeps short CJK queries usable and withdrawn/deleted Source records stay out of results. A real Chinese corpus is still needed to measure ranking/tokenization quality.
 - The WinUI shell now exposes this local search through a small Cantonese-friendly query box; results are limited to the bounded local lexical service and inherit the withdrawn-Source privacy filter.
 - The shell also exposes a local index repair action, so a health-check parity finding can be fixed from the app without opening SQLite or a terminal.
-- The cumulative suite now passes **82/82** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while target-machine restart/power-loss observation, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
+- The cumulative suite now passes **83/83** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while target-machine restart/power-loss observation, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
 
 ## M10–M13 implementation attempt — 2026-09-13
 
@@ -103,7 +104,7 @@
 - The WinUI shell now exposes the M12/M13 health-check, media export, encrypted-backup, and disposable restore/verification operations with plain Cantonese status messages; these actions still require supervised native UI verification.
 - The Family Admin shell now exposes a confirmation-gated deletion of the latest finalized Source; it removes dependent content through the authenticated deletion service and preserves only a minimal audit tombstone.
 - The Family Admin shell also exposes a confirmation-gated withdrawal of the latest finalized Source; it retains local history and media but disables future cloud processing and ordinary search/export paths.
-- The cumulative suite now passes **82/82** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
+- The cumulative suite now passes **83/83** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
 
 ## M14 status
 

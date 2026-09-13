@@ -49,6 +49,27 @@ public sealed class PersistenceAndMemoryTests
     }
 
     [Fact]
+    public async Task Worker_reclaims_a_stale_processing_job_after_restart()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-stale-processing"));
+        var queued = new ConversationSessionWriter(repository).QueueTranscription(session, null, source, DateTimeOffset.Parse("2026-09-13T10:00:00Z"));
+        new ConversationSessionWriter(repository).BeginAttempt(queued, DateTimeOffset.Parse("2026-09-13T10:00:01Z"));
+        var processor = new RecordingJobProcessor();
+        var worker = new ConversationJobWorker(repository, processor);
+
+        var result = await worker.RunOnceAsync(DateTimeOffset.Parse("2026-09-13T10:06:00Z"));
+
+        Assert.Equal(1, result.Examined);
+        Assert.Equal(1, result.Succeeded);
+        Assert.Equal(1, processor.Calls);
+        Assert.Empty(repository.ListRetryableConversationJobs(DateTimeOffset.Parse("2026-09-13T10:06:01Z")));
+    }
+
+    [Fact]
     public async Task Worker_reports_each_bounded_pass_before_waiting()
     {
         using var fixture = new PersistenceFixture();
