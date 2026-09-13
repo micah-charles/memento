@@ -437,6 +437,16 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return entity;
     }
 
+    public bool PersonEntityExists(string personEntityId)
+    {
+        if (string.IsNullOrWhiteSpace(personEntityId)) return false;
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT EXISTS(SELECT 1 FROM person_entities WHERE person_entity_id = $id)";
+        command.Parameters.AddWithValue("$id", personEntityId);
+        return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) == 1;
+    }
+
     public EntityAlias AddEntityAlias(EntityAlias alias)
     {
         using var connection = archive.OpenConnection();

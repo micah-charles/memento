@@ -221,6 +221,24 @@ public sealed class PersistenceAndMemoryTests
     }
 
     [Fact]
+    public void Candidate_extraction_drops_unknown_model_entity_ids_without_failing()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-unknown-entity"));
+        var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-unknown-entity", source.SourceId, null, 1, "initial", "我識阿貞", 0.93, null, DateTimeOffset.UtcNow));
+
+        var result = new MemoryExtractionService(repository, new UnknownEntityExtractionProvider()).ExtractAndPersist(session, source, revision);
+
+        var claim = Assert.Single(result.Claims);
+        Assert.Null(claim.SubjectPersonId);
+        Assert.Single(result.Evidence);
+        Assert.Single(result.Links);
+    }
+
+    [Fact]
     public void Provenance_rejects_mismatched_source_or_unreviewed_inference_promotion()
     {
         using var fixture = new PersistenceFixture();
@@ -309,6 +327,14 @@ public sealed class PersistenceAndMemoryTests
     {
         public Task ProcessAsync(ConversationJob job, CancellationToken cancellationToken = default)
             => throw new CloudNotPermittedException();
+    }
+
+    private sealed class UnknownEntityExtractionProvider : IMemoryExtractionProvider
+    {
+        public string Provider => "unknown-entity-test";
+        public string Model => "unknown-entity-test-v1";
+        public IReadOnlyList<ExtractionCandidate> Extract(TranscriptRevision revision)
+            => [new ExtractionCandidate(revision.Text, "knows", "阿貞", ParticipantCertainty.Stated, SubjectPersonId: "model-invented-person-id")];
     }
 
     private sealed class FakeTranscriptionProvider : ITranscriptionProvider

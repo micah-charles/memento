@@ -101,7 +101,10 @@ internal static class MemoryExtractionPersistence
                 continue;
             var now = DateTimeOffset.UtcNow;
             var item = repository.AddEvidence(new EvidenceRecord(Guid.NewGuid().ToString("N"), candidate.EvidenceKind, source.SourceId, session.SessionId, revision.TurnId, revision.TranscriptRevisionId, candidate.Statement, candidate.Statement, candidate.Certainty, false, now, ExtractionProvider: provider, ExtractionModel: model));
-            var claim = repository.AddMemoryClaim(new MemoryClaim(Guid.NewGuid().ToString("N"), candidate.Statement, candidate.SubjectPersonId, candidate.Predicate, candidate.Object, ClaimStatus.Candidate, now));
+            var subjectPersonId = candidate.SubjectPersonId is not null && repository.PersonEntityExists(candidate.SubjectPersonId)
+                ? candidate.SubjectPersonId
+                : null;
+            var claim = repository.AddMemoryClaim(new MemoryClaim(Guid.NewGuid().ToString("N"), candidate.Statement, subjectPersonId, candidate.Predicate, candidate.Object, ClaimStatus.Candidate, now));
             var link = repository.AddEvidenceClaimLink(new EvidenceClaimLink(item.EvidenceId, claim.MemoryClaimId, "supports", DateTimeOffset.UtcNow));
             evidence.Add(item); claims.Add(claim); links.Add(link);
         }
