@@ -18,6 +18,7 @@ public sealed class EntityResolutionService
     public EntityAlias AddSpeakerConfirmedAlias(PersonEntity person, string alias, string? clarificationEventId = null)
     {
         if (string.IsNullOrWhiteSpace(alias)) throw new ArgumentException("An alias is required.", nameof(alias));
+        if (string.IsNullOrWhiteSpace(clarificationEventId)) throw new InvalidOperationException("A speaker-confirmed alias requires a clarification event.");
         return _repository.AddEntityAlias(new EntityAlias(Guid.NewGuid().ToString("N"), person.PersonEntityId, alias, true, clarificationEventId, DateTimeOffset.UtcNow));
     }
 

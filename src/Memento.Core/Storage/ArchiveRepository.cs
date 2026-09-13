@@ -330,6 +330,8 @@ public sealed class ArchiveRepository(SqliteArchive archive)
     public VocabularyEntry AddVocabularyEntry(VocabularyEntry entry)
     {
         using var connection = archive.OpenConnection();
+        if (entry.SpeakerConfirmed)
+            EnsureSpeakerConfirmationEvent(connection, entry.SourceClarificationEventId, "Speaker-confirmed vocabulary");
         using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO vocabulary_entries(vocabulary_entry_id, canonical_text, previous_recognition, context, speaker_confirmed, source_clarification_event_id, created_at)
@@ -521,6 +523,8 @@ public sealed class ArchiveRepository(SqliteArchive archive)
     public EntityAlias AddEntityAlias(EntityAlias alias)
     {
         using var connection = archive.OpenConnection();
+        if (alias.SpeakerConfirmed)
+            EnsureSpeakerConfirmationEvent(connection, alias.SourceClarificationEventId, "Speaker-confirmed entity alias");
         using var command = connection.CreateCommand();
         command.CommandText = "INSERT INTO entity_aliases(entity_alias_id, person_entity_id, alias, speaker_confirmed, source_clarification_event_id, created_at) VALUES ($id, $entity, $alias, $confirmed, $event, $created)";
         command.Parameters.AddWithValue("$id", alias.EntityAliasId);
@@ -735,5 +739,19 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         var evidenceSessionId = command.ExecuteScalar()?.ToString();
         if (evidenceSessionId is not null && !string.Equals(evidenceSessionId, sessionId, StringComparison.Ordinal))
             throw new InvalidOperationException($"{context} does not belong to the supplied session.");
+    }
+
+    private static void EnsureSpeakerConfirmationEvent(SqliteConnection connection, string? clarificationEventId, string context)
+    {
+        if (string.IsNullOrWhiteSpace(clarificationEventId))
+            throw new InvalidOperationException($"{context} requires a speaker-confirmed clarification event.");
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT outcome FROM clarification_events WHERE clarification_event_id = $event";
+        command.Parameters.AddWithValue("$event", clarificationEventId);
+        var outcome = command.ExecuteScalar()?.ToString();
+        if (outcome is not null
+            && !string.Equals(outcome, nameof(ClarificationOutcome.SpeakerConfirmed), StringComparison.Ordinal)
+            && !string.Equals(outcome, nameof(ClarificationOutcome.CorrectedPreviousCorrection), StringComparison.Ordinal))
+            throw new InvalidOperationException($"{context} requires a speaker-confirmed clarification outcome.");
     }
 }

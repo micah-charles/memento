@@ -315,7 +315,9 @@ public sealed class PersistenceAndMemoryTests
         var evidence = repository.AddEvidence(new EvidenceRecord("evidence-entity", EvidenceKind.ConfirmedInterpretation, source.SourceId, session.SessionId, null, revision.TranscriptRevisionId, "阿貞", "阿貞", ParticipantCertainty.Stated, true, DateTimeOffset.UtcNow));
         var resolver = new EntityResolutionService(repository);
         var person = resolver.CreatePerson("阿貞", "childhood friend");
-        var alias = resolver.AddSpeakerConfirmedAlias(person, "阿珍");
+        Assert.Throws<InvalidOperationException>(() => resolver.AddSpeakerConfirmedAlias(person, "阿珍"));
+        var clarification = new ClarificationProtocol(repository).RecordOutcome(session, revision, ClarificationEntityKind.PersonName, "係咪阿貞？", "係。", ClarificationOutcome.SpeakerConfirmed, "阿貞");
+        var alias = resolver.AddSpeakerConfirmedAlias(person, "阿珍", clarification.Event.ClarificationEventId);
         var link = resolver.LinkEvidence(evidence, person, "person_mentioned");
 
         Assert.True(alias.SpeakerConfirmed);
