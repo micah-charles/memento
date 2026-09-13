@@ -59,8 +59,11 @@ public sealed partial class MainWindow : Window
         _adminActorId = adminActorId;
         _retryWorker = retryWorker;
         _credentialAvailable = credentialAvailable;
-        InitializeComponent();
+        // XAML can raise SelectionChanged/Checked while InitializeComponent
+        // is materialising controls. Suppress handlers until every named
+        // element exists and the persisted session state has been restored.
         _initializing = true;
+        InitializeComponent();
         Closed += MainWindow_Closed;
         try
         {
