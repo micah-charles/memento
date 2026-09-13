@@ -19,6 +19,8 @@ public sealed class ArchiveTests
         Assert.True(archive.IsIntegrityCheckClean());
         using var connection = archive.OpenConnection();
         Assert.Equal("1", Scalar(connection, "PRAGMA foreign_keys"));
+        Assert.Equal("5000", Scalar(connection, "PRAGMA busy_timeout"));
+        Assert.Equal("2", Scalar(connection, "PRAGMA synchronous"));
         Assert.Contains("recovery_status", Columns(connection, "sources"));
         Assert.Contains("provider", Columns(connection, "provider_interactions"));
     }

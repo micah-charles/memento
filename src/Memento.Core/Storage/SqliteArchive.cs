@@ -73,9 +73,15 @@ public sealed class SqliteArchive : IDisposable
             foreignKeys.ExecuteNonQuery();
         }
 
+        using (var busyTimeout = connection.CreateCommand())
+        {
+            busyTimeout.CommandText = "PRAGMA busy_timeout = 5000";
+            busyTimeout.ExecuteNonQuery();
+        }
+
         using (var journal = connection.CreateCommand())
         {
-            journal.CommandText = "PRAGMA journal_mode = WAL";
+            journal.CommandText = "PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL";
             journal.ExecuteScalar();
         }
 
