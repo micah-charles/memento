@@ -1,9 +1,11 @@
 using Memento.Core.Audio;
+using Memento.Core.Admin;
 using Memento.Core.Conversation;
 using Memento.Core.Domain;
 using Memento.Core.Storage;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 
 namespace Memento.App;
 
@@ -15,6 +17,8 @@ public sealed partial class MainWindow : Window
     private readonly DispatcherQueue _dispatcherQueue;
     private readonly BoundedVoiceConversationService? _voiceConversation;
     private readonly ISpeechOutputPlayback? _speechPlayback;
+    private readonly FamilyAdminReviewService? _adminReview;
+    private readonly string? _adminActorId;
     private AudioCaptureController? _capture;
     private Session? _session;
     private SourceMetadata? _lastSource;
@@ -22,7 +26,7 @@ public sealed partial class MainWindow : Window
     private bool _processing;
     private bool _recordingEnabled;
 
-    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null)
+    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null)
     {
         _repository = repository;
         _audioRoot = audioRoot;
@@ -30,6 +34,8 @@ public sealed partial class MainWindow : Window
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
         _voiceConversation = voiceConversation;
         _speechPlayback = speechPlayback;
+        _adminReview = adminReview;
+        _adminActorId = adminActorId;
         InitializeComponent();
         Closed += MainWindow_Closed;
         _recordingEnabled = !string.Equals(_repository.GetSetting("recording_enabled"), "0", StringComparison.Ordinal);
@@ -175,6 +181,69 @@ public sealed partial class MainWindow : Window
         {
             PlaySpeechButton.IsEnabled = _latestSpeechAsset is not null && _speechPlayback is not null;
         }
+    }
+
+    private async void AdminReviewButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_adminReview is null || string.IsNullOrWhiteSpace(_adminActorId)) return;
+        IReadOnlyList<MemoryClaim> candidates;
+        try
+        {
+            candidates = _adminReview.ListCandidates(_adminActorId);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            await ShowAdminMessageAsync("未獲授權", "只有獲授權嘅 Windows 管理員可以進入家庭管理審閱。", "知道了");
+            return;
+        }
+
+        if (candidates.Count == 0)
+        {
+            await ShowAdminMessageAsync("未有候選記憶", "目前沒有需要家庭管理審閱嘅候選記憶。", "關閉");
+            return;
+        }
+
+        var claim = candidates[0];
+        var dialog = new ContentDialog
+        {
+            XamlRoot = RootGrid.XamlRoot,
+            Title = "家庭管理審閱",
+            Content = new TextBlock { Text = claim.Statement, TextWrapping = TextWrapping.Wrap, FontSize = 18 },
+            PrimaryButtonText = "支持候選記憶",
+            SecondaryButtonText = "拒絕候選記憶",
+            CloseButtonText = "稍後處理",
+            DefaultButton = ContentDialogButton.Close
+        };
+        var result = await dialog.ShowAsync();
+        try
+        {
+            if (result == ContentDialogResult.Primary)
+            {
+                _adminReview.AnnotateClaim(_adminActorId, claim, "family_assessment", "家庭管理審閱：支持候選記憶。", "supported");
+                StatusText.Text = "已記錄家庭支持；仍保留原始證據鏈。";
+            }
+            else if (result == ContentDialogResult.Secondary)
+            {
+                _adminReview.AnnotateClaim(_adminActorId, claim, "admin_annotation", "家庭管理審閱：拒絕候選記憶。", "rejected");
+                StatusText.Text = "已拒絕候選記憶；原始證據仍然保留。";
+            }
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "未能儲存家庭管理審閱。";
+        }
+    }
+
+    private async Task ShowAdminMessageAsync(string title, string message, string closeText)
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = RootGrid.XamlRoot,
+            Title = title,
+            Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap },
+            CloseButtonText = closeText
+        };
+        await dialog.ShowAsync();
     }
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)

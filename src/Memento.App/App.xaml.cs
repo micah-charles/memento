@@ -38,7 +38,9 @@ public partial class App : Application
             new OpenAiSpeechOutputProvider(_httpClient, credentials),
             derivedAudioStore,
             new WaveFileSpeechOutputPlayback(derivedAudioStore));
-        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, voiceConversation, new WaveFileSpeechOutputPlayback(derivedAudioStore));
+        var adminAuthorizer = new WindowsAdministratorAuthorizer();
+        var adminReview = new Memento.Core.Admin.FamilyAdminReviewService(Repository, adminAuthorizer);
+        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, voiceConversation, new WaveFileSpeechOutputPlayback(derivedAudioStore), adminReview, adminAuthorizer.GetCurrentActorId());
         _window.Activate();
     }
 }

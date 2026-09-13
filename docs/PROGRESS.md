@@ -89,7 +89,7 @@
 
 - M10 added an `ISearchProvider` boundary and an external-information result that carries provider, retrieval time, source URLs, and an explicit untrusted flag. Search results have no archive mutation path.
 - M11 added an authenticated-admin boundary, candidate claim review listing, attributed annotations, and explicit family assessment/admin rejection transitions. The repository does not treat family support as speaker confirmation.
-- Added a Windows-only `WindowsAdministratorAuthorizer` that binds the actor ID to the current account and requires the Windows Administrators role; the fixed authorizer remains test-only and no automatic family allowlist is inferred.
+- Added a Windows-only `WindowsAdministratorAuthorizer` that binds the actor ID to the current account and requires the Windows Administrators role; the fixed authorizer remains test-only and no automatic family allowlist is inferred. The WinUI shell now exposes a simple candidate review dialog with attributed support/rejection actions.
 - M12 added self-contained JSONL table exports, an SQLite snapshot, optional media copies, per-file SHA-256 manifest entries, and password-based AES-GCM backup/restore.
 - M13 added an archive health check for SQLite integrity, schema version, recoverable audio, due conversation jobs, and tampered/missing derived speech assets; security scans and package vulnerability checks remain clean.
 - The cumulative suite now passes **45/45** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
