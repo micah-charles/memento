@@ -73,8 +73,9 @@ public sealed partial class MainWindow : Window
                 _session = _repository.GetSession(_lastSource.SessionId);
                 if (_session is not null)
                 {
+                    SetSelectedPrivacyMode(_session.PrivacyMode);
                     ConsentCheckBox.IsChecked = _repository.HasGrantedConsent(_session.SessionId, ConsentScope.LocalCapture);
-                    CloudConsentCheckBox.IsChecked = _session.PrivacyMode != PrivacyMode.LocalCaptureOnly
+                    CloudConsentCheckBox.IsChecked = !CloudNotPermittedException.IsBlocked(_session.PrivacyMode)
                         && _repository.HasGrantedConsent(_session.SessionId, ConsentScope.CloudTranscription);
                 }
             }
@@ -112,10 +113,32 @@ public sealed partial class MainWindow : Window
     private void CloudConsentChanged(object sender, RoutedEventArgs e)
     {
         if (_initializing) return;
-        if (_session is not null && _session.PrivacyMode != PrivacyMode.LocalCaptureOnly)
+        if (_session is not null && !CloudNotPermittedException.IsBlocked(_session.PrivacyMode))
             _repository.AddConsent(_session.SessionId, ConsentScope.CloudTranscription, _session.PrivacyMode, CloudConsentCheckBox.IsChecked == true, "privacy-1");
         if (CloudConsentCheckBox.IsChecked != true)
             _currentInfoCancellation?.Cancel();
+        UpdateRecordControl();
+    }
+
+    private void PrivacyModeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_initializing) return;
+        var privacyMode = GetSelectedPrivacyMode();
+        if (CloudNotPermittedException.IsBlocked(privacyMode))
+        {
+            _initializing = true;
+            try { CloudConsentCheckBox.IsChecked = false; }
+            finally { _initializing = false; }
+            CloudConsentCheckBox.IsEnabled = false;
+            StatusText.Text = privacyMode == PrivacyMode.PrivateConversation
+                ? "已選擇私密對話：錄音只會保留喺本機。"
+                : "已選擇只本機保存：錄音只會保留喺本機。";
+        }
+        else
+        {
+            CloudConsentCheckBox.IsEnabled = true;
+            StatusText.Text = "已選擇一般模式：完成錄音後可使用雲端功能。";
+        }
         UpdateRecordControl();
     }
 
@@ -167,6 +190,7 @@ public sealed partial class MainWindow : Window
                 ConsentCheckBox.IsEnabled = true;
                 CloudConsentCheckBox.IsEnabled = true;
                 RecordingEnabledCheckBox.IsEnabled = true;
+                PrivacyModeBox.IsEnabled = true;
                 UpdateRecordControl();
             }
 
@@ -175,23 +199,24 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            var privacyMode = CloudConsentCheckBox.IsChecked == true ? PrivacyMode.Normal : PrivacyMode.LocalCaptureOnly;
+            var privacyMode = GetSelectedPrivacyMode();
             var startedAt = DateTimeOffset.UtcNow;
             _pendingClarificationRevision = null;
             ClarificationPanel.Visibility = Visibility.Collapsed;
             _session = _repository.AddSession(startedAt, privacyMode);
             _turn = _repository.AddTurn(_session.SessionId, _repository.GetNextTurnSequence(_session.SessionId), "participant", startedAt);
             _repository.AddConsent(_session.SessionId, ConsentScope.LocalCapture, privacyMode, true, "privacy-1");
-            if (privacyMode != PrivacyMode.LocalCaptureOnly)
+            if (!CloudNotPermittedException.IsBlocked(privacyMode))
                 _repository.AddConsent(_session.SessionId, ConsentScope.CloudTranscription, privacyMode, true, "privacy-1");
             _capture = new AudioCaptureController(_repository, _audioRoot);
             _capture.CaptureFailed += CaptureFailed;
             _capture.Start(_session.SessionId, _turn.TurnId, ConsentCheckBox.IsChecked == true, format => new WaveInAudioInput(format), startedAt);
-            StatusText.Text = privacyMode == PrivacyMode.LocalCaptureOnly ? "Listening… 本機錄音中（只保留本機）" : "Listening… 本機錄音中（已同意完成後雲端處理）";
+            StatusText.Text = CloudNotPermittedException.IsBlocked(privacyMode) ? $"Listening… 本機錄音中（{PrivacyModeLabel(privacyMode)}）" : "Listening… 本機錄音中（已同意完成後雲端處理）";
             RecordButton.Content = "停止錄音";
             ConsentCheckBox.IsEnabled = false;
             CloudConsentCheckBox.IsEnabled = false;
             RecordingEnabledCheckBox.IsEnabled = false;
+            PrivacyModeBox.IsEnabled = false;
         }
         catch (ConsentRequiredException)
         {
@@ -213,13 +238,14 @@ public sealed partial class MainWindow : Window
             ConsentCheckBox.IsEnabled = true;
             CloudConsentCheckBox.IsEnabled = true;
             RecordingEnabledCheckBox.IsEnabled = true;
+            PrivacyModeBox.IsEnabled = true;
             UpdateRecordControl();
         }
     }
 
     private async void ProcessButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_voiceConversation is null || _lastSource?.FilePath is null || _session is null || _session.EndedAt is null || _capture?.State == AudioCaptureState.Capturing || _session.PrivacyMode == PrivacyMode.LocalCaptureOnly || CloudConsentCheckBox.IsChecked != true || _processing)
+        if (_voiceConversation is null || _lastSource?.FilePath is null || _session is null || _session.EndedAt is null || _capture?.State == AudioCaptureState.Capturing || CloudNotPermittedException.IsBlocked(_session.PrivacyMode) || CloudConsentCheckBox.IsChecked != true || _processing)
             return;
 
         _processing = true;
@@ -461,9 +487,9 @@ public sealed partial class MainWindow : Window
             return;
         }
         if (_currentInformation is null || _processing || _sourcePlaybackCancellation is not null) return;
-        if (_session?.PrivacyMode == PrivacyMode.LocalCaptureOnly)
+        if (_session is not null && CloudNotPermittedException.IsBlocked(_session.PrivacyMode))
         {
-            CurrentInfoResultsText.Text = "本次對話設定為只保留本機，未能使用雲端目前資訊查詢。";
+            CurrentInfoResultsText.Text = $"本次對話設定為{PrivacyModeLabel(_session.PrivacyMode)}，未能使用雲端目前資訊查詢。";
             return;
         }
         if (!HasGrantedCloudConsent())
@@ -857,6 +883,7 @@ public sealed partial class MainWindow : Window
             ConsentCheckBox.IsEnabled = true;
             CloudConsentCheckBox.IsEnabled = true;
             RecordingEnabledCheckBox.IsEnabled = true;
+            PrivacyModeBox.IsEnabled = true;
             UpdateRecordControl();
         });
     }
@@ -864,10 +891,14 @@ public sealed partial class MainWindow : Window
     private void UpdateRecordControl()
     {
         var capturing = _capture?.State == AudioCaptureState.Capturing;
+        var selectedPrivacyMode = GetSelectedPrivacyMode();
+        if (!capturing && !_processing)
+            CloudConsentCheckBox.IsEnabled = !CloudNotPermittedException.IsBlocked(selectedPrivacyMode);
+        PrivacyModeBox.IsEnabled = !capturing && !_processing && _sourcePlaybackCancellation is null;
         RecordButton.IsEnabled = capturing
             ? !_processing && _sourcePlaybackCancellation is null
             : _recordingEnabled && ConsentCheckBox.IsChecked == true && ConsentCheckBox.IsEnabled && _sourcePlaybackCancellation is null;
-        ProcessButton.IsEnabled = !_processing && _sourcePlaybackCancellation is null && _voiceConversation is not null && _capture?.State != AudioCaptureState.Capturing && _lastSource?.FilePath is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) && _session?.EndedAt is not null && _session.PrivacyMode != PrivacyMode.LocalCaptureOnly && CloudConsentCheckBox.IsChecked == true;
+        ProcessButton.IsEnabled = !_processing && _sourcePlaybackCancellation is null && _voiceConversation is not null && _capture?.State != AudioCaptureState.Capturing && _lastSource?.FilePath is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) && _session?.EndedAt is not null && _session is not null && !CloudNotPermittedException.IsBlocked(_session.PrivacyMode) && CloudConsentCheckBox.IsChecked == true;
         PlaySpeechButton.IsEnabled = !_processing && _sourcePlaybackCancellation is null && _latestSpeechAsset is not null && _speechPlayback is not null;
         var adminIdle = !_processing && _capture?.State != AudioCaptureState.Capturing && _sourcePlaybackCancellation is null;
         ClarificationPanel.IsHitTestVisible = adminIdle && _pendingClarificationRevision is not null;
@@ -883,9 +914,36 @@ public sealed partial class MainWindow : Window
 
     private bool HasGrantedCloudConsent()
         => _session is not null
-           && _session.PrivacyMode != PrivacyMode.LocalCaptureOnly
+           && !CloudNotPermittedException.IsBlocked(_session.PrivacyMode)
            && CloudConsentCheckBox.IsChecked == true
            && _repository.HasGrantedConsent(_session.SessionId, ConsentScope.CloudTranscription);
+
+    private PrivacyMode GetSelectedPrivacyMode()
+    {
+        var tag = (PrivacyModeBox.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+        return Enum.TryParse<PrivacyMode>(tag, out var mode) ? mode : PrivacyMode.Normal;
+    }
+
+    private void SetSelectedPrivacyMode(PrivacyMode mode)
+    {
+        for (var index = 0; index < PrivacyModeBox.Items.Count; index++)
+        {
+            if (PrivacyModeBox.Items[index] is ComboBoxItem item && string.Equals(item.Tag?.ToString(), mode.ToString(), StringComparison.Ordinal))
+            {
+                PrivacyModeBox.SelectedIndex = index;
+                return;
+            }
+        }
+        PrivacyModeBox.SelectedIndex = 0;
+    }
+
+    private static string PrivacyModeLabel(PrivacyMode mode)
+        => mode switch
+        {
+            PrivacyMode.PrivateConversation => "私密對話，只保留本機",
+            PrivacyMode.LocalCaptureOnly => "只本機保存",
+            _ => "一般模式"
+        };
 
     private void EndActiveTurnSafely()
     {

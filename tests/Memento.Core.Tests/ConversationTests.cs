@@ -61,6 +61,41 @@ public sealed class ConversationTests
     }
 
     [Fact]
+    public async Task Private_conversation_never_calls_provider_even_when_cloud_consent_is_recorded()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.PrivateConversation);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.PrivateConversation, true, "privacy-1");
+        File.WriteAllBytes(fixture.AudioPath, [1, 2]);
+        var provider = new CountingProvider();
+
+        await Assert.ThrowsAsync<CloudNotPermittedException>(() => new ConversationOrchestrator(repository, provider).ExecuteAsync(new ConversationRequest(session.SessionId, null, fixture.AudioPath, PrivacyMode.PrivateConversation, true, DateTimeOffset.UtcNow)));
+
+        Assert.Equal(0, provider.Calls);
+    }
+
+    [Fact]
+    public async Task Private_bounded_pipeline_never_calls_transcription_provider()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.PrivateConversation);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.PrivateConversation, true, "privacy-1");
+        File.WriteAllBytes(fixture.AudioPath, [1, 2]);
+        var source = repository.AddSource(new SourceMetadata("source-private", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        var transcription = new CountingTranscriptionProvider();
+
+        await Assert.ThrowsAsync<CloudNotPermittedException>(() => new BoundedVoiceConversationService(repository, transcription, new CountingProvider()).ExecuteAsync(new ConversationRequest(session.SessionId, null, fixture.AudioPath, PrivacyMode.PrivateConversation, true, DateTimeOffset.UtcNow, SourceId: source.SourceId)));
+
+        Assert.Equal(0, transcription.Calls);
+    }
+
+    [Fact]
     public async Task Cloud_consent_is_required_even_when_audio_exists()
     {
         using var fixture = new ConversationFixture();
@@ -547,6 +582,18 @@ public sealed class ConversationTests
         public string Model => "inline-v1";
         public Task<TranscriptionResult> TranscribeAsync(string localAudioPath, string? language = null, CancellationToken cancellationToken = default)
             => Task.FromResult(new TranscriptionResult(Provider, Model, "inline-request", "synthetic yue transcript", DateTimeOffset.UtcNow));
+    }
+
+    private sealed class CountingTranscriptionProvider : ITranscriptionProvider
+    {
+        public int Calls { get; private set; }
+        public string Provider => "counting-transcription";
+        public string Model => "counting-transcription-v1";
+        public Task<TranscriptionResult> TranscribeAsync(string localAudioPath, string? language = null, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return Task.FromResult(new TranscriptionResult(Provider, Model, "counting-request", "should not be returned", DateTimeOffset.UtcNow));
+        }
     }
 
     private sealed class FailingTranscriptionProvider : ITranscriptionProvider

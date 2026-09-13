@@ -107,7 +107,7 @@ public sealed class ClarificationProtocol
         // session has already granted cloud processing; the worker re-checks this
         // policy before any provider call.
         if (corrected is not null
-            && session.PrivacyMode != PrivacyMode.LocalCaptureOnly
+            && !CloudNotPermittedException.IsBlocked(session.PrivacyMode)
             && _repository.HasGrantedConsent(session.SessionId, ConsentScope.CloudTranscription))
         {
             new ConversationSessionWriter(_repository).QueueExtractionIfNeeded(session.SessionId, initialRevision.TurnId, initialRevision.SourceId, corrected.TranscriptRevisionId, now);

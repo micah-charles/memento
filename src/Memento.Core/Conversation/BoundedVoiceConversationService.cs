@@ -33,7 +33,9 @@ public sealed class BoundedVoiceConversationService
 
     public async Task<BoundedVoiceConversationResult> ExecuteAsync(ConversationRequest request, CancellationToken cancellationToken = default)
     {
-        if (request.PrivacyMode == PrivacyMode.LocalCaptureOnly) throw new CloudNotPermittedException();
+        var session = _repository.GetSession(request.SessionId) ?? throw new InvalidDataException("The requested session was not found.");
+        if (request.PrivacyMode != session.PrivacyMode) throw new InvalidDataException("The requested privacy mode does not match the persisted session.");
+        if (CloudNotPermittedException.IsBlocked(session.PrivacyMode)) throw new CloudNotPermittedException();
         if (!request.CloudConsent) throw new CloudConsentRequiredException();
         if (!_repository.HasGrantedConsent(request.SessionId, ConsentScope.CloudTranscription)) throw new CloudNotPermittedException();
         if (!File.Exists(request.LocalAudioPath)) throw new FileNotFoundException("Local audio source is required before cloud processing.", request.LocalAudioPath);

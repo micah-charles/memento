@@ -25,7 +25,7 @@ public sealed class DurableTranscriptionJobProcessor : IConversationJobProcessor
     {
         if (job.JobType != "durable_transcription") throw new InvalidOperationException($"Unsupported conversation job type: {job.JobType}");
         var session = _repository.GetSession(job.SessionId) ?? throw new InvalidOperationException("The queued session was not found.");
-        if (session.PrivacyMode == PrivacyMode.LocalCaptureOnly || !_repository.HasGrantedConsent(job.SessionId, ConsentScope.CloudTranscription))
+        if (CloudNotPermittedException.IsBlocked(session.PrivacyMode) || !_repository.HasGrantedConsent(job.SessionId, ConsentScope.CloudTranscription))
             throw new CloudNotPermittedException();
         var source = _repository.GetSource(job.SourceId) ?? throw new InvalidDataException("The queued Source was not found.");
         if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))

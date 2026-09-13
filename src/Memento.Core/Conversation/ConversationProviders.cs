@@ -28,8 +28,11 @@ public sealed class CloudConsentRequiredException() : InvalidOperationException(
 
 public sealed class CloudNotPermittedException(string? message = null) : InvalidOperationException(message ?? DefaultMessage)
 {
-    public const string DefaultMessage = "Cloud processing is disabled for LOCAL_CAPTURE_ONLY sessions.";
+    public const string DefaultMessage = "Cloud processing is disabled for PRIVATE_CONVERSATION and LOCAL_CAPTURE_ONLY sessions.";
     public const string WithdrawnSourceMessage = "Cloud processing is disabled because this Source was withdrawn.";
+
+    public static bool IsBlocked(PrivacyMode privacyMode)
+        => privacyMode is PrivacyMode.PrivateConversation or PrivacyMode.LocalCaptureOnly;
 }
 
 public interface IConversationProvider
@@ -98,7 +101,10 @@ public sealed class ConversationOrchestrator
 
     public async Task<ConversationExecution> ExecuteAsync(ConversationRequest request, CancellationToken cancellationToken = default)
     {
-        if (request.PrivacyMode == PrivacyMode.LocalCaptureOnly)
+        var session = _repository.GetSession(request.SessionId) ?? throw new InvalidDataException("The requested session was not found.");
+        if (request.PrivacyMode != session.PrivacyMode)
+            throw new InvalidDataException("The requested privacy mode does not match the persisted session.");
+        if (CloudNotPermittedException.IsBlocked(session.PrivacyMode))
             throw new CloudNotPermittedException();
         if (!request.CloudConsent)
             throw new CloudConsentRequiredException();

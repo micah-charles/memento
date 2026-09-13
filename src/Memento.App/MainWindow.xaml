@@ -15,6 +15,11 @@
             <TextBlock Text="今日想傾啲乜？" FontSize="28" HorizontalAlignment="Center" />
             <TextBlock Text="本機錄音會儲存在呢部電腦，唔會自動上載。" FontSize="18" HorizontalAlignment="Center" TextWrapping="Wrap" />
             <CheckBox x:Name="RecordingEnabledCheckBox" Content="啟用本機錄音功能" HorizontalAlignment="Center" Checked="RecordingEnabledChanged" Unchecked="RecordingEnabledChanged" />
+            <ComboBox x:Name="PrivacyModeBox" Header="私隱模式（下一段錄音適用）" SelectedIndex="0" SelectionChanged="PrivacyModeChanged" HorizontalAlignment="Center" Width="320">
+                <ComboBoxItem Content="一般：完成後可使用雲端功能" Tag="Normal" />
+                <ComboBoxItem Content="私密對話：只保留本機" Tag="PrivateConversation" />
+                <ComboBoxItem Content="只本機保存：稍後可由管理員處理" Tag="LocalCaptureOnly" />
+            </ComboBox>
             <CheckBox x:Name="ConsentCheckBox" Content="我同意本機錄音" HorizontalAlignment="Center" Checked="ConsentChanged" Unchecked="ConsentChanged" />
             <CheckBox x:Name="CloudConsentCheckBox" Content="我同意完成錄音後送到雲端轉錄、回覆及目前資訊查詢" HorizontalAlignment="Center" Checked="CloudConsentChanged" Unchecked="CloudConsentChanged" />
             <Button x:Name="RecordButton" Content="開始錄音" IsEnabled="False" Click="RecordButton_Click" HorizontalAlignment="Center" Padding="28,10" />

@@ -182,6 +182,26 @@ public sealed class PersistenceAndMemoryTests
     }
 
     [Fact]
+    public async Task Private_conversation_durable_transcription_never_calls_provider()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.PrivateConversation);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.PrivateConversation, true, "privacy-1");
+        var sourcePath = Path.Combine(fixture.DirectoryPath, "private-source.wav");
+        File.WriteAllBytes(sourcePath, [1, 2]);
+        var source = repository.AddSource(new SourceMetadata("source-private-transcription", "audio", session.SessionId, null, sourcePath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        var job = new ConversationSessionWriter(repository).QueueTranscription(session, null, source);
+        var provider = new FakeTranscriptionProvider();
+
+        await Assert.ThrowsAsync<CloudNotPermittedException>(() => new DurableTranscriptionJobProcessor(repository, provider).ProcessAsync(job));
+
+        Assert.Equal(0, provider.Calls);
+        Assert.Empty(repository.ListTranscriptRevisions(source.SourceId));
+    }
+
+    [Fact]
     public async Task Transcription_does_not_persist_after_source_withdrawal_during_provider_call()
     {
         using var fixture = new PersistenceFixture();
@@ -241,6 +261,25 @@ public sealed class PersistenceAndMemoryTests
         command.CommandText = "SELECT COUNT(*) FROM provider_interactions WHERE session_id = $session AND capability = 'conversation' AND succeeded = 1";
         command.Parameters.AddWithValue("$session", session.SessionId);
         Assert.Equal(1L, Convert.ToInt64(command.ExecuteScalar()));
+    }
+
+    [Fact]
+    public async Task Private_conversation_durable_extraction_never_calls_provider()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.PrivateConversation);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.PrivateConversation, true, "privacy-1");
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-private-extraction"));
+        var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-private-extraction", source.SourceId, null, 1, "initial", "private transcript", 1, null, DateTimeOffset.UtcNow));
+        var provider = new CountingMemoryExtractionProvider();
+        var job = new ConversationJob("job-private-extraction", session.SessionId, null, source.SourceId, "durable_extraction", ConversationJobStatus.Pending, 0, DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, revision.TranscriptRevisionId);
+
+        await Assert.ThrowsAsync<CloudNotPermittedException>(() => new DurableMemoryExtractionJobProcessor(repository, provider).ProcessAsync(job));
+
+        Assert.Equal(0, provider.Calls);
+        Assert.Empty(repository.ListCandidateClaims());
     }
 
     [Fact]
@@ -418,6 +457,18 @@ public sealed class PersistenceAndMemoryTests
         public string Model => "unknown-entity-test-v1";
         public IReadOnlyList<ExtractionCandidate> Extract(TranscriptRevision revision)
             => [new ExtractionCandidate(revision.Text, "knows", "阿貞", ParticipantCertainty.Stated, SubjectPersonId: "model-invented-person-id")];
+    }
+
+    private sealed class CountingMemoryExtractionProvider : IAsyncMemoryExtractionProvider
+    {
+        public int Calls { get; private set; }
+        public string Provider => "counting-extraction";
+        public string Model => "counting-extraction-v1";
+        public Task<IReadOnlyList<ExtractionCandidate>> ExtractAsync(TranscriptRevision revision, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return Task.FromResult<IReadOnlyList<ExtractionCandidate>>([]);
+        }
     }
 
     private sealed class ExternalFactExtractionProvider : IMemoryExtractionProvider
