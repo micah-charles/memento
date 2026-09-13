@@ -135,6 +135,7 @@
 - Post-swap installer failures, including Start Menu shortcut creation errors, now move the failed tree aside and restore the previous app tree before cleanup; this rollback path was exercised against a disposable install root.
 - The published bundle has been installed and launch-smoke-tested from `%LOCALAPPDATA%\\MEMENTO\\App`; the Start Menu shortcut exists and the app remains installed for supervised GUI/microphone verification.
 - A persistent `recording_enabled` setting now gives the participant an explicit enable/disable control independent of per-session consent.
+- Added a read-only `Test-MementoPreflight.ps1` command for bundle checksum, installed executable, shortcut, archive path, free-space, and process-state checks; it keeps GUI, microphone, credentials, and participant checks explicitly supervised.
 - Optional TTS now completes the turn-based pipeline as local WAV → transcription → text response → verified derived speech storage → optional NAudio WAV playback. The WinUI shell can replay the latest stored assistant output; real output-device playback and Realtime/WebRTC transport remain deployment work.
 
 ## Next action
