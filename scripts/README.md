@@ -10,4 +10,10 @@ Scripts must not read or upload personal data by default.
 .\scripts\Install-Memento.ps1
 ```
 
-This helper does not provide MSIX package identity, signing, or enterprise uninstall registration.
+`Uninstall-Memento.ps1` removes the app files and shortcut while preserving the `%LOCALAPPDATA%\MEMENTO` archive by default. Pass `-RemoveData` only after making and checking a backup:
+
+```powershell
+.\scripts\Uninstall-Memento.ps1
+```
+
+These helpers do not provide MSIX package identity, signing, or enterprise uninstall registration. Cloud features additionally require a Windows Credential Manager generic credential named `MEMENTO/OpenAI`.
