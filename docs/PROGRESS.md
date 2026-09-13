@@ -61,6 +61,7 @@
 - M03 is **PARTIAL/BLOCKED**: 14 automated tests pass at that checkpoint, but a live bounded voice interaction and target-machine microphone path remain unverified. See [M03 evidence](evidence/M03.md).
 - A turn-based fallback is now available through optional OpenAI transcription and Responses adapters: finalized local WAV → transcription → text response, with `store=false` and provider metadata. Tests use HTTP handlers only; no live credentialed request was made.
 - Optional speech output now records a `speech_output` provider interaction and `DerivedAudioStore` persists generated audio with an atomic rename, SHA-256 verification, and a separate `derived_speech_assets` table; derived audio is never registered as participant evidence.
+- The WinUI shell now exposes a separate cloud-consent checkbox and a post-capture “轉錄及回覆最近錄音” action wired to the bounded provider pipeline; local-only sessions remain ineligible for cloud processing and failures retain the local Source.
 
 ## M04 implementation attempt — 2026-09-13
 
