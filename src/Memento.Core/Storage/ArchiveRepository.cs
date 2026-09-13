@@ -165,6 +165,16 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return assets;
     }
 
+    public DerivedSpeechAsset? GetLatestDerivedSpeechAsset()
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT derived_speech_asset_id, session_id, turn_id, file_path, format, byte_length, sha256, provider, model, voice, request_id, created_at FROM derived_speech_assets ORDER BY created_at DESC LIMIT 1";
+        using var reader = command.ExecuteReader();
+        if (!reader.Read()) return null;
+        return new DerivedSpeechAsset(reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetInt64(5), reader.GetString(6), reader.GetString(7), reader.GetString(8), reader.GetString(9), reader.IsDBNull(10) ? null : reader.GetString(10), DateTimeOffset.Parse(reader.GetString(11), null, System.Globalization.DateTimeStyles.RoundtripKind));
+    }
+
     public TranscriptRevision AddTranscriptRevision(TranscriptRevision revision)
     {
         using var connection = archive.OpenConnection();

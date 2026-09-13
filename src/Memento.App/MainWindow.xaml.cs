@@ -1,4 +1,5 @@
 using Memento.Core.Audio;
+using Memento.Core.Conversation;
 using Memento.Core.Domain;
 using Memento.Core.Storage;
 using Microsoft.UI.Dispatching;
@@ -12,20 +13,25 @@ public sealed partial class MainWindow : Window
     private readonly string _audioRoot;
     private readonly int _recoverableAudioCount;
     private readonly DispatcherQueue _dispatcherQueue;
+    private readonly ISpeechOutputPlayback? _speechPlayback;
     private AudioCaptureController? _capture;
     private Session? _session;
+    private DerivedSpeechAsset? _latestSpeechAsset;
     private bool _recordingEnabled;
 
-    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0)
+    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, ISpeechOutputPlayback? speechPlayback = null)
     {
         _repository = repository;
         _audioRoot = audioRoot;
         _recoverableAudioCount = recoverableAudioCount;
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
+        _speechPlayback = speechPlayback;
         InitializeComponent();
         Closed += MainWindow_Closed;
         _recordingEnabled = !string.Equals(_repository.GetSetting("recording_enabled"), "0", StringComparison.Ordinal);
         RecordingEnabledCheckBox.IsChecked = _recordingEnabled;
+        _latestSpeechAsset = _repository.GetLatestDerivedSpeechAsset();
+        PlaySpeechButton.IsEnabled = _latestSpeechAsset is not null && _speechPlayback is not null;
         UpdateRecordControl();
         if (_recoverableAudioCount > 0)
             StatusText.Text = $"有 {_recoverableAudioCount} 段未完成錄音，已保留待處理 · Local archive";
@@ -98,6 +104,26 @@ public sealed partial class MainWindow : Window
             ConsentCheckBox.IsEnabled = true;
             RecordingEnabledCheckBox.IsEnabled = true;
             UpdateRecordControl();
+        }
+    }
+
+    private async void PlaySpeechButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_speechPlayback is null || _latestSpeechAsset is null) return;
+        PlaySpeechButton.IsEnabled = false;
+        StatusText.Text = "播放中…";
+        try
+        {
+            await _speechPlayback.PlayAsync(_latestSpeechAsset);
+            StatusText.Text = "已播放最近回覆。";
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "未能播放回覆，請檢查喇叭或輸出裝置。";
+        }
+        finally
+        {
+            PlaySpeechButton.IsEnabled = _latestSpeechAsset is not null && _speechPlayback is not null;
         }
     }
 

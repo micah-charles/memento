@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Memento.Core.Audio;
+using Memento.Core.Conversation;
 using Memento.Core.Storage;
 
 namespace Memento.App;
@@ -25,7 +26,8 @@ public partial class App : Application
 
         var audioDirectory = Path.Combine(dataDirectory, "raw", "audio");
         var recoverableAudioCount = AudioRecoveryScanner.Scan(audioDirectory).Count;
-        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount);
+        var derivedAudioStore = new DerivedAudioStore(Repository, Path.Combine(dataDirectory, "derived", "audio"));
+        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, new WaveFileSpeechOutputPlayback(derivedAudioStore));
         _window.Activate();
     }
 }

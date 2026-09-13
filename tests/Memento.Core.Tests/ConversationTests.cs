@@ -164,6 +164,7 @@ public sealed class ConversationTests
         Assert.Equal(result.SpeechOutput!.AudioBytes, store.ReadVerified(asset));
         Assert.Same(asset, playback.Asset);
         Assert.Single(repository.ListDerivedSpeechAssets(session.SessionId));
+        Assert.Equal(asset.DerivedSpeechAssetId, repository.GetLatestDerivedSpeechAsset()!.DerivedSpeechAssetId);
         using var connection = archive.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT COUNT(*) FROM provider_interactions WHERE session_id = $session AND capability = 'speech_output' AND succeeded = 1";
