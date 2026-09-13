@@ -40,6 +40,9 @@ public sealed partial class MainWindow : Window
         Closed += MainWindow_Closed;
         _recordingEnabled = !string.Equals(_repository.GetSetting("recording_enabled"), "0", StringComparison.Ordinal);
         RecordingEnabledCheckBox.IsChecked = _recordingEnabled;
+        _lastSource = _repository.GetLatestFinalizedSource();
+        if (_lastSource?.SessionId is not null)
+            _session = _repository.GetSession(_lastSource.SessionId);
         _latestSpeechAsset = _repository.GetLatestDerivedSpeechAsset();
         PlaySpeechButton.IsEnabled = _latestSpeechAsset is not null && _speechPlayback is not null;
         UpdateRecordControl();

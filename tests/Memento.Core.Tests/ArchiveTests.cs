@@ -50,7 +50,7 @@ public sealed class ArchiveTests
             var session = repository.AddSession(DateTimeOffset.Parse("2026-09-13T09:00:00Z"), PrivacyMode.Normal, "session-fixed");
             var turn = repository.AddTurn(session.SessionId, 0, "participant", DateTimeOffset.Parse("2026-09-13T09:00:01Z"), turnId: "turn-fixed");
             repository.AddConsent(session.SessionId, ConsentScope.LocalCapture, PrivacyMode.Normal, true, "privacy-1", personId: "person-1", consentEventId: "consent-fixed");
-            repository.AddSource(new SourceMetadata("source-fixed", "placeholder", session.SessionId, turn.TurnId, "raw/audio/placeholder.wav", "PCM WAV", 48000, 1, 24, 0, 0, null, null, null, "not_applicable", DateTimeOffset.UtcNow));
+            repository.AddSource(new SourceMetadata("source-fixed", "placeholder", session.SessionId, turn.TurnId, "raw/audio/placeholder.wav", "PCM WAV", 48000, 1, 24, 0, 0, null, null, null, "finalized", DateTimeOffset.UtcNow));
         }
 
         using var reopened = new SqliteArchive(fixture.DatabasePath);
@@ -60,6 +60,9 @@ public sealed class ArchiveTests
         Assert.Equal(1L, Convert.ToInt64(Scalar(connection, "SELECT COUNT(*) FROM turns WHERE turn_id = 'turn-fixed'")));
         Assert.Equal(1L, Convert.ToInt64(Scalar(connection, "SELECT COUNT(*) FROM consent_events WHERE consent_event_id = 'consent-fixed'")));
         Assert.Equal(1L, Convert.ToInt64(Scalar(connection, "SELECT COUNT(*) FROM sources WHERE source_id = 'source-fixed'")));
+        var reopenedRepository = new ArchiveRepository(reopened);
+        Assert.Equal("session-fixed", reopenedRepository.GetLatestFinalizedSource()!.SessionId);
+        Assert.Equal("session-fixed", reopenedRepository.GetSession("session-fixed")!.SessionId);
     }
 
     [Fact]

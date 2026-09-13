@@ -32,6 +32,17 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return session with { EndedAt = ended };
     }
 
+    public Session? GetSession(string sessionId)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT session_id, started_at, ended_at, privacy_mode, created_at FROM sessions WHERE session_id = $id";
+        command.Parameters.AddWithValue("$id", sessionId);
+        using var reader = command.ExecuteReader();
+        if (!reader.Read()) return null;
+        return new Session(reader.GetString(0), DateTimeOffset.Parse(reader.GetString(1), null, System.Globalization.DateTimeStyles.RoundtripKind), reader.IsDBNull(2) ? null : DateTimeOffset.Parse(reader.GetString(2), null, System.Globalization.DateTimeStyles.RoundtripKind), Enum.Parse<PrivacyMode>(reader.GetString(3)), DateTimeOffset.Parse(reader.GetString(4), null, System.Globalization.DateTimeStyles.RoundtripKind));
+    }
+
     public Turn AddTurn(string sessionId, int sequenceNumber, string speakerType, DateTimeOffset startedAt, DateTimeOffset? endedAt = null, string? turnId = null)
     {
         var turn = new Turn(turnId ?? NewId(), sessionId, sequenceNumber, speakerType, startedAt, endedAt, DateTimeOffset.UtcNow);
@@ -215,6 +226,16 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         command.CommandText = "SELECT file_path FROM sources WHERE source_id = $source";
         command.Parameters.AddWithValue("$source", sourceId);
         return command.ExecuteScalar()?.ToString();
+    }
+
+    public SourceMetadata? GetLatestFinalizedSource()
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT source_id, source_type, session_id, turn_id, file_path, format, sample_rate, channels, bit_depth, byte_length, duration_ms, sha256, started_at, finalized_at, recovery_status, created_at FROM sources WHERE recovery_status = 'finalized' ORDER BY finalized_at DESC, created_at DESC LIMIT 1";
+        using var reader = command.ExecuteReader();
+        if (!reader.Read()) return null;
+        return new SourceMetadata(reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetString(5), reader.IsDBNull(6) ? null : reader.GetInt32(6), reader.IsDBNull(7) ? null : reader.GetInt32(7), reader.IsDBNull(8) ? null : reader.GetInt32(8), reader.IsDBNull(9) ? null : reader.GetInt64(9), reader.IsDBNull(10) ? null : reader.GetInt64(10), reader.IsDBNull(11) ? null : reader.GetString(11), reader.IsDBNull(12) ? null : DateTimeOffset.Parse(reader.GetString(12), null, System.Globalization.DateTimeStyles.RoundtripKind), reader.IsDBNull(13) ? null : DateTimeOffset.Parse(reader.GetString(13), null, System.Globalization.DateTimeStyles.RoundtripKind), reader.GetString(14), DateTimeOffset.Parse(reader.GetString(15), null, System.Globalization.DateTimeStyles.RoundtripKind));
     }
 
     public ClarificationEvent AddClarificationEvent(ClarificationEvent clarification)
