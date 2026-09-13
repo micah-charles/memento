@@ -74,6 +74,12 @@ public sealed class OperationsTests
         ArchiveBackupProtector.EncryptFile(Path.Combine(result.ExportDirectory, "archive.sqlite"), encrypted, "test-password");
         ArchiveBackupProtector.DecryptFile(encrypted, restored, "test-password");
         Assert.Equal(SHA256.HashData(File.ReadAllBytes(Path.Combine(result.ExportDirectory, "archive.sqlite"))), SHA256.HashData(File.ReadAllBytes(restored)));
+        var rotated = Path.Combine(fixture.ExportRoot, "backup-rotated.memento");
+        ArchiveBackupProtector.ReencryptFile(encrypted, rotated, "test-password", "new-test-password");
+        var rotatedRestore = Path.Combine(fixture.ExportRoot, "rotated.sqlite");
+        ArchiveBackupProtector.DecryptFile(rotated, rotatedRestore, "new-test-password");
+        Assert.Equal(SHA256.HashData(File.ReadAllBytes(Path.Combine(result.ExportDirectory, "archive.sqlite"))), SHA256.HashData(File.ReadAllBytes(rotatedRestore)));
+        Assert.ThrowsAny<Exception>(() => ArchiveBackupProtector.DecryptFile(rotated, Path.Combine(fixture.ExportRoot, "wrong-password.sqlite"), "test-password"));
 
         var encryptedBundle = Path.Combine(fixture.ExportRoot, "backup-bundle.memento");
         var restoredBundle = Path.Combine(fixture.ExportRoot, "restored-bundle");
@@ -83,6 +89,13 @@ public sealed class OperationsTests
         Assert.Empty(restoreReport.Findings);
         Assert.True(File.Exists(Path.Combine(restoredBundle, "archive.sqlite")));
         Assert.True(File.Exists(Path.Combine(restoredBundle, "media", "recording.wav")));
+        var rotatedBundle = Path.Combine(fixture.ExportRoot, "backup-bundle-rotated.memento");
+        var rotatedBundleReport = ArchiveBackupProtector.ReencryptDirectory(encryptedBundle, rotatedBundle, "test-password", "new-bundle-password");
+        Assert.True(rotatedBundleReport.IntegrityOk);
+        var rotatedBundleRestore = Path.Combine(fixture.ExportRoot, "restored-bundle-rotated");
+        var rotatedBundleRestoreReport = ArchiveBackupProtector.DecryptDirectory(rotatedBundle, rotatedBundleRestore, "new-bundle-password");
+        Assert.True(rotatedBundleRestoreReport.IntegrityOk);
+        Assert.True(File.Exists(Path.Combine(rotatedBundleRestore, "media", "recording.wav")));
 
         var maliciousZip = Path.Combine(fixture.ExportRoot, "malicious.zip");
         using (var zip = ZipFile.Open(maliciousZip, ZipArchiveMode.Create))

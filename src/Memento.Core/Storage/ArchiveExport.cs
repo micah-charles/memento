@@ -228,6 +228,22 @@ public static class ArchiveBackupProtector
         File.WriteAllBytes(destinationPath, plain);
     }
 
+    public static void ReencryptFile(string sourcePath, string destinationPath, string oldPassword, string newPassword)
+    {
+        if (string.IsNullOrEmpty(oldPassword)) throw new ArgumentException("The existing backup password is required.", nameof(oldPassword));
+        if (string.IsNullOrEmpty(newPassword)) throw new ArgumentException("The new backup password is required.", nameof(newPassword));
+        var temporaryPlaintext = Path.Combine(Path.GetTempPath(), "memento-rekey-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            DecryptFile(sourcePath, temporaryPlaintext, oldPassword);
+            EncryptFile(temporaryPlaintext, destinationPath, newPassword);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPlaintext)) File.Delete(temporaryPlaintext);
+        }
+    }
+
     public static void EncryptDirectory(string sourceDirectory, string destinationPath, string password)
     {
         if (string.IsNullOrWhiteSpace(sourceDirectory) || !Directory.Exists(sourceDirectory)) throw new DirectoryNotFoundException(sourceDirectory);
@@ -260,6 +276,23 @@ public static class ArchiveBackupProtector
         finally
         {
             if (File.Exists(temporaryZip)) File.Delete(temporaryZip);
+        }
+    }
+
+    public static ArchiveRestoreResult ReencryptDirectory(string sourcePath, string destinationPath, string oldPassword, string newPassword)
+    {
+        if (string.IsNullOrEmpty(oldPassword)) throw new ArgumentException("The existing backup password is required.", nameof(oldPassword));
+        if (string.IsNullOrEmpty(newPassword)) throw new ArgumentException("The new backup password is required.", nameof(newPassword));
+        var temporaryDirectory = Path.Combine(Path.GetTempPath(), "memento-rekey-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var report = DecryptDirectory(sourcePath, temporaryDirectory, oldPassword);
+            EncryptDirectory(temporaryDirectory, destinationPath, newPassword);
+            return report;
+        }
+        finally
+        {
+            if (Directory.Exists(temporaryDirectory)) Directory.Delete(temporaryDirectory, recursive: true);
         }
     }
 

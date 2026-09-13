@@ -142,6 +142,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - Added the `ISearchProvider`/`CurrentInformationService` boundary and an `OpenAiWebSearchProvider` that sends an allowlisted Responses web-search request with `store=false`, filters citations to HTTPS hosts in the allowlist, and returns retrieval time, source URLs, and `IsUntrustedExternalInformation=true`; no service method writes personal memory.
 - Added `FamilyAdminReviewService` with an `IAdminAuthorizer` boundary, candidate listing, attributed review annotations, and explicit candidate status transitions. The test authorizer is fixed and clearly a fixture; it is not production identity management.
 - Added `ArchiveExporter` JSONL/media/snapshot export with SHA-256 manifest entries and `ArchiveBackupProtector` AES-GCM password backup/restore.
+- `ArchiveBackupProtector.ReencryptFile` was verified with a rotated password: the new password restores the same snapshot, while the old password is rejected.
 - Export directories now use unique run IDs, and duplicate media basenames are preserved with collision-safe names instead of aborting an export.
 - Added `ArchiveHealthCheck` for SQLite integrity, schema version, recoverable audio, and due conversation jobs.
 - The WinUI shell now exposes explicit local health-check, media export, password-encrypted backup, disposable restore/manifest-verification, and Family Admin withdrawal actions; backup snapshots are staged under a temporary directory and removed after encryption, while restore never overwrites the active archive.
