@@ -53,6 +53,7 @@ public sealed partial class MainWindow : Window
         Closed += MainWindow_Closed;
         _recordingEnabled = !string.Equals(_repository.GetSetting("recording_enabled"), "0", StringComparison.Ordinal);
         RecordingEnabledCheckBox.IsChecked = _recordingEnabled;
+        StatusText.Text = _recordingEnabled ? "本機錄音已啟用。" : "本機錄音已停用。";
         _lastSource = _repository.GetLatestFinalizedSource();
         if (_lastSource?.SessionId is not null)
             _session = _repository.GetSession(_lastSource.SessionId);
@@ -76,8 +77,7 @@ public sealed partial class MainWindow : Window
         _recordingEnabled = RecordingEnabledCheckBox.IsChecked == true;
         _repository.SetSetting("recording_enabled", _recordingEnabled ? "1" : "0");
         UpdateRecordControl();
-        if (!_recordingEnabled)
-            StatusText.Text = "本機錄音已停用。";
+        StatusText.Text = _recordingEnabled ? "本機錄音已啟用。" : "本機錄音已停用。";
     }
 
     private void CloudConsentChanged(object sender, RoutedEventArgs e)
