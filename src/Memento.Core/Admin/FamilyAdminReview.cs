@@ -34,6 +34,9 @@ public sealed class FamilyAdminReviewService
     {
         DemandAuthorization(actorId);
         if (claim.Status != ClaimStatus.Candidate) throw new InvalidOperationException("Only candidate claims can be reviewed through this operation.");
+        if (!string.Equals(annotationType, "family_assessment", StringComparison.Ordinal)
+            && !string.Equals(annotationType, "admin_annotation", StringComparison.Ordinal))
+            throw new ArgumentException("Family Admin review can only create family_assessment or admin_annotation records.", nameof(annotationType));
         if (string.IsNullOrWhiteSpace(body)) throw new ArgumentException("A review body is required.", nameof(body));
         if (!_repository.ListCandidateClaims().Any(candidate => string.Equals(candidate.MemoryClaimId, claim.MemoryClaimId, StringComparison.Ordinal)))
             throw new InvalidOperationException("The candidate claim is no longer available for review.");

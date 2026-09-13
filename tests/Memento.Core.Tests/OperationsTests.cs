@@ -71,6 +71,27 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void Family_admin_review_cannot_create_speaker_confirmation_or_withdrawal_annotations()
+    {
+        using var fixture = new OperationsFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-admin-authority"));
+        var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-admin-authority", source.SourceId, null, 1, "initial", "我鍾意魚蛋", 0.8, null, DateTimeOffset.UtcNow));
+        new MemoryExtractionService(repository, new DeterministicMemoryExtractionProvider()).ExtractAndPersist(session, source, revision);
+        var claim = Assert.Single(repository.ListCandidateClaims());
+        var service = new FamilyAdminReviewService(repository, new FixedTestAdminAuthorizer("admin-1"));
+
+        Assert.Throws<ArgumentException>(() => service.AnnotateClaim("admin-1", claim, "speaker_confirmation", "pretend speaker confirmation", "confirmed"));
+        Assert.Throws<ArgumentException>(() => service.AnnotateClaim("admin-1", claim, "withdrawal", "pretend withdrawal", null));
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM review_annotations";
+        Assert.Equal(0L, Convert.ToInt64(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
     public void Export_writes_jsonl_media_and_encrypted_backup_roundtrip()
     {
         using var fixture = new OperationsFixture();
