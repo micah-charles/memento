@@ -178,6 +178,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - Clarification outcomes now verify Source/session ownership and the persisted initial transcript revision before writing corrected revisions, preventing cross-session or orphaned provenance records.
 - Archive repository writes now enforce matching Source, Turn, Session, and transcript-revision context when those records already exist; regression coverage exercises mismatched and sessionless Source contexts.
 - Async memory extraction now requires cloud consent before provider execution and re-checks consent and Source withdrawal after the provider returns, preventing post-revocation candidate persistence.
+- Memory extraction persistence rejects the external-information Evidence kind, with deterministic coverage proving an `ExternalFact` candidate creates no Evidence, Claim, or link.
 - Capture shutdown recovery now swallows input/writer cleanup failures, records the failure, and preserves the temporary audio marker without blocking session close.
 - Family Admin review now re-reads the current candidate list before writing an annotation, so stale, reviewed, or withdrawn claims cannot receive a new review record.
 - Source deletion now handles sessionless placeholder sources safely and reports why session-level assets cannot be associated with them.

@@ -276,6 +276,11 @@ public sealed class PersistenceAndMemoryTests
         Assert.Null(claim.SubjectPersonId);
         Assert.Single(result.Evidence);
         Assert.Single(result.Links);
+
+        var external = new MemoryExtractionService(repository, new ExternalFactExtractionProvider()).ExtractAndPersist(session, source, revision);
+        Assert.Empty(external.Evidence);
+        Assert.Empty(external.Claims);
+        Assert.Empty(external.Links);
     }
 
     [Fact]
@@ -375,6 +380,14 @@ public sealed class PersistenceAndMemoryTests
         public string Model => "unknown-entity-test-v1";
         public IReadOnlyList<ExtractionCandidate> Extract(TranscriptRevision revision)
             => [new ExtractionCandidate(revision.Text, "knows", "阿貞", ParticipantCertainty.Stated, SubjectPersonId: "model-invented-person-id")];
+    }
+
+    private sealed class ExternalFactExtractionProvider : IMemoryExtractionProvider
+    {
+        public string Provider => "external-fact-test";
+        public string Model => "external-fact-test-v1";
+        public IReadOnlyList<ExtractionCandidate> Extract(TranscriptRevision revision)
+            => [new ExtractionCandidate("今日天氣炎熱", "weather", "炎熱", ParticipantCertainty.NotApplicable, EvidenceKind.ExternalFact)];
     }
 
     private sealed class FakeTranscriptionProvider : ITranscriptionProvider

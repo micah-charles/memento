@@ -103,6 +103,11 @@ internal static class MemoryExtractionPersistence
         var links = new List<EvidenceClaimLink>();
         foreach (var candidate in candidates)
         {
+            // External search answers are time-bound untrusted information,
+            // never participant-grounded memory. A provider must not be able
+            // to turn an ExternalFact-shaped candidate into a claim.
+            if (candidate.EvidenceKind == EvidenceKind.ExternalFact)
+                continue;
             if (string.IsNullOrWhiteSpace(candidate.Statement) || string.IsNullOrWhiteSpace(candidate.Predicate) || string.IsNullOrWhiteSpace(candidate.Object))
                 continue;
             var now = DateTimeOffset.UtcNow;
