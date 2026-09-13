@@ -12,6 +12,36 @@ public sealed record ArchiveSearchHit(
 /// <summary>Rebuildable local lexical search over transcript, Evidence, and candidate Claim text.</summary>
 public sealed class ArchiveSearchService(SqliteArchive archive)
 {
+    public int Rebuild()
+    {
+        using var connection = archive.OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        using (var clear = connection.CreateCommand())
+        {
+            clear.Transaction = transaction;
+            clear.CommandText = "DELETE FROM memory_search";
+            clear.ExecuteNonQuery();
+        }
+
+        using var rebuild = connection.CreateCommand();
+        rebuild.Transaction = transaction;
+        rebuild.CommandText = """
+            INSERT INTO memory_search(content, source_id, record_type, record_id, session_id)
+                SELECT text, source_id, 'transcript_revision', transcript_revision_id, NULL FROM transcript_revisions;
+            INSERT INTO memory_search(content, source_id, record_type, record_id, session_id)
+                SELECT statement || ' ' || original_expression, source_id, 'evidence', evidence_id, session_id FROM evidence_records;
+            INSERT INTO memory_search(content, source_id, record_type, record_id, session_id)
+                SELECT statement || ' ' || predicate || ' ' || object, NULL, 'memory_claim', memory_claim_id, NULL FROM memory_claims;
+            """;
+        rebuild.ExecuteNonQuery();
+        using var count = connection.CreateCommand();
+        count.Transaction = transaction;
+        count.CommandText = "SELECT COUNT(*) FROM memory_search";
+        var rows = Convert.ToInt32(count.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
+        transaction.Commit();
+        return rows;
+    }
+
     public IReadOnlyList<ArchiveSearchHit> Search(string query, int limit = 20)
     {
         if (string.IsNullOrWhiteSpace(query)) throw new ArgumentException("A search query is required.", nameof(query));

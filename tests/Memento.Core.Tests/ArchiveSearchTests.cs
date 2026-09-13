@@ -29,6 +29,14 @@ public sealed class ArchiveSearchTests
             Assert.Contains(cantonese, hit => hit.RecordType == "evidence" && hit.RecordId == evidence.EvidenceId);
             Assert.Contains(english, hit => hit.RecordType == "memory_claim" && hit.RecordId == "claim-search");
             Assert.Throws<ArgumentOutOfRangeException>(() => search.Search("魚蛋", 0));
+            using (var connection = archive.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "DELETE FROM memory_search";
+                command.ExecuteNonQuery();
+            }
+            Assert.True(search.Rebuild() >= 3);
+            Assert.Contains(search.Search("魚蛋"), hit => hit.RecordId == revision.TranscriptRevisionId);
         }
         finally
         {
