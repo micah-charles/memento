@@ -126,6 +126,24 @@ public sealed class PersistenceAndMemoryTests
         Assert.Equal(person.PersonEntityId, link.PersonEntityId);
     }
 
+    [Fact]
+    public void Response_episode_links_stimulus_response_and_optional_follow_up_evidence()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-episode"));
+        var stimulusRevision = repository.AddTranscriptRevision(new TranscriptRevision("revision-stimulus", source.SourceId, null, 1, "initial", "Micah won a music competition", 1, null, DateTimeOffset.UtcNow));
+        var responseRevision = repository.AddTranscriptRevision(new TranscriptRevision("revision-response", source.SourceId, null, 2, "initial", "好叻呀，點樣練㗎？", 1, null, DateTimeOffset.UtcNow));
+        var stimulus = repository.AddEvidence(new EvidenceRecord("evidence-stimulus", EvidenceKind.DirectStatement, source.SourceId, session.SessionId, null, stimulusRevision.TranscriptRevisionId, stimulusRevision.Text, stimulusRevision.Text, ParticipantCertainty.Stated, false, DateTimeOffset.UtcNow));
+        var response = repository.AddEvidence(new EvidenceRecord("evidence-response", EvidenceKind.DirectStatement, source.SourceId, session.SessionId, null, responseRevision.TranscriptRevisionId, responseRevision.Text, responseRevision.Text, ParticipantCertainty.Stated, false, DateTimeOffset.UtcNow));
+        var episode = repository.AddResponseEpisode(new ResponseEpisode("episode-1", session.SessionId, stimulus.EvidenceId, response.EvidenceId, null, "Participant praised the result and asked a practical follow-up.", "quoted_language", DateTimeOffset.UtcNow));
+
+        ProvenanceGraph.ValidateResponseEpisode(episode, stimulus, response);
+        Assert.Equal("quoted_language", episode.ObservationBasis);
+    }
+
     private sealed class PersistenceFixture : IDisposable
     {
         private readonly string _directory = Path.Combine(Path.GetTempPath(), "memento-persistence-tests", Guid.NewGuid().ToString("N"));

@@ -92,7 +92,7 @@
 
 ## M14 status
 
-- Real-user pilot work has not started. The app still requires supervised consent, microphone, provider, admin, export/restore, and incident/rollback review before pilot use.
+- Real-user pilot work has not started. A supervised checklist is documented in [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md); the app still requires consent, microphone, provider, admin, export/restore, and incident/rollback review before pilot use.
 
 ## Next action
 

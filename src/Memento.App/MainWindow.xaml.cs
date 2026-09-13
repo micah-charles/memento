@@ -19,6 +19,7 @@ public sealed partial class MainWindow : Window
         _audioRoot = audioRoot;
         _recoverableAudioCount = recoverableAudioCount;
         InitializeComponent();
+        Closed += MainWindow_Closed;
         if (_recoverableAudioCount > 0)
             StatusText.Text = $"有 {_recoverableAudioCount} 段未完成錄音，已保留待處理 · Local archive";
     }
@@ -71,6 +72,16 @@ public sealed partial class MainWindow : Window
             RecordButton.Content = "開始錄音";
             ConsentCheckBox.IsEnabled = true;
             RecordButton.IsEnabled = ConsentCheckBox.IsChecked == true;
+        }
+    }
+
+    private void MainWindow_Closed(object sender, WindowEventArgs args)
+    {
+        if (_capture?.State == AudioCaptureState.Capturing)
+        {
+            _capture.AbortForRecovery();
+            if (_session is not null)
+                _session = _repository.EndSession(_session);
         }
     }
 }

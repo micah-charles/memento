@@ -17,4 +17,16 @@ public static class ProvenanceGraph
         if (claim.Status == ClaimStatus.Reviewed && evidence.Kind == EvidenceKind.AiInference && !evidence.SpeakerConfirmed)
             throw new InvalidOperationException("An unconfirmed AI inference cannot silently become a reviewed claim.");
     }
+
+    public static void ValidateResponseEpisode(ResponseEpisode episode, EvidenceRecord stimulus, EvidenceRecord response, EvidenceRecord? followUp = null)
+    {
+        if (episode.StimulusEvidenceId != stimulus.EvidenceId || episode.ResponseEvidenceId != response.EvidenceId)
+            throw new InvalidOperationException("Response Episode evidence links are inconsistent.");
+        if (episode.FollowUpEvidenceId is not null && (followUp is null || episode.FollowUpEvidenceId != followUp.EvidenceId))
+            throw new InvalidOperationException("Response Episode follow-up evidence is inconsistent.");
+        if (episode.SessionId != stimulus.SessionId || episode.SessionId != response.SessionId || followUp?.SessionId != episode.SessionId && followUp is not null)
+            throw new InvalidOperationException("Response Episode session provenance is inconsistent.");
+        if (string.IsNullOrWhiteSpace(episode.ObservedDetails) || string.IsNullOrWhiteSpace(episode.ObservationBasis))
+            throw new InvalidOperationException("Response Episode observation details and basis are required.");
+    }
 }

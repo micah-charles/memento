@@ -90,6 +90,27 @@ public sealed class AudioTests
         Assert.True(File.Exists(path));
     }
 
+    [Fact]
+    public void Capture_error_releases_input_and_leaves_recoverable_audio()
+    {
+        using var fixture = new AudioFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.LocalCaptureOnly);
+        var fake = new FakeAudioInput(new PcmWaveFormat(48000, 1, 16));
+        var controller = new AudioCaptureController(repository, fixture.AudioRoot);
+        controller.Start(session.SessionId, null, true, _ => fake);
+
+        fake.RaiseError(new IOException("microphone disconnected"));
+
+        Assert.Equal(AudioCaptureState.Failed, controller.State);
+        Assert.Contains("microphone disconnected", controller.Failure);
+        var recovered = Assert.Single(AudioRecoveryScanner.Scan(fixture.AudioRoot));
+        Assert.True(recovered.IsValidPcm);
+        Assert.True(fake.Disposed);
+    }
+
     private sealed class FakeAudioInput(PcmWaveFormat format) : IAudioInput
     {
         public PcmWaveFormat Format { get; } = format;
@@ -100,7 +121,9 @@ public sealed class AudioTests
 
         public void Start() => DataAvailable?.Invoke(this, new AudioDataEventArgs(new byte[Format.BlockAlign * 480], Format.BlockAlign * 480));
         public void Stop() { }
-        public void Dispose() { }
+        public bool Disposed { get; private set; }
+        public void RaiseError(Exception error) => CaptureError?.Invoke(this, error);
+        public void Dispose() => Disposed = true;
     }
 
     private sealed class AudioFixture : IDisposable

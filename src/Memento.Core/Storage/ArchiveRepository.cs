@@ -386,6 +386,23 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return annotation;
     }
 
+    public ResponseEpisode AddResponseEpisode(ResponseEpisode episode)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO response_episodes(response_episode_id, session_id, stimulus_evidence_id, response_evidence_id, follow_up_evidence_id, observed_details, observation_basis, created_at) VALUES ($id, $session, $stimulus, $response, $followUp, $details, $basis, $created)";
+        command.Parameters.AddWithValue("$id", episode.ResponseEpisodeId);
+        command.Parameters.AddWithValue("$session", episode.SessionId);
+        command.Parameters.AddWithValue("$stimulus", episode.StimulusEvidenceId);
+        command.Parameters.AddWithValue("$response", episode.ResponseEvidenceId);
+        command.Parameters.AddWithValue("$followUp", (object?)episode.FollowUpEvidenceId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$details", episode.ObservedDetails);
+        command.Parameters.AddWithValue("$basis", episode.ObservationBasis);
+        command.Parameters.AddWithValue("$created", Format(episode.CreatedAt));
+        command.ExecuteNonQuery();
+        return episode;
+    }
+
     private static string NewId() => Guid.NewGuid().ToString("N");
     private static string Format(DateTimeOffset timestamp) => timestamp.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture);
 }

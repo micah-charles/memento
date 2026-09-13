@@ -336,6 +336,20 @@ internal static class Migrations
             );
             CREATE INDEX ix_review_annotations_target ON review_annotations(target_type, target_id, created_at);
             """))
+        ,new(10, (connection, transaction) => SqliteArchive.Execute(connection, transaction, """
+            CREATE TABLE response_episodes (
+                response_episode_id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL REFERENCES sessions(session_id) ON DELETE RESTRICT,
+                stimulus_evidence_id TEXT NOT NULL REFERENCES evidence_records(evidence_id) ON DELETE RESTRICT,
+                response_evidence_id TEXT NOT NULL REFERENCES evidence_records(evidence_id) ON DELETE RESTRICT,
+                follow_up_evidence_id TEXT NULL REFERENCES evidence_records(evidence_id) ON DELETE RESTRICT,
+                observed_details TEXT NOT NULL,
+                observation_basis TEXT NOT NULL CHECK (observation_basis IN ('direct_response', 'quoted_language', 'tone_observation', 'system_observation', 'ai_interpretation')),
+                created_at TEXT NOT NULL,
+                CHECK (stimulus_evidence_id <> response_evidence_id)
+            );
+            CREATE INDEX ix_response_episodes_session ON response_episodes(session_id, created_at);
+            """))
     ];
 
     internal sealed record Migration(int Version, Action<SqliteConnection, SqliteTransaction> Apply);

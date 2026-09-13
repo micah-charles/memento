@@ -113,6 +113,15 @@ public sealed class AudioCaptureController
     private void OnCaptureError(object? sender, Exception error)
     {
         Failure = error.Message;
+        if (_input is not null)
+        {
+            _input.DataAvailable -= OnDataAvailable;
+            _input.CaptureError -= OnCaptureError;
+            try { _input.Dispose(); } catch { }
+            _input = null;
+        }
+        _writer?.Dispose();
+        _writer = null;
         State = AudioCaptureState.Failed;
     }
 }

@@ -232,3 +232,13 @@ public sealed record ReviewAnnotation(
     string Body,
     string? Assessment,
     DateTimeOffset CreatedAt);
+
+public sealed record ResponseEpisode(
+    string ResponseEpisodeId,
+    string SessionId,
+    string StimulusEvidenceId,
+    string ResponseEvidenceId,
+    string? FollowUpEvidenceId,
+    string ObservedDetails,
+    string ObservationBasis,
+    DateTimeOffset CreatedAt);
