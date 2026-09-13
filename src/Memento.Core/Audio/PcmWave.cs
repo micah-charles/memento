@@ -112,6 +112,21 @@ public sealed class PcmWaveWriter : IDisposable
         }
     }
 
+    /// <summary>
+    /// Moves a successfully finalized file back to its recovery marker when a
+    /// later archive-registration step fails. The bytes remain intact and the
+    /// next recovery scan can surface the asset for review.
+    /// </summary>
+    public void RestoreFinalizedAssetForRecovery()
+    {
+        if (!_closed)
+            throw new InvalidOperationException("The WAV writer must be finalized before restoring an asset for recovery.");
+        if (!File.Exists(_finalPath)) return;
+        if (File.Exists(_temporaryPath))
+            throw new IOException("The recovery marker already exists.");
+        File.Move(_finalPath, _temporaryPath, overwrite: false);
+    }
+
     public void Dispose()
     {
         if (_closed) return;

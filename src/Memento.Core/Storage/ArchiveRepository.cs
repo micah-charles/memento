@@ -47,6 +47,12 @@ public sealed class ArchiveRepository(SqliteArchive archive)
 
     public Turn AddTurn(string sessionId, int sequenceNumber, string speakerType, DateTimeOffset startedAt, DateTimeOffset? endedAt = null, string? turnId = null)
     {
+        if (string.IsNullOrWhiteSpace(speakerType))
+            throw new ArgumentException("A speaker type is required.", nameof(speakerType));
+        if (sequenceNumber < 0)
+            throw new ArgumentOutOfRangeException(nameof(sequenceNumber), "A turn sequence cannot be negative.");
+        if (endedAt is not null && endedAt < startedAt)
+            throw new ArgumentOutOfRangeException(nameof(endedAt), "Turn end cannot precede its start.");
         var turn = new Turn(turnId ?? NewId(), sessionId, sequenceNumber, speakerType, startedAt, endedAt, DateTimeOffset.UtcNow);
         using var connection = archive.OpenConnection();
         using var command = connection.CreateCommand();
@@ -60,6 +66,31 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         command.Parameters.AddWithValue("$created", Format(turn.CreatedAt));
         command.ExecuteNonQuery();
         return turn;
+    }
+
+    public Turn EndTurn(Turn turn, DateTimeOffset? endedAt = null)
+    {
+        var ended = endedAt ?? DateTimeOffset.UtcNow;
+        if (ended < turn.StartedAt)
+            throw new ArgumentOutOfRangeException(nameof(endedAt), "Turn end cannot precede its start.");
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE turns SET ended_at = $ended WHERE turn_id = $id AND session_id = $session";
+        command.Parameters.AddWithValue("$id", turn.TurnId);
+        command.Parameters.AddWithValue("$session", turn.SessionId);
+        command.Parameters.AddWithValue("$ended", Format(ended));
+        if (command.ExecuteNonQuery() != 1) throw new InvalidOperationException("Turn was not found.");
+        return turn with { EndedAt = ended };
+    }
+
+    public int GetNextTurnSequence(string sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId)) throw new ArgumentException("A session ID is required.", nameof(sessionId));
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COALESCE(MAX(sequence_number) + 1, 0) FROM turns WHERE session_id = $session";
+        command.Parameters.AddWithValue("$session", sessionId);
+        return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
     }
 
     public ConsentEvent AddConsent(string sessionId, ConsentScope scope, PrivacyMode privacyMode, bool granted, string noticeVersion, string? personId = null, DateTimeOffset? occurredAt = null, string? consentEventId = null)

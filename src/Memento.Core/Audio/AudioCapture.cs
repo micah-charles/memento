@@ -97,20 +97,25 @@ public sealed class AudioCaptureController
             throw;
         }
         _input = null;
+        var writer = _writer!;
+        FinalizedAudioAsset? asset = null;
         try
         {
-            var asset = _writer.FinalizeAsset();
-            _writer.Dispose();
-            _writer = null;
+            asset = writer.FinalizeAsset();
+            writer.Dispose();
             var source = new SourceMetadata(asset.SourceId, "audio", _sessionId, _turnId, asset.FilePath, "PCM WAV", asset.Format.SampleRate, asset.Format.Channels, asset.Format.BitsPerSample, asset.ByteLength, asset.DurationMs, asset.Sha256, asset.StartedAt, asset.FinalizedAt, "finalized", DateTimeOffset.UtcNow);
             _repository.AddSource(source);
+            _writer = null;
             State = AudioCaptureState.Finalized;
             return source;
         }
         catch (Exception error)
         {
-            var writer = _writer;
             _writer = null;
+            if (asset is not null)
+            {
+                try { writer.RestoreFinalizedAssetForRecovery(); } catch { }
+            }
             try { writer?.Dispose(); } catch { }
             FailCapture(error);
             throw;

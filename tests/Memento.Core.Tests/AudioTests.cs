@@ -174,7 +174,7 @@ public sealed class AudioTests
     }
 
     [Fact]
-    public void Source_registration_failure_marks_capture_failed_after_finalization()
+    public void Source_registration_failure_marks_capture_failed_and_preserves_finalized_audio_for_recovery()
     {
         using var fixture = new AudioFixture();
         var archive = new SqliteArchive(fixture.DatabasePath);
@@ -192,7 +192,9 @@ public sealed class AudioTests
 
         Assert.Equal(AudioCaptureState.Failed, controller.State);
         Assert.NotNull(raised);
-        Assert.Empty(AudioRecoveryScanner.Scan(fixture.AudioRoot));
+        var recovered = Assert.Single(AudioRecoveryScanner.Scan(fixture.AudioRoot));
+        Assert.True(recovered.IsValidPcm);
+        Assert.True(recovered.ByteLength >= 44);
     }
 
     [Fact]

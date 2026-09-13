@@ -110,6 +110,36 @@ public sealed class ArchiveTests
     }
 
     [Fact]
+    public void Turn_lifecycle_and_sequence_are_persisted()
+    {
+        using var fixture = new ArchiveFixture();
+        var started = DateTimeOffset.Parse("2026-09-13T09:00:00Z");
+        string sessionId;
+        using (var archive = new SqliteArchive(fixture.DatabasePath))
+        {
+            archive.Initialize();
+            var repository = new ArchiveRepository(archive);
+            var session = repository.AddSession(started, PrivacyMode.LocalCaptureOnly);
+            sessionId = session.SessionId;
+
+            Assert.Equal(0, repository.GetNextTurnSequence(session.SessionId));
+            var turn = repository.AddTurn(session.SessionId, repository.GetNextTurnSequence(session.SessionId), "participant", started);
+            Assert.Equal(1, repository.GetNextTurnSequence(session.SessionId));
+
+            var ended = repository.EndTurn(turn, started.AddMinutes(1));
+
+            Assert.Equal(started.AddMinutes(1), ended.EndedAt);
+            Assert.Equal(1, repository.GetNextTurnSequence(session.SessionId));
+            Assert.Throws<ArgumentOutOfRangeException>(() => repository.EndTurn(turn, started.AddSeconds(-1)));
+        }
+
+        using var reopened = new SqliteArchive(fixture.DatabasePath);
+        reopened.Initialize();
+        var reopenedRepository = new ArchiveRepository(reopened);
+        Assert.Equal(1, reopenedRepository.GetNextTurnSequence(sessionId));
+    }
+
+    [Fact]
     public void Recording_setting_defaults_enabled_and_persists_disable()
     {
         using var fixture = new ArchiveFixture();

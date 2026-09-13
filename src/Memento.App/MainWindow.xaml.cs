@@ -30,6 +30,7 @@ public sealed partial class MainWindow : Window
     private readonly Func<bool>? _credentialAvailable;
     private AudioCaptureController? _capture;
     private Session? _session;
+    private Turn? _turn;
     private SourceMetadata? _lastSource;
     private DerivedSpeechAsset? _latestSpeechAsset;
     private bool _processing;
@@ -118,11 +119,20 @@ public sealed partial class MainWindow : Window
 
     private void RecordButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_capture?.State != AudioCaptureState.Capturing && ConsentCheckBox.IsChecked != true)
+        {
+            StatusText.Text = "請先同意本機錄音。";
+            UpdateRecordControl();
+            return;
+        }
+
         if (_capture?.State == AudioCaptureState.Capturing)
         {
             try
             {
                 _lastSource = _capture.Stop();
+                if (_turn is not null)
+                    _turn = _repository.EndTurn(_turn, _lastSource.FinalizedAt ?? DateTimeOffset.UtcNow);
                 if (_session is not null)
                     _session = _repository.EndSession(_session);
                 StatusText.Text = "已儲存本機錄音 · Local archive";
@@ -134,6 +144,7 @@ public sealed partial class MainWindow : Window
                 {
                     try { _session = _repository.EndSession(_session); } catch { }
                 }
+                EndActiveTurnSafely();
             }
             finally
             {
@@ -150,13 +161,15 @@ public sealed partial class MainWindow : Window
         try
         {
             var privacyMode = CloudConsentCheckBox.IsChecked == true ? PrivacyMode.Normal : PrivacyMode.LocalCaptureOnly;
-            _session = _repository.AddSession(DateTimeOffset.UtcNow, privacyMode);
+            var startedAt = DateTimeOffset.UtcNow;
+            _session = _repository.AddSession(startedAt, privacyMode);
+            _turn = _repository.AddTurn(_session.SessionId, _repository.GetNextTurnSequence(_session.SessionId), "participant", startedAt);
             _repository.AddConsent(_session.SessionId, ConsentScope.LocalCapture, privacyMode, true, "privacy-1");
             if (privacyMode != PrivacyMode.LocalCaptureOnly)
                 _repository.AddConsent(_session.SessionId, ConsentScope.CloudTranscription, privacyMode, true, "privacy-1");
             _capture = new AudioCaptureController(_repository, _audioRoot);
             _capture.CaptureFailed += CaptureFailed;
-            _capture.Start(_session.SessionId, null, ConsentCheckBox.IsChecked == true, format => new WaveInAudioInput(format));
+            _capture.Start(_session.SessionId, _turn.TurnId, ConsentCheckBox.IsChecked == true, format => new WaveInAudioInput(format), startedAt);
             StatusText.Text = privacyMode == PrivacyMode.LocalCaptureOnly ? "Listening… 本機錄音中（只保留本機）" : "Listening… 本機錄音中（已同意完成後雲端處理）";
             RecordButton.Content = "停止錄音";
             ConsentCheckBox.IsEnabled = false;
@@ -171,7 +184,10 @@ public sealed partial class MainWindow : Window
         {
             StatusText.Text = "無法使用咪高風，請檢查 Windows 權限或接駁。";
             if (_session is not null && _session.EndedAt is null)
-                _session = _repository.EndSession(_session);
+            {
+                try { _session = _repository.EndSession(_session); } catch { }
+            }
+            EndActiveTurnSafely();
             RecordButton.Content = "開始錄音";
             ConsentCheckBox.IsEnabled = true;
             CloudConsentCheckBox.IsEnabled = true;
@@ -682,8 +698,11 @@ public sealed partial class MainWindow : Window
         if (_capture?.State == AudioCaptureState.Capturing)
         {
             _capture.AbortForRecovery();
+            EndActiveTurnSafely();
             if (_session is not null)
-                _session = _repository.EndSession(_session);
+            {
+                try { _session = _repository.EndSession(_session); } catch { }
+            }
         }
     }
 
@@ -692,7 +711,10 @@ public sealed partial class MainWindow : Window
         _dispatcherQueue.TryEnqueue(() =>
         {
             if (_session is not null && _session.EndedAt is null)
-                _session = _repository.EndSession(_session);
+            {
+                try { _session = _repository.EndSession(_session); } catch { }
+            }
+            EndActiveTurnSafely();
             StatusText.Text = "錄音中斷，已保留暫存檔；請檢查咪高風或 Windows 權限。";
             RecordButton.Content = "開始錄音";
             ConsentCheckBox.IsEnabled = true;
@@ -716,6 +738,19 @@ public sealed partial class MainWindow : Window
         ExportButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
         BackupButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
         RestoreButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
+    }
+
+    private void EndActiveTurnSafely()
+    {
+        if (_turn is null || _turn.EndedAt is not null) return;
+        try
+        {
+            _turn = _repository.EndTurn(_turn);
+        }
+        catch
+        {
+            // Keep the capture/recovery path alive if the best-effort turn close fails.
+        }
     }
 
     private void StartRetryWorkerIfAvailable()
