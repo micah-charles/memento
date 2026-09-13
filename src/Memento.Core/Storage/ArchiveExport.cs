@@ -287,6 +287,8 @@ public static class ArchiveBackupProtector
         try
         {
             var report = DecryptDirectory(sourcePath, temporaryDirectory, oldPassword);
+            if (!report.IntegrityOk)
+                throw new InvalidDataException("The existing backup failed manifest verification and cannot be re-encrypted.");
             EncryptDirectory(temporaryDirectory, destinationPath, newPassword);
             return report;
         }
