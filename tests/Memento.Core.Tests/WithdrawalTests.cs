@@ -3,6 +3,7 @@ using Microsoft.Data.Sqlite;
 using Memento.Core.Admin;
 using Memento.Core.Conversation;
 using Memento.Core.Domain;
+using Memento.Core.Memory;
 using Memento.Core.Storage;
 
 namespace Memento.Core.Tests;
@@ -44,9 +45,12 @@ public sealed class WithdrawalTests
         var search = new ArchiveSearchService(archive);
         Assert.Empty(search.Search("魚蛋"));
         Assert.Empty(search.Search("fish balls"));
+        Assert.Empty(new FamilyAdminReviewService(repository, new FixedTestAdminAuthorizer("admin-1")).ListCandidates("admin-1"));
         var writer = new ConversationSessionWriter(repository);
         Assert.Throws<CloudNotPermittedException>(() => writer.QueueTranscription(session, null, source));
         Assert.Null(writer.QueueExtractionIfNeeded(session.SessionId, null, source.SourceId, revision.TranscriptRevisionId));
+        Assert.Throws<CloudNotPermittedException>(() => new MemoryExtractionService(repository, new DeterministicMemoryExtractionProvider()).ExtractAndPersist(session, source, revision));
+        await Assert.ThrowsAsync<CloudNotPermittedException>(() => new AsyncMemoryExtractionService(repository, new FailingExtractionProvider()).ExtractAndPersistAsync(session, source, revision));
         using (var jobConnection = archive.OpenConnection())
         using (var jobCommand = jobConnection.CreateCommand())
         {
@@ -56,7 +60,7 @@ public sealed class WithdrawalTests
         var transcriptionJob = new ConversationJob("transcription-withdrawal", session.SessionId, null, source.SourceId, "durable_transcription", ConversationJobStatus.Pending, 0, DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
         await Assert.ThrowsAsync<CloudNotPermittedException>(() => new DurableTranscriptionJobProcessor(repository, new FailingTranscriptionProvider()).ProcessAsync(transcriptionJob));
         var extractionJob = new ConversationJob("extraction-withdrawal", session.SessionId, null, source.SourceId, "durable_extraction", ConversationJobStatus.Pending, 0, DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, revision.TranscriptRevisionId);
-        await Assert.ThrowsAsync<CloudNotPermittedException>(() => new Memento.Core.Memory.DurableMemoryExtractionJobProcessor(repository, new FailingExtractionProvider()).ProcessAsync(extractionJob));
+        await Assert.ThrowsAsync<CloudNotPermittedException>(() => new DurableMemoryExtractionJobProcessor(repository, new FailingExtractionProvider()).ProcessAsync(extractionJob));
         var responseJob = new ConversationJob("response-withdrawal", session.SessionId, null, source.SourceId, "durable_response", ConversationJobStatus.Pending, 0, DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
         await Assert.ThrowsAsync<CloudNotPermittedException>(() => new DurableResponseJobProcessor(repository, new DeterministicConversationProvider()).ProcessAsync(responseJob));
 

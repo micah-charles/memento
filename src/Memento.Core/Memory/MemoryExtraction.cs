@@ -1,3 +1,4 @@
+using Memento.Core.Conversation;
 using Memento.Core.Domain;
 using Memento.Core.Storage;
 
@@ -54,7 +55,14 @@ public sealed class MemoryExtractionService
     {
         if (revision.SourceId != source.SourceId) throw new InvalidOperationException("Transcript revision and Source do not match.");
         if (source.SessionId != session.SessionId) throw new InvalidOperationException("Source and session do not match.");
+        EnsureSourceAvailable(source);
         return MemoryExtractionPersistence.Persist(_repository, _provider.Provider, _provider.Model, session, source, revision, _provider.Extract(revision));
+    }
+
+    private void EnsureSourceAvailable(SourceMetadata source)
+    {
+        if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) || string.Equals(_repository.GetSource(source.SourceId)?.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
+            throw new CloudNotPermittedException();
     }
 }
 
@@ -73,6 +81,8 @@ public sealed class AsyncMemoryExtractionService
     {
         if (revision.SourceId != source.SourceId) throw new InvalidOperationException("Transcript revision and Source do not match.");
         if (source.SessionId != session.SessionId) throw new InvalidOperationException("Source and session do not match.");
+        if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) || string.Equals(_repository.GetSource(source.SourceId)?.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
+            throw new CloudNotPermittedException();
         var candidates = await _provider.ExtractAsync(revision, cancellationToken).ConfigureAwait(false);
         return MemoryExtractionPersistence.Persist(_repository, _provider.Provider, _provider.Model, session, source, revision, candidates);
     }
