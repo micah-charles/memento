@@ -32,12 +32,15 @@ if ($null -ne $running) {
 
 $temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('memento-install-' + [Guid]::NewGuid().ToString('N'))
 $installParent = Split-Path -Parent $InstallRoot
+$installParent = [System.IO.Path]::GetFullPath($installParent)
 $stagingRoot = Join-Path $installParent ('.App-staging-' + [Guid]::NewGuid().ToString('N'))
 $previousRoot = Join-Path $installParent ('.App-previous-' + [Guid]::NewGuid().ToString('N'))
+$failedRoot = Join-Path $installParent ('.App-failed-' + [Guid]::NewGuid().ToString('N'))
 $swapped = $false
 $shortcutDirectory = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs\MEMENTO'
 $shortcutPath = Join-Path $shortcutDirectory 'MEMENTO.lnk'
 try {
+    New-Item -ItemType Directory -Force -Path $installParent | Out-Null
     Expand-Archive -LiteralPath $BundlePath -DestinationPath $temporaryRoot -Force
     $executable = Join-Path $temporaryRoot 'Memento.App.exe'
     if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) { throw 'The bundle does not contain Memento.App.exe.' }
@@ -66,13 +69,25 @@ try {
     Write-Output "Start Menu shortcut: $shortcutPath"
 }
 catch {
-    if (-not $swapped -and (Test-Path -LiteralPath $previousRoot) -and -not (Test-Path -LiteralPath $InstallRoot)) {
+    $failure = $_
+    if ($swapped) {
+        # A post-swap failure (for example, Start Menu shortcut creation) must
+        # leave the previous install available at the original path. The
+        # shortcut also targets that stable path, so restoring the tree keeps
+        # an existing shortcut usable.
+        if (Test-Path -LiteralPath $InstallRoot) {
+            Move-Item -LiteralPath $InstallRoot -Destination $failedRoot -Force
+        }
+        $swapped = $false
+    }
+    if ((Test-Path -LiteralPath $previousRoot) -and -not (Test-Path -LiteralPath $InstallRoot)) {
         Move-Item -LiteralPath $previousRoot -Destination $InstallRoot
     }
-    throw
+    throw $failure
 }
 finally {
     if (Test-Path -LiteralPath $temporaryRoot) { Remove-Item -LiteralPath $temporaryRoot -Recurse -Force }
     if (Test-Path -LiteralPath $stagingRoot) { Remove-Item -LiteralPath $stagingRoot -Recurse -Force }
     if ($swapped -and (Test-Path -LiteralPath $previousRoot)) { Remove-Item -LiteralPath $previousRoot -Recurse -Force }
+    if (Test-Path -LiteralPath $failedRoot) { Remove-Item -LiteralPath $failedRoot -Recurse -Force }
 }
