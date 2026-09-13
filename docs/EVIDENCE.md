@@ -86,6 +86,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 ## M01 implementation evidence — 2026-09-13
 
 - A minimal WinUI 3 app and local SQLite core were added under `src/` with five automated tests under `tests/Memento.Core.Tests`.
+- Every archive connection enables foreign keys, a 5-second busy timeout, WAL journaling, and `synchronous=FULL`; connection-level assertions cover these durability settings.
 - `dotnet build Memento.slnx --configuration Release --no-restore` passed with 0 warnings and 0 errors.
 - `dotnet test Memento.slnx --configuration Release --no-restore` passed 5/5 tests.
 - `dotnet list tests/Memento.Core.Tests/Memento.Core.Tests.csproj package --vulnerable --include-transitive` reported no vulnerable packages after the native SQLite provider pin.
@@ -150,7 +151,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - Family Admin now has explicit confirmation flows for deleting the latest finalized Source and withdrawing it from future cloud processing. Deletion records a minimal tombstone and reports media-removal failures; withdrawal retains local history/media and writes an attributed annotation while filtering future processing, search, and default exports.
 - `dotnet test tests/Memento.Core.Tests/Memento.Core.Tests.csproj --configuration Release` passed **68/68**; full solution build passed with 0 warnings and 0 errors; the NuGet vulnerability scan reported no vulnerable packages.
 - Gate status: **IMPLEMENTED / AUTOMATED TESTED**. Live search, real OS authentication, target-machine restore, and destructive reliability testing remain unverified.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Publish-Memento.ps1` completed successfully and produced the ignored local bundle `artifacts/MEMENTO-win-x64.zip` (109,548,672 bytes at the time of verification). The bundle is self-contained and portable; it is not a signed installer. Its SHA-256 sidecar was verified as `c1339aafd59b5fd7e3214005394c123c9cc3f9ebb2c3ab04571bf00a91f9dd8f`.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Publish-Memento.ps1` completed successfully and produced the ignored local bundle `artifacts/MEMENTO-win-x64.zip` (109,548,716 bytes at the time of verification). The bundle is self-contained and portable; it is not a signed installer. Its SHA-256 sidecar was verified as `83c95eec556d9a0575e4db0985b670cc22b04477b7f1b3fe348a5d3ae6ef11ba`.
 - `powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Start-Memento.ps1` was smoke-tested against the published executable: MEMENTO remained running after 5 seconds and was then stopped cleanly. This verifies process launch only, not native-window visual content or microphone behaviour.
 - The installer script was parser-checked and its checksum preflight was exercised against the published zip/sidecar; a mismatched sidecar now stops installation before extraction.
 - After the capture-failure session fix, the regenerated bundle was launch-smoke-tested again: MEMENTO remained running after 5 seconds and stopped cleanly.

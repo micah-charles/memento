@@ -39,6 +39,7 @@
 ## M01 implementation attempt — 2026-09-13
 
 - Implemented a minimal WinUI 3 shell and a local SQLite archive foundation in `src/Memento.App` and `src/Memento.Core`.
+- SQLite connections now use WAL, a 5-second busy timeout, and `synchronous=FULL` to improve concurrent-write and power-loss behavior.
 - Added five automated tests for migration, restart persistence, foreign keys, source metadata, relationships, and integrity.
 - Solution build succeeded and vulnerability scan is clean after pinning the SQLite native provider to 2.1.13.
 - M01 is **BLOCKED**, not passed: the current execution surface cannot visually inspect a native Windows window or prove clean-install/manual shell behaviour. See [M01 evidence](evidence/M01.md).
