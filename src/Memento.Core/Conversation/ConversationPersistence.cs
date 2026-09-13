@@ -27,6 +27,8 @@ public sealed class ConversationSessionWriter
 
     public ConversationJob? QueueExtractionIfNeeded(string sessionId, string? turnId, string sourceId, string transcriptRevisionId, DateTimeOffset? now = null)
     {
+        var session = _repository.GetSession(sessionId) ?? throw new InvalidDataException("The extraction session was not found.");
+        if (CloudNotPermittedException.IsBlocked(session.PrivacyMode)) return null;
         if (string.Equals(_repository.GetSource(sourceId)?.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase)) return null;
         if (_repository.HasActiveConversationJob(sessionId, sourceId, "durable_extraction", transcriptRevisionId)) return null;
         var timestamp = now ?? DateTimeOffset.UtcNow;

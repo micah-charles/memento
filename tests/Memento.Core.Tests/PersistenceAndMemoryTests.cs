@@ -139,6 +139,22 @@ public sealed class PersistenceAndMemoryTests
     }
 
     [Fact]
+    public void Private_conversation_does_not_queue_automatic_extraction()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.PrivateConversation);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-private-queue"));
+        var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-private-queue", source.SourceId, null, 1, "initial", "private transcript", 1, null, DateTimeOffset.UtcNow));
+
+        var job = new ConversationSessionWriter(repository).QueueExtractionIfNeeded(session.SessionId, null, source.SourceId, revision.TranscriptRevisionId);
+
+        Assert.Null(job);
+        Assert.Empty(repository.ListRetryableConversationJobs(DateTimeOffset.UtcNow.AddMinutes(1)));
+    }
+
+    [Fact]
     public async Task Durable_transcription_processor_persists_one_initial_revision_and_is_idempotent()
     {
         using var fixture = new PersistenceFixture();
