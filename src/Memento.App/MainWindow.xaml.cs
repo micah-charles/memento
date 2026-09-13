@@ -32,7 +32,11 @@ public sealed partial class MainWindow : Window
     }
 
     private void ConsentChanged(object sender, RoutedEventArgs e)
-        => UpdateRecordControl();
+    {
+        UpdateRecordControl();
+        if (_session is not null && ConsentCheckBox.IsChecked != true)
+            _repository.AddConsent(_session.SessionId, ConsentScope.LocalCapture, PrivacyMode.LocalCaptureOnly, false, "privacy-1");
+    }
 
     private void RecordingEnabledChanged(object sender, RoutedEventArgs e)
     {
@@ -88,6 +92,8 @@ public sealed partial class MainWindow : Window
         catch (Exception error)
         {
             StatusText.Text = $"無法使用咪高風：{error.Message}";
+            if (_session is not null && _session.EndedAt is null)
+                _session = _repository.EndSession(_session);
             RecordButton.Content = "開始錄音";
             ConsentCheckBox.IsEnabled = true;
             RecordingEnabledCheckBox.IsEnabled = true;
