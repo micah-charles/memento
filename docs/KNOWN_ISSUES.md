@@ -28,6 +28,7 @@ These are deliberately visible. They are not reasons to invent a confident answe
 | K-020 | M11's authorizer is an interface plus fixed test implementation; Windows account/credential-backed admin authentication and UI review are not implemented. | High: family review and export are privileged operations. | Integrate OS-backed authentication and supervised Family Admin UX. |
 | K-021 | M12 backup encryption is implemented with password-derived AES-GCM, but key recovery, rotation, restore of media, and target-machine power-loss testing remain open. | High: an unrecoverable password or partial backup can harm a decades-long archive. | Define family-owned key recovery and run restore/power-loss drills before pilot. |
 | K-022 | The optional OpenAI adapter supports completed-audio transcription, but a realtime spoken-response transport and secure client-token broker are still not implemented. | High: a true bounded voice conversation cannot yet be claimed. | Add a reviewed realtime adapter/broker or choose a turn-based response path and test it with explicit cloud consent. |
+| K-023 | The current project is deliberately configured as unpackaged (`WindowsPackageType=None`); enabling `GenerateAppxPackageOnBuild` without a package manifest fails configuration validation. | Medium: direct development launch works, but Start Menu/uninstall/package identity are not shipped. | Choose a publisher identity/certificate and add a separately verified MSIX packaging project. |
 
 ## M00 limitations
 
