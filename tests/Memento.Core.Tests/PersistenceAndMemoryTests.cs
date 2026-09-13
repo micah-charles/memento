@@ -49,6 +49,30 @@ public sealed class PersistenceAndMemoryTests
     }
 
     [Fact]
+    public async Task Worker_reports_each_bounded_pass_before_waiting()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-progress"));
+        new ConversationSessionWriter(repository).QueueTranscription(session, null, source, DateTimeOffset.UtcNow);
+        using var cancellation = new CancellationTokenSource();
+        var reported = new TaskCompletionSource<ConversationWorkerRunResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var worker = new ConversationJobWorker(repository, new RecordingJobProcessor());
+        var run = worker.RunUntilCancelledAsync(TimeSpan.FromHours(1), cancellation.Token, new Progress<ConversationWorkerRunResult>(result =>
+        {
+            reported.TrySetResult(result);
+            cancellation.Cancel();
+        }));
+
+        var result = await reported.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+        Assert.Equal(1, result.Examined);
+        Assert.Equal(1, result.Succeeded);
+    }
+
+    [Fact]
     public async Task Composite_job_processor_routes_transcription_and_response_jobs()
     {
         var transcription = new RecordingJobProcessor();
