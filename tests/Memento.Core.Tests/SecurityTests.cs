@@ -13,4 +13,11 @@ public sealed class SecurityTests
         var provider = new WindowsCredentialProvider("MEMENTO/test");
         Assert.Equal("MEMENTO/test", provider.TargetName);
     }
+
+    [Fact]
+    public void Windows_admin_authorizer_rejects_an_empty_actor_without_identity_access()
+    {
+        var authorizer = new WindowsAdministratorAuthorizer();
+        Assert.False(authorizer.IsAuthorized(""));
+    }
 }
