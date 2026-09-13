@@ -45,6 +45,7 @@ public sealed class ConversationJobWorker
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
+                _writer.MarkFailed(processing, "worker cancelled before completion", clock, clock);
                 throw;
             }
             catch (Exception error)
