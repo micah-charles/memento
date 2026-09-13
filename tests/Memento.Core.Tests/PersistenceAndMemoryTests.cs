@@ -72,6 +72,30 @@ public sealed class PersistenceAndMemoryTests
     }
 
     [Fact]
+    public async Task Durable_response_processor_reuses_persisted_transcript_and_requires_consent()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        var sourcePath = Path.Combine(fixture.DirectoryPath, "response-source.wav");
+        File.WriteAllBytes(sourcePath, [1, 2]);
+        var source = repository.AddSource(new SourceMetadata("source-response-worker", "audio", session.SessionId, null, sourcePath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        repository.AddTranscriptRevision(new TranscriptRevision("revision-response-worker", source.SourceId, null, 1, "initial", "synthetic persisted transcript", 1, null, DateTimeOffset.UtcNow));
+        var job = new ConversationJob("job-response-worker", session.SessionId, null, source.SourceId, "durable_response", ConversationJobStatus.Failed, 0, DateTimeOffset.UtcNow, "temporary provider failure", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var processor = new DurableResponseJobProcessor(repository, new DeterministicConversationProvider());
+
+        await processor.ProcessAsync(job);
+
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM provider_interactions WHERE session_id = $session AND capability = 'conversation' AND succeeded = 1";
+        command.Parameters.AddWithValue("$session", session.SessionId);
+        Assert.Equal(1L, Convert.ToInt64(command.ExecuteScalar()));
+    }
+
+    [Fact]
     public void Candidate_extraction_keeps_evidence_claim_and_link_separate()
     {
         using var fixture = new PersistenceFixture();

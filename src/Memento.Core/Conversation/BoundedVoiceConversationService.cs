@@ -59,6 +59,11 @@ public sealed class BoundedVoiceConversationService
 
         var responseRequest = request with { TranscriptText = transcript.Text };
         var conversation = await _conversation.ExecuteAsync(responseRequest, cancellationToken).ConfigureAwait(false);
+        if (conversation.Response is null && request.SourceId is not null && conversation.Interaction is not null && IsRetryableProviderFailure(conversation.Interaction.ErrorCode))
+        {
+            var retryAt = DateTimeOffset.UtcNow.AddSeconds(30);
+            _repository.AddConversationJob(new ConversationJob(Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, request.SourceId, "durable_response", ConversationJobStatus.Failed, 0, retryAt, "conversation provider unavailable: " + conversation.Interaction.ErrorCode, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+        }
         SpeechOutputResult? speech = null;
         DerivedSpeechAsset? speechAsset = null;
         if (_speechOutput is not null && conversation.Response is not null)
@@ -92,4 +97,7 @@ public sealed class BoundedVoiceConversationService
 
     private static bool IsRetryableProviderFailure(Exception error)
         => error is ProviderRequestException or HttpRequestException or TaskCanceledException;
+
+    private static bool IsRetryableProviderFailure(string? errorCode)
+        => string.Equals(errorCode, nameof(ProviderRequestException), StringComparison.Ordinal) || string.Equals(errorCode, nameof(HttpRequestException), StringComparison.Ordinal) || string.Equals(errorCode, nameof(TaskCanceledException), StringComparison.Ordinal);
 }

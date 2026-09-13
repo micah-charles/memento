@@ -79,6 +79,17 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return consent;
     }
 
+    public bool HasGrantedConsent(string sessionId, ConsentScope scope)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT granted FROM consent_events WHERE session_id = $session AND scope = $scope ORDER BY occurred_at DESC, created_at DESC LIMIT 1";
+        command.Parameters.AddWithValue("$session", sessionId);
+        command.Parameters.AddWithValue("$scope", scope.ToString());
+        var value = command.ExecuteScalar();
+        return value is not null && Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture) == 1;
+    }
+
     public SourceMetadata AddSource(SourceMetadata source)
     {
         using var connection = archive.OpenConnection();

@@ -196,6 +196,27 @@ public sealed class ConversationTests
     }
 
     [Fact]
+    public async Task Retryable_response_failure_queues_a_durable_response_job_after_transcript_persistence()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        File.WriteAllBytes(fixture.AudioPath, [1, 2]);
+        var source = repository.AddSource(new SourceMetadata("source-response-retry", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        var service = new BoundedVoiceConversationService(repository, new InlineTranscriptionProvider(), new FailingResponseProvider());
+
+        var result = await service.ExecuteAsync(new ConversationRequest(session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, SourceId: source.SourceId));
+
+        Assert.Null(result.Conversation.Response);
+        var job = Assert.Single(repository.ListRetryableConversationJobs(DateTimeOffset.UtcNow.AddMinutes(1)));
+        Assert.Equal("durable_response", job.JobType);
+        Assert.Single(repository.ListTranscriptRevisions(source.SourceId));
+    }
+
+    [Fact]
     public async Task OpenAi_speech_adapter_returns_derived_audio_bytes_without_archive_side_effects()
     {
         var handler = new SpeechHttpHandler();
@@ -250,6 +271,14 @@ public sealed class ConversationTests
         public string Model => "failing-v1";
         public Task<ConversationResponse> SendAsync(ConversationRequest request, CancellationToken cancellationToken = default)
             => throw new ProviderUnavailableException();
+    }
+
+    private sealed class FailingResponseProvider : IConversationProvider
+    {
+        public string Provider => "failing-response";
+        public string Model => "failing-response-v1";
+        public Task<ConversationResponse> SendAsync(ConversationRequest request, CancellationToken cancellationToken = default)
+            => throw new ProviderRequestException("simulated response network failure", 503);
     }
 
     private sealed class ProviderUnavailableException() : InvalidOperationException;
