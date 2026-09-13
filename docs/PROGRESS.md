@@ -81,7 +81,7 @@
 
 ## M06–M09 implementation attempt — 2026-09-13
 
-- M06 added durable `conversation_jobs` with pending/processing/succeeded/failed states, attempt counts, retry timestamps, and error metadata. `ConversationSessionWriter` maps the continuous session UX onto durable sessions, turns, local Sources, and retryable work; when a credential is available, the app starts the routed background worker at launch and keeps it cancellable with the window lifetime.
+- M06 added durable `conversation_jobs` with pending/processing/succeeded/failed states, attempt counts, retry timestamps, and error metadata. `ConversationSessionWriter` maps the continuous session UX onto durable sessions, turns, local Sources, and retryable work; retries re-check cloud consent and policy-blocked jobs become terminal failures instead of looping. When a credential is available, the app starts the routed background worker at launch and keeps it cancellable with the window lifetime.
 - M07 added candidate `EvidenceRecord`, `MemoryClaim`, and explicit `EvidenceClaimLink` records. Evidence now carries optional audio spans and extraction provider/model metadata; `MemoryExtractionService` uses a deterministic provider boundary and never promotes candidates beyond `candidate` status.
 - M08 added `ProvenanceGraph.Validate`, which checks Source → transcript revision → Evidence → Claim links, allowed relationships, blocks an unconfirmed AI inference from silently becoming a reviewed claim, and validates observed Response Episodes from stimulus/response Evidence.
 - M09 added person entities, speaker-confirmed aliases, and Evidence-to-entity links. Alias history is additive and does not rewrite transcript or Source records.
@@ -94,7 +94,7 @@
 - Added a Windows-only `WindowsAdministratorAuthorizer` that binds the actor ID to the current account and requires the Windows Administrators role; the fixed authorizer remains test-only and no automatic family allowlist is inferred. The WinUI shell now exposes a simple candidate review dialog with attributed support/rejection actions.
 - M12 added self-contained JSONL table exports, an SQLite snapshot, optional media copies, per-file SHA-256 manifest entries, and password-based AES-GCM backup/restore.
 - M13 added an archive health check for SQLite integrity, schema version, recoverable audio, due conversation jobs, and tampered/missing finalized source or derived speech assets; security scans and package vulnerability checks remain clean.
-- The cumulative suite now passes **49/49** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
+- The cumulative suite now passes **51/51** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
 
 ## M14 status
 

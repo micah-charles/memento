@@ -71,6 +71,7 @@ public sealed class PersistenceAndMemoryTests
         using var archive = fixture.CreateArchive();
         var repository = new ArchiveRepository(archive);
         var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
         var sourcePath = Path.Combine(fixture.DirectoryPath, "source.wav");
         File.WriteAllBytes(sourcePath, [1, 2]);
         var source = repository.AddSource(new SourceMetadata("source-transcription", "audio", session.SessionId, null, sourcePath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
@@ -85,6 +86,44 @@ public sealed class PersistenceAndMemoryTests
         var revisions = repository.ListTranscriptRevisions(source.SourceId);
         Assert.Single(revisions);
         Assert.Equal("synthetic transcript", revisions[0].Text);
+    }
+
+    [Fact]
+    public async Task Durable_transcription_processor_rechecks_cloud_consent_before_upload()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, false, "privacy-1");
+        var sourcePath = Path.Combine(fixture.DirectoryPath, "revoked-source.wav");
+        File.WriteAllBytes(sourcePath, [1, 2]);
+        var source = repository.AddSource(new SourceMetadata("source-revoked", "audio", session.SessionId, null, sourcePath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        var job = new ConversationSessionWriter(repository).QueueTranscription(session, null, source);
+        var provider = new FakeTranscriptionProvider();
+
+        await Assert.ThrowsAsync<CloudNotPermittedException>(() => new DurableTranscriptionJobProcessor(repository, provider).ProcessAsync(job));
+
+        Assert.Equal(0, provider.Calls);
+    }
+
+    [Fact]
+    public async Task Worker_does_not_retry_policy_blocked_jobs()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-policy"));
+        var job = new ConversationSessionWriter(repository).QueueTranscription(session, null, source, DateTimeOffset.Parse("2026-09-13T10:00:00Z"));
+        var worker = new ConversationJobWorker(repository, new PolicyBlockedProcessor());
+
+        var first = await worker.RunOnceAsync(DateTimeOffset.Parse("2026-09-13T10:00:01Z"));
+        var second = await worker.RunOnceAsync(DateTimeOffset.Parse("2026-09-13T11:00:00Z"));
+
+        Assert.Equal(1, first.Failed);
+        Assert.Equal(0, second.Examined);
+        Assert.Empty(repository.ListRetryableConversationJobs(DateTimeOffset.Parse("2026-09-14T10:00:00Z")));
     }
 
     [Fact]
@@ -213,6 +252,12 @@ public sealed class PersistenceAndMemoryTests
             Calls++;
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class PolicyBlockedProcessor : IConversationJobProcessor
+    {
+        public Task ProcessAsync(ConversationJob job, CancellationToken cancellationToken = default)
+            => throw new CloudNotPermittedException();
     }
 
     private sealed class FakeTranscriptionProvider : ITranscriptionProvider

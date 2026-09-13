@@ -333,7 +333,7 @@ public sealed class ArchiveRepository(SqliteArchive archive)
     {
         using var connection = archive.OpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT conversation_job_id, session_id, turn_id, source_id, job_type, status, attempt_count, next_attempt_at, last_error, created_at, updated_at FROM conversation_jobs WHERE status IN ('Pending', 'Failed') AND (next_attempt_at IS NULL OR next_attempt_at <= $now) ORDER BY created_at";
+        command.CommandText = "SELECT conversation_job_id, session_id, turn_id, source_id, job_type, status, attempt_count, next_attempt_at, last_error, created_at, updated_at FROM conversation_jobs WHERE (status = 'Pending' AND (next_attempt_at IS NULL OR next_attempt_at <= $now)) OR (status = 'Failed' AND next_attempt_at IS NOT NULL AND next_attempt_at <= $now) ORDER BY created_at";
         command.Parameters.AddWithValue("$now", Format(now));
         using var reader = command.ExecuteReader();
         var jobs = new List<ConversationJob>();

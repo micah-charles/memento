@@ -20,6 +20,9 @@ public sealed class DurableTranscriptionJobProcessor : IConversationJobProcessor
     public async Task ProcessAsync(ConversationJob job, CancellationToken cancellationToken = default)
     {
         if (job.JobType != "durable_transcription") throw new InvalidOperationException($"Unsupported conversation job type: {job.JobType}");
+        var session = _repository.GetSession(job.SessionId) ?? throw new InvalidOperationException("The queued session was not found.");
+        if (session.PrivacyMode == PrivacyMode.LocalCaptureOnly || !_repository.HasGrantedConsent(job.SessionId, ConsentScope.CloudTranscription))
+            throw new CloudNotPermittedException();
         if (_repository.ListTranscriptRevisions(job.SourceId).Count > 0) return;
         var sourcePath = _repository.GetSourceFilePath(job.SourceId);
         if (string.IsNullOrWhiteSpace(sourcePath)) throw new FileNotFoundException("The queued Source has no local file path.", job.SourceId);

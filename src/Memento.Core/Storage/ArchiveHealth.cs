@@ -17,7 +17,7 @@ public static class ArchiveHealthCheck
         using (var connection = archive.OpenConnection())
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT COUNT(*) FROM conversation_jobs WHERE status IN ('Pending', 'Processing', 'Failed') AND (next_attempt_at IS NULL OR next_attempt_at <= $now)";
+            command.CommandText = "SELECT COUNT(*) FROM conversation_jobs WHERE (status IN ('Pending', 'Processing') AND (next_attempt_at IS NULL OR next_attempt_at <= $now)) OR (status = 'Failed' AND next_attempt_at IS NOT NULL AND next_attempt_at <= $now)";
             command.Parameters.AddWithValue("$now", (now ?? DateTimeOffset.UtcNow).ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture));
             pending = Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
         }

@@ -48,6 +48,18 @@ public sealed class ConversationJobWorker
                 _writer.MarkFailed(processing, "worker cancelled before completion", clock, clock);
                 throw;
             }
+            catch (CloudNotPermittedException error)
+            {
+                _writer.MarkFailed(processing, error.Message, null, clock);
+                errors.Add(error.Message);
+                failed++;
+            }
+            catch (CloudConsentRequiredException error)
+            {
+                _writer.MarkFailed(processing, error.Message, null, clock);
+                errors.Add(error.Message);
+                failed++;
+            }
             catch (Exception error)
             {
                 var exponent = Math.Min(processing.AttemptCount - 1, 8);

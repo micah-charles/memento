@@ -37,9 +37,9 @@ public sealed class ConversationSessionWriter
         return updated;
     }
 
-    public ConversationJob MarkFailed(ConversationJob job, string error, DateTimeOffset retryAt, DateTimeOffset? now = null)
+    public ConversationJob MarkFailed(ConversationJob job, string error, DateTimeOffset? retryAt, DateTimeOffset? now = null)
     {
-        if (string.IsNullOrWhiteSpace(error)) throw new ArgumentException("A retryable error description is required.", nameof(error));
+        if (string.IsNullOrWhiteSpace(error)) throw new ArgumentException("An error description is required.", nameof(error));
         var updated = job with { Status = ConversationJobStatus.Failed, LastError = error, NextAttemptAt = retryAt, UpdatedAt = now ?? DateTimeOffset.UtcNow };
         _repository.UpdateConversationJob(updated);
         return updated;
