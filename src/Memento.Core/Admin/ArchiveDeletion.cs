@@ -75,9 +75,10 @@ public sealed class ArchiveDeletionService
                     ? "Session-level provider metadata and derived audio were retained because the Source has no session."
                     : "Session-level provider metadata and derived audio were retained because the session has another Source without a turn.");
 
-            counts["review_annotations"] = DeleteByIds(connection, transaction, "review_annotations", "target_id", evidenceIds.Concat(claimIds).Concat(responseEpisodeIds).Concat(clarificationIds).Concat(revisionIds).Concat(personIds).Concat(derivedIds).Concat([sourceId]).Distinct(StringComparer.Ordinal).ToArray());
             counts["response_episodes"] = DeleteByIds(connection, transaction, "response_episodes", "response_episode_id", responseEpisodeIds);
-            counts["evidence_claim_links"] = DeleteClaimLinks(connection, transaction, evidenceIds, claimIds);
+            counts["evidence_claim_links"] = DeleteClaimLinks(connection, transaction, evidenceIds);
+            var orphanClaimIds = FindOrphanClaimIds(connection, transaction, claimIds);
+            counts["review_annotations"] = DeleteByIds(connection, transaction, "review_annotations", "target_id", evidenceIds.Concat(orphanClaimIds).Concat(responseEpisodeIds).Concat(clarificationIds).Concat(revisionIds).Concat(personIds).Concat(derivedIds).Concat([sourceId]).Distinct(StringComparer.Ordinal).ToArray());
             counts["evidence_entity_links"] = DeleteByIds(connection, transaction, "evidence_entity_links", "evidence_id", evidenceIds);
             counts["vocabulary_entries"] = DeleteByIds(connection, transaction, "vocabulary_entries", "source_clarification_event_id", clarificationIds);
             counts["entity_aliases"] = DeleteByIds(connection, transaction, "entity_aliases", "source_clarification_event_id", clarificationIds);
@@ -105,11 +106,11 @@ public sealed class ArchiveDeletionService
             }
 
             counts["evidence_records"] = DeleteByIds(connection, transaction, "evidence_records", "evidence_id", evidenceIds);
-            counts["memory_claims"] = DeleteByIds(connection, transaction, "memory_claims", "memory_claim_id", claimIds);
+            counts["memory_claims"] = DeleteByIds(connection, transaction, "memory_claims", "memory_claim_id", orphanClaimIds);
             counts["person_entities"] = DeleteOrphanPeople(connection, transaction, personIds);
             counts["memory_search"] = ArchiveSearchIndex.Remove(connection, transaction, "transcript_revision", revisionIds)
                 + ArchiveSearchIndex.Remove(connection, transaction, "evidence", evidenceIds)
-                + ArchiveSearchIndex.Remove(connection, transaction, "memory_claim", claimIds);
+                + ArchiveSearchIndex.Remove(connection, transaction, "memory_claim", orphanClaimIds);
             counts["transcript_revisions"] = DeleteRevisions(connection, transaction, revisionIds);
             counts["sources"] = DeleteByIds(connection, transaction, "sources", "source_id", [sourceId]);
 
@@ -228,20 +229,31 @@ public sealed class ArchiveDeletionService
         return command.ExecuteNonQuery();
     }
 
-    private static int DeleteClaimLinks(SqliteConnection connection, SqliteTransaction transaction, IReadOnlyList<string> evidenceIds, IReadOnlyList<string> claimIds)
+    private static int DeleteClaimLinks(SqliteConnection connection, SqliteTransaction transaction, IReadOnlyList<string> evidenceIds)
     {
-        if (evidenceIds.Count == 0 && claimIds.Count == 0) return 0;
+        if (evidenceIds.Count == 0) return 0;
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
         var evidenceParameters = evidenceIds.Select((_, index) => "$evidence" + index).ToArray();
-        var claimParameters = claimIds.Select((_, index) => "$claim" + index).ToArray();
         for (var index = 0; index < evidenceIds.Count; index++) command.Parameters.AddWithValue(evidenceParameters[index], evidenceIds[index]);
-        for (var index = 0; index < claimIds.Count; index++) command.Parameters.AddWithValue(claimParameters[index], claimIds[index]);
-        var clauses = new List<string>();
-        if (evidenceParameters.Length > 0) clauses.Add("evidence_id IN (" + string.Join(",", evidenceParameters) + ")");
-        if (claimParameters.Length > 0) clauses.Add("memory_claim_id IN (" + string.Join(",", claimParameters) + ")");
-        command.CommandText = "DELETE FROM evidence_claim_links WHERE " + string.Join(" OR ", clauses);
+        command.CommandText = "DELETE FROM evidence_claim_links WHERE evidence_id IN (" + string.Join(",", evidenceParameters) + ")";
         return command.ExecuteNonQuery();
+    }
+
+    private static List<string> FindOrphanClaimIds(SqliteConnection connection, SqliteTransaction transaction, IReadOnlyList<string> claimIds)
+    {
+        var orphaned = new List<string>();
+        foreach (var claimId in claimIds)
+        {
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = "SELECT COUNT(*) FROM evidence_claim_links WHERE memory_claim_id = $claim";
+            command.Parameters.AddWithValue("$claim", claimId);
+            if (Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) == 0)
+                orphaned.Add(claimId);
+        }
+
+        return orphaned;
     }
 
     private static int DeleteOrphanPeople(SqliteConnection connection, SqliteTransaction transaction, IReadOnlyList<string> personIds)

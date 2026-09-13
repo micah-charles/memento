@@ -46,6 +46,8 @@ public sealed class DeletionTests
         repository.AddEvidenceEntityLink(new EvidenceEntityLink(evidenceTwo.EvidenceId, person.PersonEntityId, "subject", DateTimeOffset.UtcNow));
         var claim = repository.AddMemoryClaim(new MemoryClaim("claim-delete", "Participant knows 阿貞", person.PersonEntityId, "knows", "阿貞", ClaimStatus.Candidate, DateTimeOffset.UtcNow));
         repository.AddEvidenceClaimLink(new EvidenceClaimLink(evidenceOne.EvidenceId, claim.MemoryClaimId, "supports", DateTimeOffset.UtcNow));
+        var sourceOnlyClaim = repository.AddMemoryClaim(new MemoryClaim("claim-delete-source-only", "Only this Source supports me", null, "supports", "this Source", ClaimStatus.Candidate, DateTimeOffset.UtcNow));
+        repository.AddEvidenceClaimLink(new EvidenceClaimLink(evidenceOne.EvidenceId, sourceOnlyClaim.MemoryClaimId, "supports", DateTimeOffset.UtcNow));
         var otherSource = repository.AddSource(fixture.OtherSource(session.SessionId, "source-other"));
         var otherEvidence = repository.AddEvidence(new EvidenceRecord("evidence-other", EvidenceKind.DirectStatement, otherSource.SourceId, session.SessionId, null, null, "other source", "other source", ParticipantCertainty.Stated, false, DateTimeOffset.UtcNow));
         repository.AddEvidenceClaimLink(new EvidenceClaimLink(otherEvidence.EvidenceId, claim.MemoryClaimId, "contextualises", DateTimeOffset.UtcNow));
@@ -64,14 +66,17 @@ public sealed class DeletionTests
         using var connection = archive.OpenConnection();
         Assert.Equal(0L, Scalar(connection, "SELECT COUNT(*) FROM transcript_revisions WHERE source_id = 'source-delete'"));
         Assert.Equal(0L, Scalar(connection, "SELECT COUNT(*) FROM evidence_records WHERE source_id = 'source-delete'"));
-        Assert.Equal(0L, Scalar(connection, "SELECT COUNT(*) FROM memory_claims WHERE memory_claim_id = 'claim-delete'"));
+        Assert.Equal(1L, Scalar(connection, "SELECT COUNT(*) FROM memory_claims WHERE memory_claim_id = 'claim-delete'"));
+        Assert.Equal(0L, Scalar(connection, "SELECT COUNT(*) FROM memory_claims WHERE memory_claim_id = 'claim-delete-source-only'"));
         Assert.Equal(1L, Scalar(connection, "SELECT COUNT(*) FROM evidence_records WHERE evidence_id = 'evidence-other'"));
-        Assert.Equal(0L, Scalar(connection, "SELECT COUNT(*) FROM evidence_claim_links"));
+        Assert.Equal(1L, Scalar(connection, "SELECT COUNT(*) FROM evidence_claim_links"));
+        Assert.Equal(1L, Scalar(connection, "SELECT COUNT(*) FROM review_annotations WHERE target_id = 'claim-delete'"));
         Assert.Equal(0L, Scalar(connection, "SELECT COUNT(*) FROM person_entities WHERE person_entity_id = 'person-delete'"));
         Assert.Equal(1L, Scalar(connection, "SELECT COUNT(*) FROM deletion_tombstones WHERE target_id = 'source-delete' AND media_removed = 1"));
         Assert.Equal(1L, Scalar(connection, "SELECT COUNT(*) FROM deletion_tombstones WHERE deletion_tombstone_id = '" + result.TombstoneId + "'"));
         Assert.True(archive.IsIntegrityCheckClean());
         Assert.Empty(new ArchiveSearchService(archive).Search("阿珍"));
+        Assert.NotEmpty(new ArchiveSearchService(archive).Search("Participant knows"));
     }
 
     [Fact]
