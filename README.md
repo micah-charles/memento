@@ -36,6 +36,8 @@ Start-Process .\src\Memento.App\bin\Release\net10.0-windows10.0.19041.0\win-x64\
 
 The app is currently an unpackaged self-contained executable. It stores local data under `%LOCALAPPDATA%\MEMENTO`; a signed MSIX package and enterprise installer registration remain deployment work.
 
+Cloud transcription, replies, speech output, and launch-time retry processing are optional. To enable them, open **Windows Credential Manager → Windows Credentials → Add a generic credential**, set the target/address to `MEMENTO/OpenAI`, use any label such as `MEMENTO` for the user name, and put the API key in the password field. MEMENTO reads that credential at runtime and never writes it to the archive or logs. If the credential is absent, local recording and the local-only privacy mode still work.
+
 To create a portable self-contained bundle:
 
 ```powershell
