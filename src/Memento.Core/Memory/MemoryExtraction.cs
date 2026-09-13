@@ -18,6 +18,13 @@ public interface IMemoryExtractionProvider
     IReadOnlyList<ExtractionCandidate> Extract(TranscriptRevision revision);
 }
 
+public interface IAsyncMemoryExtractionProvider
+{
+    string Provider { get; }
+    string Model { get; }
+    Task<IReadOnlyList<ExtractionCandidate>> ExtractAsync(TranscriptRevision revision, CancellationToken cancellationToken = default);
+}
+
 public sealed class DeterministicMemoryExtractionProvider : IMemoryExtractionProvider
 {
     public string Provider => "deterministic-test";
@@ -47,17 +54,45 @@ public sealed class MemoryExtractionService
     {
         if (revision.SourceId != source.SourceId) throw new InvalidOperationException("Transcript revision and Source do not match.");
         if (source.SessionId != session.SessionId) throw new InvalidOperationException("Source and session do not match.");
+        return MemoryExtractionPersistence.Persist(_repository, _provider.Provider, _provider.Model, session, source, revision, _provider.Extract(revision));
+    }
+}
+
+public sealed class AsyncMemoryExtractionService
+{
+    private readonly ArchiveRepository _repository;
+    private readonly IAsyncMemoryExtractionProvider _provider;
+
+    public AsyncMemoryExtractionService(ArchiveRepository repository, IAsyncMemoryExtractionProvider provider)
+    {
+        _repository = repository;
+        _provider = provider;
+    }
+
+    public async Task<ExtractionResult> ExtractAndPersistAsync(Session session, SourceMetadata source, TranscriptRevision revision, CancellationToken cancellationToken = default)
+    {
+        if (revision.SourceId != source.SourceId) throw new InvalidOperationException("Transcript revision and Source do not match.");
+        if (source.SessionId != session.SessionId) throw new InvalidOperationException("Source and session do not match.");
+        var candidates = await _provider.ExtractAsync(revision, cancellationToken).ConfigureAwait(false);
+        return MemoryExtractionPersistence.Persist(_repository, _provider.Provider, _provider.Model, session, source, revision, candidates);
+    }
+}
+
+internal static class MemoryExtractionPersistence
+{
+    public static ExtractionResult Persist(ArchiveRepository repository, string provider, string model, Session session, SourceMetadata source, TranscriptRevision revision, IEnumerable<ExtractionCandidate> candidates)
+    {
         var evidence = new List<EvidenceRecord>();
         var claims = new List<MemoryClaim>();
         var links = new List<EvidenceClaimLink>();
-        foreach (var candidate in _provider.Extract(revision))
+        foreach (var candidate in candidates)
         {
             if (string.IsNullOrWhiteSpace(candidate.Statement) || string.IsNullOrWhiteSpace(candidate.Predicate) || string.IsNullOrWhiteSpace(candidate.Object))
                 continue;
             var now = DateTimeOffset.UtcNow;
-            var item = _repository.AddEvidence(new EvidenceRecord(Guid.NewGuid().ToString("N"), candidate.EvidenceKind, source.SourceId, session.SessionId, revision.TurnId, revision.TranscriptRevisionId, candidate.Statement, candidate.Statement, candidate.Certainty, false, now, ExtractionProvider: _provider.Provider, ExtractionModel: _provider.Model));
-            var claim = _repository.AddMemoryClaim(new MemoryClaim(Guid.NewGuid().ToString("N"), candidate.Statement, candidate.SubjectPersonId, candidate.Predicate, candidate.Object, ClaimStatus.Candidate, now));
-            var link = _repository.AddEvidenceClaimLink(new EvidenceClaimLink(item.EvidenceId, claim.MemoryClaimId, "supports", DateTimeOffset.UtcNow));
+            var item = repository.AddEvidence(new EvidenceRecord(Guid.NewGuid().ToString("N"), candidate.EvidenceKind, source.SourceId, session.SessionId, revision.TurnId, revision.TranscriptRevisionId, candidate.Statement, candidate.Statement, candidate.Certainty, false, now, ExtractionProvider: provider, ExtractionModel: model));
+            var claim = repository.AddMemoryClaim(new MemoryClaim(Guid.NewGuid().ToString("N"), candidate.Statement, candidate.SubjectPersonId, candidate.Predicate, candidate.Object, ClaimStatus.Candidate, now));
+            var link = repository.AddEvidenceClaimLink(new EvidenceClaimLink(item.EvidenceId, claim.MemoryClaimId, "supports", DateTimeOffset.UtcNow));
             evidence.Add(item); claims.Add(claim); links.Add(link);
         }
 
