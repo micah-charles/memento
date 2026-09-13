@@ -12,6 +12,10 @@ public static class ProvenanceGraph
             throw new InvalidOperationException("Source provenance is inconsistent.");
         if (evidence.TranscriptRevisionId != revision.TranscriptRevisionId)
             throw new InvalidOperationException("Evidence must point to the transcript revision that produced it.");
+        if (evidence.AudioStartMs is < 0 || evidence.AudioEndMs is < 0 || evidence.AudioStartMs is not null && evidence.AudioEndMs is not null && evidence.AudioStartMs > evidence.AudioEndMs)
+            throw new InvalidOperationException("Evidence audio span is invalid.");
+        if (evidence.Kind == EvidenceKind.AiInference && (string.IsNullOrWhiteSpace(evidence.ExtractionProvider) || string.IsNullOrWhiteSpace(evidence.ExtractionModel)))
+            throw new InvalidOperationException("AI inference evidence requires extraction provider metadata.");
         if (link.EvidenceId != evidence.EvidenceId || link.MemoryClaimId != claim.MemoryClaimId || !Relationships.Contains(link.Relationship, StringComparer.Ordinal))
             throw new InvalidOperationException("Evidence-to-claim link is not a valid provenance relationship.");
         if (claim.Status == ClaimStatus.Reviewed && evidence.Kind == EvidenceKind.AiInference && !evidence.SpeakerConfirmed)

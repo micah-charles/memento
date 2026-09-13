@@ -55,7 +55,7 @@ public sealed class MemoryExtractionService
             if (string.IsNullOrWhiteSpace(candidate.Statement) || string.IsNullOrWhiteSpace(candidate.Predicate) || string.IsNullOrWhiteSpace(candidate.Object))
                 continue;
             var now = DateTimeOffset.UtcNow;
-            var item = _repository.AddEvidence(new EvidenceRecord(Guid.NewGuid().ToString("N"), candidate.EvidenceKind, source.SourceId, session.SessionId, revision.TurnId, revision.TranscriptRevisionId, candidate.Statement, candidate.Statement, candidate.Certainty, false, now));
+            var item = _repository.AddEvidence(new EvidenceRecord(Guid.NewGuid().ToString("N"), candidate.EvidenceKind, source.SourceId, session.SessionId, revision.TurnId, revision.TranscriptRevisionId, candidate.Statement, candidate.Statement, candidate.Certainty, false, now, ExtractionProvider: _provider.Provider, ExtractionModel: _provider.Model));
             var claim = _repository.AddMemoryClaim(new MemoryClaim(Guid.NewGuid().ToString("N"), candidate.Statement, candidate.SubjectPersonId, candidate.Predicate, candidate.Object, ClaimStatus.Candidate, now));
             var link = _repository.AddEvidenceClaimLink(new EvidenceClaimLink(item.EvidenceId, claim.MemoryClaimId, "supports", DateTimeOffset.UtcNow));
             evidence.Add(item); claims.Add(claim); links.Add(link);

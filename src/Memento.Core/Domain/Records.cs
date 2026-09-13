@@ -170,7 +170,11 @@ public sealed record EvidenceRecord(
     string OriginalExpression,
     ParticipantCertainty ParticipantCertainty,
     bool SpeakerConfirmed,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    long? AudioStartMs = null,
+    long? AudioEndMs = null,
+    string? ExtractionProvider = null,
+    string? ExtractionModel = null);
 
 public enum ClaimStatus
 {

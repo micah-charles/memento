@@ -358,6 +358,12 @@ internal static class Migrations
             );
             INSERT INTO app_settings(setting_key, setting_value, updated_at) VALUES ('recording_enabled', '1', CURRENT_TIMESTAMP);
             """))
+        ,new(12, (connection, transaction) => SqliteArchive.Execute(connection, transaction, """
+            ALTER TABLE evidence_records ADD COLUMN audio_start_ms INTEGER NULL CHECK (audio_start_ms IS NULL OR audio_start_ms >= 0);
+            ALTER TABLE evidence_records ADD COLUMN audio_end_ms INTEGER NULL CHECK (audio_end_ms IS NULL OR audio_end_ms >= 0);
+            ALTER TABLE evidence_records ADD COLUMN extraction_provider TEXT NULL;
+            ALTER TABLE evidence_records ADD COLUMN extraction_model TEXT NULL;
+            """))
     ];
 
     internal sealed record Migration(int Version, Action<SqliteConnection, SqliteTransaction> Apply);

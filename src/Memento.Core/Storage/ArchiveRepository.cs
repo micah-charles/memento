@@ -262,7 +262,7 @@ public sealed class ArchiveRepository(SqliteArchive archive)
     {
         using var connection = archive.OpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = "INSERT INTO evidence_records(evidence_id, kind, source_id, session_id, turn_id, transcript_revision_id, statement, original_expression, participant_certainty, speaker_confirmed, created_at) VALUES ($id, $kind, $source, $session, $turn, $revision, $statement, $original, $certainty, $confirmed, $created)";
+        command.CommandText = "INSERT INTO evidence_records(evidence_id, kind, source_id, session_id, turn_id, transcript_revision_id, statement, original_expression, participant_certainty, speaker_confirmed, created_at, audio_start_ms, audio_end_ms, extraction_provider, extraction_model) VALUES ($id, $kind, $source, $session, $turn, $revision, $statement, $original, $certainty, $confirmed, $created, $audioStart, $audioEnd, $provider, $model)";
         command.Parameters.AddWithValue("$id", evidence.EvidenceId);
         command.Parameters.AddWithValue("$kind", evidence.Kind.ToString());
         command.Parameters.AddWithValue("$source", evidence.SourceId);
@@ -274,6 +274,10 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         command.Parameters.AddWithValue("$certainty", evidence.ParticipantCertainty.ToString());
         command.Parameters.AddWithValue("$confirmed", evidence.SpeakerConfirmed ? 1 : 0);
         command.Parameters.AddWithValue("$created", Format(evidence.CreatedAt));
+        command.Parameters.AddWithValue("$audioStart", (object?)evidence.AudioStartMs ?? DBNull.Value);
+        command.Parameters.AddWithValue("$audioEnd", (object?)evidence.AudioEndMs ?? DBNull.Value);
+        command.Parameters.AddWithValue("$provider", (object?)evidence.ExtractionProvider ?? DBNull.Value);
+        command.Parameters.AddWithValue("$model", (object?)evidence.ExtractionModel ?? DBNull.Value);
         command.ExecuteNonQuery();
         return evidence;
     }
