@@ -119,15 +119,19 @@ public sealed class AudioCaptureController
 
     public void AbortForRecovery()
     {
+        Exception? cleanupFailure = null;
         if (_input is not null)
         {
             _input.DataAvailable -= OnDataAvailable;
             _input.CaptureError -= OnCaptureError;
-            _input.Dispose();
+            try { _input.Dispose(); }
+            catch (Exception error) { cleanupFailure = error; }
             _input = null;
         }
-        _writer?.Dispose();
+        try { _writer?.Dispose(); }
+        catch (Exception error) { cleanupFailure ??= error; }
         _writer = null;
+        Failure = cleanupFailure?.Message;
         State = AudioCaptureState.Recoverable;
     }
 

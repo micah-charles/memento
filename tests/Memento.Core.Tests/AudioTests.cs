@@ -214,6 +214,26 @@ public sealed class AudioTests
     }
 
     [Fact]
+    public void Abort_for_recovery_swallows_cleanup_failure_and_keeps_partial_audio()
+    {
+        using var fixture = new AudioFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.LocalCaptureOnly);
+        var fake = new FakeAudioInput(new PcmWaveFormat(48000, 1, 16)) { ThrowOnDispose = true };
+        var controller = new AudioCaptureController(repository, fixture.AudioRoot);
+        controller.Start(session.SessionId, null, true, _ => fake);
+
+        var exception = Record.Exception(controller.AbortForRecovery);
+
+        Assert.Null(exception);
+        Assert.Equal(AudioCaptureState.Recoverable, controller.State);
+        Assert.Contains("input dispose failed", controller.Failure);
+        Assert.Single(AudioRecoveryScanner.Scan(fixture.AudioRoot));
+    }
+
+    [Fact]
     public void Duplicate_final_path_keeps_the_second_capture_recoverable()
     {
         using var fixture = new AudioFixture();
