@@ -217,6 +217,7 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         command.Parameters.AddWithValue("$parent", (object?)revision.ParentRevisionId ?? DBNull.Value);
         command.Parameters.AddWithValue("$created", Format(revision.CreatedAt));
         command.ExecuteNonQuery();
+        ArchiveSearchIndex.Upsert(connection, null, "transcript_revision", revision.TranscriptRevisionId, revision.Text, revision.SourceId, null);
         return revision;
     }
 
@@ -389,6 +390,7 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         command.Parameters.AddWithValue("$provider", (object?)evidence.ExtractionProvider ?? DBNull.Value);
         command.Parameters.AddWithValue("$model", (object?)evidence.ExtractionModel ?? DBNull.Value);
         command.ExecuteNonQuery();
+        ArchiveSearchIndex.Upsert(connection, null, "evidence", evidence.EvidenceId, evidence.Statement + " " + evidence.OriginalExpression, evidence.SourceId, evidence.SessionId);
         return evidence;
     }
 
@@ -405,6 +407,7 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         command.Parameters.AddWithValue("$status", claim.Status.ToString());
         command.Parameters.AddWithValue("$created", Format(claim.CreatedAt));
         command.ExecuteNonQuery();
+        ArchiveSearchIndex.Upsert(connection, null, "memory_claim", claim.MemoryClaimId, claim.Statement + " " + claim.Predicate + " " + claim.Object, null, null);
         return claim;
     }
 

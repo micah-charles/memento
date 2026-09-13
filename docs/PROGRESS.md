@@ -85,6 +85,7 @@
 - M07 added candidate `EvidenceRecord`, `MemoryClaim`, and explicit `EvidenceClaimLink` records. Evidence now carries optional audio spans and extraction provider/model metadata; `MemoryExtractionService` uses a deterministic provider boundary and never promotes candidates beyond `candidate` status. An async OpenAI structured-output adapter and persistence service now validate candidate fields before writing the same reviewable records, and consented app sessions queue revision-scoped `durable_extraction` work for the launch worker; corrected transcript revisions therefore receive their own extraction job; no live extraction call has been made.
 - M08 added `ProvenanceGraph.Validate`, which checks Source → transcript revision → Evidence → Claim links, allowed relationships, blocks an unconfirmed AI inference from silently becoming a reviewed claim, and validates observed Response Episodes from stimulus/response Evidence.
 - M09 added person entities, speaker-confirmed aliases, and Evidence-to-entity links. Alias history is additive and does not rewrite transcript or Source records.
+- M06–M09 now include a rebuildable SQLite FTS5 lexical index and `ArchiveSearchService` for transcript, Evidence, and candidate Claim text; Cantonese substring fallback keeps short CJK queries usable while withdrawn/deleted Source records stay out of results. A real Chinese corpus is still needed to measure ranking/tokenization quality.
 - The cumulative suite now passes **27/27** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while target-machine restart/power-loss observation, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
 
 ## M10–M13 implementation attempt — 2026-09-13
@@ -96,7 +97,7 @@
 - M13 added an archive health check for SQLite integrity, schema version, recoverable audio, due conversation jobs, and tampered/missing finalized source or derived speech assets; authenticated source-scoped deletion now removes dependent content, attempts media removal, and leaves a minimal tombstone; security scans and package vulnerability checks remain clean.
 - The WinUI shell now exposes the M12/M13 health-check, media export, encrypted-backup, and disposable restore/verification operations with plain Cantonese status messages; these actions still require supervised native UI verification.
 - The Family Admin shell now exposes a confirmation-gated deletion of the latest finalized Source; it removes dependent content through the authenticated deletion service and preserves only a minimal audit tombstone.
-- The cumulative suite now passes **60/60** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
+- The cumulative suite now passes **61/61** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
 
 ## M14 status
 

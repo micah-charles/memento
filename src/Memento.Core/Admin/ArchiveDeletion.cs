@@ -87,6 +87,9 @@ public sealed class ArchiveDeletionService
             counts["evidence_records"] = DeleteByIds(connection, transaction, "evidence_records", "evidence_id", evidenceIds);
             counts["memory_claims"] = DeleteByIds(connection, transaction, "memory_claims", "memory_claim_id", claimIds);
             counts["person_entities"] = DeleteOrphanPeople(connection, transaction, personIds);
+            counts["memory_search"] = ArchiveSearchIndex.Remove(connection, transaction, "transcript_revision", revisionIds)
+                + ArchiveSearchIndex.Remove(connection, transaction, "evidence", evidenceIds)
+                + ArchiveSearchIndex.Remove(connection, transaction, "memory_claim", claimIds);
             counts["transcript_revisions"] = DeleteRevisions(connection, transaction, revisionIds);
             counts["sources"] = DeleteByIds(connection, transaction, "sources", "source_id", [sourceId]);
 

@@ -71,6 +71,7 @@ public sealed class DeletionTests
         Assert.Equal(1L, Scalar(connection, "SELECT COUNT(*) FROM deletion_tombstones WHERE target_id = 'source-delete' AND media_removed = 1"));
         Assert.Equal(1L, Scalar(connection, "SELECT COUNT(*) FROM deletion_tombstones WHERE deletion_tombstone_id = '" + result.TombstoneId + "'"));
         Assert.True(archive.IsIntegrityCheckClean());
+        Assert.Empty(new ArchiveSearchService(archive).Search("阿珍"));
     }
 
     private static long Scalar(Microsoft.Data.Sqlite.SqliteConnection connection, string sql)
