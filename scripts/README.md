@@ -4,7 +4,7 @@ Scripts must not read or upload personal data by default.
 
 `Publish-Memento.ps1` creates a self-contained `win-x64` publish directory, a zip bundle, and a SHA-256 sidecar under `artifacts/`. It does not sign or install an MSIX package; a production installer still requires an owner-selected publisher identity and certificate.
 
-`Install-Memento.ps1` installs that bundle under `%LOCALAPPDATA%\MEMENTO\App` and creates a per-user Start Menu shortcut without administrator access. When a matching `.zip.sha256` sidecar is present, it verifies the bundle before copying files:
+`Install-Memento.ps1` installs that bundle under `%LOCALAPPDATA%\MEMENTO\App` and creates a per-user Start Menu shortcut without administrator access. Updates are staged as a clean tree and swapped into place, so files removed from a newer bundle cannot remain from an older install; a failed swap restores the previous app. The archive data directory is outside the app tree and is preserved. When a matching `.zip.sha256` sidecar is present, it verifies the bundle before copying files:
 
 ```powershell
 .\scripts\Install-Memento.ps1

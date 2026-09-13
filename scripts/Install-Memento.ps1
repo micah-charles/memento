@@ -31,6 +31,10 @@ if ($null -ne $running) {
 }
 
 $temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('memento-install-' + [Guid]::NewGuid().ToString('N'))
+$installParent = Split-Path -Parent $InstallRoot
+$stagingRoot = Join-Path $installParent ('.App-staging-' + [Guid]::NewGuid().ToString('N'))
+$previousRoot = Join-Path $installParent ('.App-previous-' + [Guid]::NewGuid().ToString('N'))
+$swapped = $false
 $shortcutDirectory = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs\MEMENTO'
 $shortcutPath = Join-Path $shortcutDirectory 'MEMENTO.lnk'
 try {
@@ -38,8 +42,17 @@ try {
     $executable = Join-Path $temporaryRoot 'Memento.App.exe'
     if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) { throw 'The bundle does not contain Memento.App.exe.' }
 
-    New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
-    Copy-Item -Path (Join-Path $temporaryRoot '*') -Destination $InstallRoot -Recurse -Force
+    # Build a clean staging tree so removed files from an older bundle cannot
+    # survive an update. Keep it beside the install root so the final moves do
+    # not cross volumes. The archive lives in the parent MEMENTO directory and
+    # is deliberately outside this tree.
+    New-Item -ItemType Directory -Force -Path $stagingRoot | Out-Null
+    Copy-Item -Path (Join-Path $temporaryRoot '*') -Destination $stagingRoot -Recurse -Force
+    if (Test-Path -LiteralPath $InstallRoot) {
+        Move-Item -LiteralPath $InstallRoot -Destination $previousRoot
+    }
+    Move-Item -LiteralPath $stagingRoot -Destination $InstallRoot
+    $swapped = $true
 
     New-Item -ItemType Directory -Force -Path $shortcutDirectory | Out-Null
     $shell = New-Object -ComObject WScript.Shell
@@ -52,6 +65,14 @@ try {
     Write-Output "Installed MEMENTO to $InstallRoot"
     Write-Output "Start Menu shortcut: $shortcutPath"
 }
+catch {
+    if (-not $swapped -and (Test-Path -LiteralPath $previousRoot) -and -not (Test-Path -LiteralPath $InstallRoot)) {
+        Move-Item -LiteralPath $previousRoot -Destination $InstallRoot
+    }
+    throw
+}
 finally {
     if (Test-Path -LiteralPath $temporaryRoot) { Remove-Item -LiteralPath $temporaryRoot -Recurse -Force }
+    if (Test-Path -LiteralPath $stagingRoot) { Remove-Item -LiteralPath $stagingRoot -Recurse -Force }
+    if ($swapped -and (Test-Path -LiteralPath $previousRoot)) { Remove-Item -LiteralPath $previousRoot -Recurse -Force }
 }
