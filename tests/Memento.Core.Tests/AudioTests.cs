@@ -30,6 +30,17 @@ public sealed class AudioTests
     }
 
     [Fact]
+    public void Writer_rejects_path_traversal_identifiers()
+    {
+        using var fixture = new AudioFixture();
+        var format = new PcmWaveFormat(16000, 1, 16);
+
+        Assert.Throws<ArgumentException>(() => PcmWaveWriter.Create(fixture.AudioRoot, "session..\\escape", DateTimeOffset.UtcNow, format, "source-audio"));
+        Assert.Throws<ArgumentException>(() => PcmWaveWriter.Create(fixture.AudioRoot, "session-safe", DateTimeOffset.UtcNow, format, ".."));
+        Assert.Empty(Directory.EnumerateFiles(fixture.AudioRoot, "*.capture.tmp", SearchOption.AllDirectories));
+    }
+
+    [Fact]
     public void Controller_requires_explicit_consent_and_registers_source()
     {
         using var fixture = new AudioFixture();

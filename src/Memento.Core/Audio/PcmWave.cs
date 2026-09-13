@@ -65,8 +65,10 @@ public sealed class PcmWaveWriter : IDisposable
     public static PcmWaveWriter Create(string audioRootDirectory, string sessionId, DateTimeOffset startedAt, PcmWaveFormat format, string? sourceId = null)
     {
         if (string.IsNullOrWhiteSpace(sessionId)) throw new ArgumentException("A session ID is required.", nameof(sessionId));
+        ValidatePathComponent(sessionId, nameof(sessionId));
         format.Validate();
         var id = sourceId ?? Guid.NewGuid().ToString("N");
+        ValidatePathComponent(id, nameof(sourceId));
         var dateDirectory = Path.Combine(audioRootDirectory, startedAt.ToUniversalTime().ToString("yyyy", System.Globalization.CultureInfo.InvariantCulture), startedAt.ToUniversalTime().ToString("MM", System.Globalization.CultureInfo.InvariantCulture), startedAt.ToUniversalTime().ToString("dd", System.Globalization.CultureInfo.InvariantCulture));
         Directory.CreateDirectory(dateDirectory);
         var stem = $"{sessionId}-{id}";
@@ -166,6 +168,12 @@ public sealed class PcmWaveWriter : IDisposable
     private long Duration(long bytes) => bytes * 1000L / _format.ByteRate;
     private static string ComputeSha256(string path) { using var stream = File.OpenRead(path); return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant(); }
     private void ThrowIfClosed() { if (_closed) throw new ObjectDisposedException(nameof(PcmWaveWriter)); }
+
+    private static void ValidatePathComponent(string value, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value is "." or ".." || value.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            throw new ArgumentException("The identifier must be a single safe file-name component.", parameterName);
+    }
 }
 
 public static class PcmWaveValidator
