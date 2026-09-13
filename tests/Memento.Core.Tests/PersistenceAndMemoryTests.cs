@@ -77,15 +77,19 @@ public sealed class PersistenceAndMemoryTests
     {
         var transcription = new RecordingJobProcessor();
         var response = new RecordingJobProcessor();
-        var router = new CompositeConversationJobProcessor(transcription, response);
+        var extraction = new RecordingJobProcessor();
+        var router = new CompositeConversationJobProcessor(transcription, response, extraction);
         var transcriptionJob = new ConversationJob("job-route-transcription", "session", null, "source", "durable_transcription", ConversationJobStatus.Pending, 0, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
         var responseJob = transcriptionJob with { ConversationJobId = "job-route-response", JobType = "durable_response" };
+        var extractionJob = transcriptionJob with { ConversationJobId = "job-route-extraction", JobType = "durable_extraction" };
 
         await router.ProcessAsync(transcriptionJob);
         await router.ProcessAsync(responseJob);
+        await router.ProcessAsync(extractionJob);
 
         Assert.Equal(1, transcription.Calls);
         Assert.Equal(1, response.Calls);
+        Assert.Equal(1, extraction.Calls);
     }
 
     [Fact]

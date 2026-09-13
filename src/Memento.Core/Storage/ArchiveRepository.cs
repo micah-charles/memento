@@ -239,6 +239,17 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return command.ExecuteScalar()?.ToString();
     }
 
+    public SourceMetadata? GetSource(string sourceId)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT source_id, source_type, session_id, turn_id, file_path, format, sample_rate, channels, bit_depth, byte_length, duration_ms, sha256, started_at, finalized_at, recovery_status, created_at FROM sources WHERE source_id = $source";
+        command.Parameters.AddWithValue("$source", sourceId);
+        using var reader = command.ExecuteReader();
+        if (!reader.Read()) return null;
+        return new SourceMetadata(reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetString(5), reader.IsDBNull(6) ? null : reader.GetInt32(6), reader.IsDBNull(7) ? null : reader.GetInt32(7), reader.IsDBNull(8) ? null : reader.GetInt32(8), reader.IsDBNull(9) ? null : reader.GetInt64(9), reader.IsDBNull(10) ? null : reader.GetInt64(10), reader.IsDBNull(11) ? null : reader.GetString(11), reader.IsDBNull(12) ? null : DateTimeOffset.Parse(reader.GetString(12), null, System.Globalization.DateTimeStyles.RoundtripKind), reader.IsDBNull(13) ? null : DateTimeOffset.Parse(reader.GetString(13), null, System.Globalization.DateTimeStyles.RoundtripKind), reader.GetString(14), DateTimeOffset.Parse(reader.GetString(15), null, System.Globalization.DateTimeStyles.RoundtripKind));
+    }
+
     public SourceMetadata? GetLatestFinalizedSource()
     {
         using var connection = archive.OpenConnection();
@@ -327,6 +338,17 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         command.Parameters.AddWithValue("$error", (object?)job.LastError ?? DBNull.Value);
         command.Parameters.AddWithValue("$updated", Format(job.UpdatedAt));
         if (command.ExecuteNonQuery() != 1) throw new InvalidOperationException("Conversation job was not found.");
+    }
+
+    public bool HasActiveConversationJob(string sessionId, string sourceId, string jobType)
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM conversation_jobs WHERE session_id = $session AND source_id = $source AND job_type = $type AND (status IN ('Pending', 'Processing', 'Succeeded') OR (status = 'Failed' AND next_attempt_at IS NOT NULL))";
+        command.Parameters.AddWithValue("$session", sessionId);
+        command.Parameters.AddWithValue("$source", sourceId);
+        command.Parameters.AddWithValue("$type", jobType);
+        return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) > 0;
     }
 
     public IReadOnlyList<ConversationJob> ListRetryableConversationJobs(DateTimeOffset now)

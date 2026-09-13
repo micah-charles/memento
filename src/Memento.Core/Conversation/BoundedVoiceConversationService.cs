@@ -14,8 +14,10 @@ public sealed class BoundedVoiceConversationService
     private readonly ISpeechOutputProvider? _speechOutput;
     private readonly DerivedAudioStore? _speechStore;
     private readonly ISpeechOutputPlayback? _speechPlayback;
+    private readonly bool _queueExtractionJobs;
+    private readonly ConversationSessionWriter _sessionWriter;
 
-    public BoundedVoiceConversationService(ArchiveRepository repository, ITranscriptionProvider transcription, IConversationProvider conversation, ISpeechOutputProvider? speechOutput = null, DerivedAudioStore? speechStore = null, ISpeechOutputPlayback? speechPlayback = null)
+    public BoundedVoiceConversationService(ArchiveRepository repository, ITranscriptionProvider transcription, IConversationProvider conversation, ISpeechOutputProvider? speechOutput = null, DerivedAudioStore? speechStore = null, ISpeechOutputPlayback? speechPlayback = null, bool queueExtractionJobs = false)
     {
         _repository = repository;
         _transcription = transcription;
@@ -23,6 +25,8 @@ public sealed class BoundedVoiceConversationService
         _speechOutput = speechOutput;
         _speechStore = speechStore;
         _speechPlayback = speechPlayback;
+        _queueExtractionJobs = queueExtractionJobs;
+        _sessionWriter = new ConversationSessionWriter(repository);
         if (_speechPlayback is not null && _speechStore is null)
             throw new ArgumentException("Speech playback requires a derived speech store.", nameof(speechPlayback));
     }
@@ -41,6 +45,8 @@ public sealed class BoundedVoiceConversationService
             _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, transcript.Provider, "transcription", transcript.Model, null, transcript.RequestId, started, transcript.CompletedAt, null, null, true, null, null, DateTimeOffset.UtcNow));
             if (_repository.ListTranscriptRevisions(request.SourceId).Count == 0)
                 _repository.AddTranscriptRevision(new TranscriptRevision(Guid.NewGuid().ToString("N"), request.SourceId, request.TurnId, 1, "initial", transcript.Text, null, null, transcript.CompletedAt));
+            if (_queueExtractionJobs)
+                _sessionWriter.QueueExtractionIfNeeded(request.SessionId, request.TurnId, request.SourceId);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

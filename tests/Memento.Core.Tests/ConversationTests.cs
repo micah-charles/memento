@@ -126,7 +126,7 @@ public sealed class ConversationTests
         var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
         File.WriteAllBytes(fixture.AudioPath, [1, 2]);
         var source = repository.AddSource(new SourceMetadata("source-pipeline", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
-        var service = new BoundedVoiceConversationService(repository, new InlineTranscriptionProvider(), new DeterministicConversationProvider(), new DeterministicSpeechOutputProvider());
+        var service = new BoundedVoiceConversationService(repository, new InlineTranscriptionProvider(), new DeterministicConversationProvider(), new DeterministicSpeechOutputProvider(), queueExtractionJobs: true);
 
         var result = await service.ExecuteAsync(new ConversationRequest(session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, SourceId: source.SourceId));
 
@@ -135,6 +135,7 @@ public sealed class ConversationTests
         Assert.NotNull(result.SpeechOutput);
         Assert.Equal("wav", result.SpeechOutput!.Format);
         Assert.Single(repository.ListTranscriptRevisions(source.SourceId));
+        Assert.Contains(repository.ListRetryableConversationJobs(DateTimeOffset.UtcNow.AddMinutes(1)), job => job.JobType == "durable_extraction");
         using var connection = archive.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT COUNT(*) FROM provider_interactions WHERE session_id = $session AND succeeded = 1";

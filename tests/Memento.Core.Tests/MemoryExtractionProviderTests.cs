@@ -63,6 +63,34 @@ public sealed class MemoryExtractionProviderTests
         }
     }
 
+    [Fact]
+    public async Task Durable_extraction_processor_rechecks_consent_and_persists_candidates()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "memento-durable-extraction-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            using var archive = new SqliteArchive(Path.Combine(directory, "data", "memory.db"));
+            archive.Initialize();
+            var repository = new ArchiveRepository(archive);
+            var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+            repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+            var source = repository.AddSource(new SourceMetadata("source-durable-extract", "audio", session.SessionId, null, "audio.wav", "PCM WAV", 48000, 1, 16, 4, 1, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+            var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-durable-extract", source.SourceId, null, 1, "initial", "我鍾意食魚蛋", 0.9, null, DateTimeOffset.UtcNow));
+            var job = new ConversationJob("job-durable-extract", session.SessionId, null, source.SourceId, "durable_extraction", ConversationJobStatus.Pending, 0, DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+            var result = new DurableMemoryExtractionJobProcessor(repository, new InlineExtractionProvider());
+
+            await result.ProcessAsync(job);
+
+            var claim = Assert.Single(repository.ListCandidateClaims());
+            Assert.Equal(revision.Text, claim.Statement);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
     private sealed class FixedCredentialProvider : IApiCredentialProvider
     {
         public string? GetApiKey() => "test-key";
