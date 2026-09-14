@@ -8,7 +8,7 @@ These are deliberately visible. They are not reasons to invent a confident answe
 |---|---|---|---|
 | K-001 | The reviewed OpenAI sources do not guarantee Hong Kong Cantonese or mixed Cantonese/Mandarin/English accuracy. | High: core user experience and entity provenance. | Measure in M04 before pilot claims. |
 | K-002 | Realtime audio prices are token-based; a universal minute conversion is not documented in the reviewed source. | High: operating-cost uncertainty. | Measure representative usage in M03 and update COST_MODEL. |
-| K-003 | Exact Realtime transport and safe client credential flow on Windows are not selected. | High: privacy/security and deployment. | Prototype and threat-model in M03. |
+| K-003 | The optional Realtime path currently selects WebSocket transport with an API-key boundary; a secure short-lived client-token broker and continuous Windows device transport are not selected. | High: privacy/security and deployment. | Choose and threat-model the broker/device flow before enabling live Realtime in the participant shell. |
 | K-004 | Shared Windows audio mix formats vary by device and configuration. | Medium: archive consistency. | Capture real device metadata in M02; preserve original PCM before conversion. |
 | K-005 | Long-term backup destination, encryption-key recovery, and family succession are not designed in detail. | High: decades-long availability. | Design/test in M12–M14. |
 | K-006 | Guest consent and multi-speaker attribution are deferred. | High if scope expands beyond one participant. | Keep disabled until a consent and diarization design passes review. |

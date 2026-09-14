@@ -50,7 +50,7 @@ The ICO states that consent records should show who consented, when, what they w
 
 ## Credentials and secret handling
 
-The client never embeds an API key in source, a public configuration file, a log, a crash report, an export, or a prompt. On Windows, store credentials in Windows Credential Manager or protect a locally persisted secret with DPAPI. The application should minimise time in memory, use TLS, and redact headers and error bodies. Realtime client-secret or brokered-token flows may be evaluated at M03; until then, a locally stored key is treated as a high-impact local secret with documented compromise consequences.
+The client never embeds an API key in source, a public configuration file, a log, a crash report, an export, or a prompt. On Windows, store credentials in Windows Credential Manager or protect a locally persisted secret with DPAPI. The application should minimise time in memory, use TLS, and redact headers and error bodies. The optional Realtime WebSocket adapter currently uses the same protected Credential Manager boundary; a short-lived client-secret or brokered-token flow must be selected and threat-modelled before continuous participant-facing Realtime use.
 
 ## Layered privacy and authority
 
