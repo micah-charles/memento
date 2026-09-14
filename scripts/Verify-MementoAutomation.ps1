@@ -17,6 +17,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path "$PSScriptRoot\..").Path
+if ($RequireMsixSignature -or -not [string]::IsNullOrWhiteSpace($MsixPackagePath)) {
+    $VerifyMsix = $true
+}
 
 function Invoke-NativeStep([string]$FilePath, [string[]]$Arguments) {
     Write-Output ("Running {0} {1}" -f $FilePath, ($Arguments -join ' '))
