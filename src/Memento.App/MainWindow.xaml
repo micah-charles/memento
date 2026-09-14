@@ -10,7 +10,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <TextBlock Text="MEMENTO" FontSize="32" FontWeight="SemiBold" />
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer x:Name="MainContentScrollViewer" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel VerticalAlignment="Center" Spacing="16">
             <TextBlock Text="今日想傾啲乜？" FontSize="28" HorizontalAlignment="Center" />
             <TextBlock Text="本機錄音會儲存在呢部電腦，唔會自動上載。" FontSize="18" HorizontalAlignment="Center" TextWrapping="Wrap" />
@@ -68,9 +68,22 @@
             <Button x:Name="ExportButton" Content="匯出本機資料" Click="ExportButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="BackupButton" Content="建立加密備份" Click="BackupButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="RestoreButton" Content="驗證及還原加密備份" Click="RestoreButton_Click" HorizontalAlignment="Center" Padding="20,8" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                <Button x:Name="ConfigureApplicationLockButton" Content="設定應用程式鎖" Click="ConfigureApplicationLockButton_Click" Padding="18,8" />
+                <Button x:Name="LockNowButton" Content="立即鎖定" Click="LockNowButton_Click" Padding="18,8" />
+            </StackPanel>
             <TextBlock x:Name="StatusText" Text="Recording is off · Local archive" FontSize="16" HorizontalAlignment="Center" TextWrapping="Wrap" />
             </StackPanel>
         </ScrollViewer>
         <TextBlock Grid.Row="2" Text="MEMENTO · 本機資料庫" FontSize="16" HorizontalAlignment="Center" />
+        <Grid x:Name="AppLockOverlay" Grid.RowSpan="3" Visibility="Collapsed" Background="#F2F2F2">
+            <StackPanel Width="360" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14">
+                <TextBlock Text="MEMENTO 已鎖定" FontSize="28" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                <TextBlock Text="請輸入應用程式鎖密碼先繼續。密碼只會由 Windows Credential Manager 保護。" TextWrapping="Wrap" HorizontalAlignment="Center" />
+                <PasswordBox x:Name="AppLockPasswordBox" Header="應用程式鎖密碼" PasswordRevealMode="Hidden" />
+                <Button Content="解鎖" Click="UnlockButton_Click" HorizontalAlignment="Center" Padding="28,10" />
+                <TextBlock x:Name="AppLockStatusText" TextWrapping="Wrap" HorizontalAlignment="Center" />
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>

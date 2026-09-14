@@ -38,3 +38,4 @@ Get-Content .\artifacts\MEMENTO-win-x64.zip.sha256
 ```
 
 Inside the app, `啟用本機錄音功能` is a persistent recording toggle. The shell also provides explicit health-check, media export, password-encrypted backup, disposable restore/manifest-verification, and Family Admin withdrawal actions; backups are written under `%LOCALAPPDATA%\MEMENTO\backups` and should be tested before pilot use. Withdrawing a Source preserves its local history and media but excludes it from future cloud processing, local search, and ordinary exports.
+The shell also offers an optional application lock backed by Windows Credential Manager. It is disabled by default; configure and test the recovery policy before using it for a family deployment.

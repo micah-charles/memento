@@ -60,7 +60,7 @@ Authority is separate from privacy scope. A family administrator may be allowed 
 
 ## Local access and family roles
 
-The Windows user account and disk encryption protect the local archive at rest. A deployment application lock remains a pilot requirement, and the current shell separates participant UI from Family Admin mode. Admin actions that accept, withdraw, export, restore, or delete Source, Evidence, Claim, Episode, or Annotation records are authenticated and written to an audit log without duplicating sensitive content unnecessarily. “Accept” is a workflow action on a candidate; it is not automatically speaker confirmation.
+The Windows user account and disk encryption protect the local archive at rest. MEMENTO includes an optional application lock backed by the current Windows user's Credential Manager; it is disabled by default and must be configured and exercised during deployment. The current shell separates participant UI from Family Admin mode. Admin actions that accept, withdraw, export, restore, or delete Source, Evidence, Claim, Episode, or Annotation records are authenticated and written to an audit log without duplicating sensitive content unnecessarily. “Accept” is a workflow action on a candidate; it is not automatically speaker confirmation.
 
 The archive is family-owned, not provider-owned. A public Git repository may contain documentation and schemas, never recordings, real transcripts, backups, exports, or credentials.
 

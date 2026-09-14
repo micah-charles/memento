@@ -103,7 +103,7 @@
 - The WinUI shell now exposes a participant-facing clarification panel for the latest transcript, with explicit person/place/relationship/date/event/identity/preference categories and separate speaker-confirmed, two-possibility, “唔記得”, and refusal outcomes. Original transcript revisions remain visible in the protocol and are never overwritten.
 - The participant shell now exposes `NORMAL`, `PRIVATE_CONVERSATION`, and `LOCAL_CAPTURE_ONLY` as selectable modes for the next recording. Private and local-only modes disable cloud consent and current-information queries in the UI, while the persisted session policy remains authoritative in every service boundary.
 - The shell also exposes a local index repair action, so a health-check parity finding can be fixed from the app without opening SQLite or a terminal.
-- The cumulative suite now passes **112/112** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while target-machine restart/power-loss observation, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
+- The cumulative suite now passes **114/114** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while target-machine restart/power-loss observation, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
 - Clarification provenance now rejects cross-session or unpersisted initial revisions before creating a correction chain.
 - Clarification ownership checks now reject sessionless or mismatched Source context before creating a corrected revision, avoiding orphaned correction records.
 - Clarification chain persistence now uses one SQLite transaction for corrected revision, event, vocabulary, and provenance search row.
@@ -132,7 +132,7 @@
 - The WinUI shell now exposes the M12/M13 health-check, media export, encrypted-backup, and disposable restore/verification operations with plain Cantonese status messages; these actions still require supervised native UI verification.
 - The Family Admin shell now exposes a confirmation-gated deletion of the latest finalized Source; it removes dependent content through the authenticated deletion service and preserves only a minimal audit tombstone.
 - The Family Admin shell also exposes a confirmation-gated withdrawal of the latest finalized Source; it retains local history and media but disables future cloud processing and ordinary search/export paths.
-- The cumulative suite now passes **112/112** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
+- The cumulative suite now passes **114/114** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
 
 ## M14 status
 
@@ -144,6 +144,7 @@
 - Installer updates now stage a clean app tree beside the install directory and swap it into place, so removed files cannot survive an update; a failed swap restores the previous app tree while leaving archive data untouched.
 - Post-swap installer failures, including Start Menu shortcut creation errors, now move the failed tree aside and restore the previous app tree before cleanup; this rollback path was exercised against a disposable install root.
 - The published bundle has been installed and launch-smoke-tested from `%LOCALAPPDATA%\\MEMENTO\\App`; the Start Menu shortcut exists and the app remains installed for supervised GUI/microphone verification.
+- The optional application lock stores a salted PBKDF2 verifier in the current Windows user's Credential Manager, blocks the participant shell and retry worker while locked, and provides configure, disable, lock-now, and unlock flows. Pure hashing and live Credential Manager round-trip tests pass; target-machine recovery/policy review remains open.
 - A persistent `recording_enabled` setting now gives the participant an explicit enable/disable control independent of per-session consent.
 - Added a read-only `Test-MementoPreflight.ps1` command for bundle checksum, installed executable, shortcut, archive path, free-space, and process-state checks; it keeps GUI, microphone, credentials, and participant checks explicitly supervised.
 - Optional TTS now completes the turn-based pipeline as local WAV → transcription → text response → verified derived speech storage → optional NAudio WAV playback. The WinUI shell can replay the latest stored assistant output; real output-device playback and Realtime/WebRTC transport remain deployment work.

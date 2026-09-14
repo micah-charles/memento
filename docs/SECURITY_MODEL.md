@@ -36,7 +36,7 @@ The participant’s speech, transcript, search results, and model output are con
 
 | Threat | Impact | Controls | Verification |
 |---|---|---|---|
-| Stolen PC or disk | Archive disclosure | OS account separation, full-disk encryption configured by the owner, deployment application lock, least-privilege file ACLs, encrypted backups | Configure the application lock, then run restore and unauthorized-access tests before pilot. |
+| Stolen PC or disk | Archive disclosure | OS account separation, full-disk encryption configured by the owner, optional deployment application lock, least-privilege file ACLs, encrypted backups | Configure and exercise the application lock, then run restore and unauthorized-access tests before pilot. |
 | Malicious local user | Tampering or export | Separate Family Admin authentication, append-only revisions, hashes, admin audit events, no silent overwrite, no authority escalation from family annotation to speaker confirmation | Attempt unauthorized accept/delete/export and attempt to label a family assessment as speaker-confirmed. |
 | Leaked API credential | Cloud account abuse and data exposure | Credential Manager/DPAPI, no source/env export, redaction, short-lived client tokens where available, rotation/revocation runbook | Secret scan plus induced log/error checks. |
 | Accidental deletion | Irrecoverable loss | Confirmation, scoped deletion report, versioned backups, restore drill, quarantine/tombstone policy | Delete and restore an isolated fixture. |

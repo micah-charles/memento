@@ -3,6 +3,7 @@ using Memento.Core.Admin;
 using Memento.Core.Conversation;
 using Memento.Core.Domain;
 using Memento.Core.External;
+using Memento.Core.Security;
 using Memento.Core.Storage;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
@@ -28,6 +29,7 @@ public sealed partial class MainWindow : Window
     private readonly string? _adminActorId;
     private readonly ConversationJobWorker? _retryWorker;
     private readonly Func<bool>? _credentialAvailable;
+    private readonly IApplicationLock? _applicationLock;
     private AudioCaptureController? _capture;
     private Session? _session;
     private Turn? _turn;
@@ -37,12 +39,13 @@ public sealed partial class MainWindow : Window
     private bool _processing;
     private bool _recordingEnabled;
     private bool _initializing;
+    private bool _locked;
     private CancellationTokenSource? _retryCancellation;
     private Task? _retryTask;
     private CancellationTokenSource? _sourcePlaybackCancellation;
     private CancellationTokenSource? _currentInfoCancellation;
 
-    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null, ConversationJobWorker? retryWorker = null, Func<bool>? credentialAvailable = null, string? dataRoot = null, ArchiveDeletionService? deletion = null, ArchiveWithdrawalService? withdrawal = null, ISourceAudioPlayback? sourceAudioPlayback = null, CurrentInformationService? currentInformation = null)
+    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null, ConversationJobWorker? retryWorker = null, Func<bool>? credentialAvailable = null, string? dataRoot = null, ArchiveDeletionService? deletion = null, ArchiveWithdrawalService? withdrawal = null, ISourceAudioPlayback? sourceAudioPlayback = null, CurrentInformationService? currentInformation = null, IApplicationLock? applicationLock = null)
     {
         _repository = repository;
         _audioRoot = audioRoot;
@@ -59,6 +62,7 @@ public sealed partial class MainWindow : Window
         _adminActorId = adminActorId;
         _retryWorker = retryWorker;
         _credentialAvailable = credentialAvailable;
+        _applicationLock = applicationLock;
         // XAML can raise SelectionChanged/Checked while InitializeComponent
         // is materialising controls. Suppress handlers until every named
         // element exists and the persisted session state has been restored.
@@ -84,6 +88,8 @@ public sealed partial class MainWindow : Window
             }
             _latestSpeechAsset = _repository.GetLatestDerivedSpeechAsset();
             RefreshClarificationRevision();
+            _locked = IsApplicationLockConfigured();
+            ApplyLockState();
             PlaySpeechButton.IsEnabled = _latestSpeechAsset is not null && _speechPlayback is not null;
             UpdateRecordControl();
             if (_recoverableAudioCount > 0)
@@ -121,6 +127,119 @@ public sealed partial class MainWindow : Window
         if (CloudConsentCheckBox.IsChecked != true)
             _currentInfoCancellation?.Cancel();
         UpdateRecordControl();
+    }
+
+    private void ConfigureApplicationLockButton_Click(object sender, RoutedEventArgs e)
+    {
+        _ = ConfigureApplicationLockAsync();
+    }
+
+    private async void LockNowButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_applicationLock is null || !_applicationLock.IsConfigured || _capture?.State == AudioCaptureState.Capturing || _processing)
+            return;
+        _locked = true;
+        ApplyLockState();
+        await StopRetryWorkerAsync();
+    }
+
+    private async void UnlockButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_applicationLock is null || !_locked) return;
+        try
+        {
+            if (!_applicationLock.Verify(AppLockPasswordBox.Password))
+            {
+                AppLockStatusText.Text = "密碼不正確。";
+                AppLockPasswordBox.Password = string.Empty;
+                return;
+            }
+
+            AppLockPasswordBox.Password = string.Empty;
+            AppLockStatusText.Text = string.Empty;
+            _locked = false;
+            ApplyLockState();
+            StartRetryWorkerIfAvailable();
+            StatusText.Text = "已解鎖 MEMENTO。";
+        }
+        catch (Exception)
+        {
+            AppLockStatusText.Text = "未能讀取應用程式鎖，請檢查 Windows Credential Manager。";
+        }
+        await Task.CompletedTask;
+    }
+
+    private async Task ConfigureApplicationLockAsync()
+    {
+        if (_applicationLock is null || _locked || _capture?.State == AudioCaptureState.Capturing || _processing)
+            return;
+
+        if (_applicationLock.IsConfigured)
+        {
+            var currentPassword = new PasswordBox { Header = "目前應用程式鎖密碼", MinWidth = 300 };
+            var disableDialog = new ContentDialog
+            {
+                XamlRoot = RootGrid.XamlRoot,
+                Title = "停用應用程式鎖？",
+                Content = currentPassword,
+                PrimaryButtonText = "停用",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Close
+            };
+            if (await disableDialog.ShowAsync() != ContentDialogResult.Primary) return;
+            try
+            {
+                if (!_applicationLock.Verify(currentPassword.Password))
+                {
+                    StatusText.Text = "目前應用程式鎖密碼不正確。";
+                    return;
+                }
+                _applicationLock.Clear();
+                StatusText.Text = "已停用應用程式鎖。";
+                ApplyLockState();
+            }
+            catch (Exception)
+            {
+                StatusText.Text = "未能停用應用程式鎖。";
+            }
+            return;
+        }
+
+        var newPassword = new PasswordBox { Header = "新密碼（至少六個字元）", MinWidth = 300 };
+        var confirmPassword = new PasswordBox { Header = "再次輸入新密碼", MinWidth = 300 };
+        var content = new StackPanel { Spacing = 10 };
+        content.Children.Add(new TextBlock { Text = "密碼會由目前 Windows 使用者嘅 Credential Manager 保護；遺失密碼後只能由管理員清除該 Windows credential。", TextWrapping = TextWrapping.Wrap });
+        content.Children.Add(newPassword);
+        content.Children.Add(confirmPassword);
+        var enableDialog = new ContentDialog
+        {
+            XamlRoot = RootGrid.XamlRoot,
+            Title = "設定應用程式鎖",
+            Content = content,
+            PrimaryButtonText = "啟用",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Close
+        };
+        if (await enableDialog.ShowAsync() != ContentDialogResult.Primary) return;
+        if (!string.Equals(newPassword.Password, confirmPassword.Password, StringComparison.Ordinal))
+        {
+            StatusText.Text = "兩次密碼不一致。";
+            return;
+        }
+        try
+        {
+            _applicationLock.Configure(newPassword.Password);
+            StatusText.Text = "已啟用應用程式鎖。你可以按立即鎖定測試。";
+            ApplyLockState();
+        }
+        catch (ArgumentException error)
+        {
+            StatusText.Text = error.Message;
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "未能啟用應用程式鎖。";
+        }
     }
 
     private void PrivacyModeChanged(object sender, SelectionChangedEventArgs e)
@@ -891,8 +1010,51 @@ public sealed partial class MainWindow : Window
         });
     }
 
+    private bool IsApplicationLockConfigured()
+    {
+        try
+        {
+            return _applicationLock?.IsConfigured == true;
+        }
+        catch
+        {
+            // If the lock store cannot be read, fail closed and require the
+            // user to resolve the credential issue before seeing the archive.
+            AppLockStatusText.Text = "未能讀取應用程式鎖；請輸入密碼或檢查 Windows Credential Manager。";
+            return _applicationLock is not null;
+        }
+    }
+
+    private void ApplyLockState()
+    {
+        var configured = IsApplicationLockConfigured();
+        MainContentScrollViewer.IsEnabled = !_locked;
+        AppLockOverlay.Visibility = _locked ? Visibility.Visible : Visibility.Collapsed;
+        ConfigureApplicationLockButton.Visibility = _applicationLock is null ? Visibility.Collapsed : Visibility.Visible;
+        ConfigureApplicationLockButton.Content = configured ? "停用應用程式鎖" : "設定應用程式鎖";
+        LockNowButton.Visibility = configured ? Visibility.Visible : Visibility.Collapsed;
+        if (_locked)
+        {
+            AppLockPasswordBox.Password = string.Empty;
+            if (string.IsNullOrWhiteSpace(AppLockStatusText.Text))
+                AppLockStatusText.Text = "請輸入密碼解鎖。";
+        }
+        UpdateRecordControl();
+    }
+
     private void UpdateRecordControl()
     {
+        if (_locked)
+        {
+            MainContentScrollViewer.IsEnabled = false;
+            RecordButton.IsEnabled = false;
+            ProcessButton.IsEnabled = false;
+            PlaySpeechButton.IsEnabled = false;
+            ClarificationPanel.IsHitTestVisible = false;
+            return;
+        }
+
+        MainContentScrollViewer.IsEnabled = true;
         var capturing = _capture?.State == AudioCaptureState.Capturing;
         var selectedPrivacyMode = GetSelectedPrivacyMode();
         if (!capturing && !_processing)
@@ -913,6 +1075,7 @@ public sealed partial class MainWindow : Window
         ExportButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
         BackupButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
         RestoreButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
+        LockNowButton.IsEnabled = _applicationLock?.IsConfigured == true && adminIdle;
     }
 
     private bool HasGrantedCloudConsent()
@@ -963,7 +1126,7 @@ public sealed partial class MainWindow : Window
 
     private void StartRetryWorkerIfAvailable()
     {
-        if (_retryWorker is null || _retryTask is not null || _credentialAvailable is null) return;
+        if (_locked || _retryWorker is null || _retryTask is not null || _credentialAvailable is null) return;
         try
         {
             if (!_credentialAvailable()) return;
@@ -975,6 +1138,20 @@ public sealed partial class MainWindow : Window
 
         _retryCancellation = new CancellationTokenSource();
         _retryTask = RunRetryWorkerAsync(_retryCancellation.Token);
+    }
+
+    private async Task StopRetryWorkerAsync()
+    {
+        _retryCancellation?.Cancel();
+        var task = _retryTask;
+        if (task is not null)
+        {
+            try { await task.ConfigureAwait(true); }
+            catch (Exception) { }
+        }
+        _retryTask = null;
+        _retryCancellation?.Dispose();
+        _retryCancellation = null;
     }
 
     private async Task RunRetryWorkerAsync(CancellationToken cancellationToken)
@@ -999,6 +1176,15 @@ public sealed partial class MainWindow : Window
         catch (Exception)
         {
             _dispatcherQueue.TryEnqueue(() => StatusText.Text = "背景重試已停止；本機資料仍然保留。");
+        }
+        finally
+        {
+            if (_retryCancellation?.Token == cancellationToken)
+            {
+                _retryTask = null;
+                _retryCancellation.Dispose();
+                _retryCancellation = null;
+            }
         }
     }
 }

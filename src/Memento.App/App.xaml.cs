@@ -33,6 +33,7 @@ public partial class App : Application
         var derivedAudioStore = new DerivedAudioStore(Repository, Path.Combine(dataDirectory, "derived", "audio"));
         _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
         var credentials = new WindowsCredentialProvider();
+        var applicationLock = new WindowsApplicationLock();
         var transcriptionProvider = new OpenAiTranscriptionProvider(_httpClient, credentials);
         var conversationProvider = new OpenAiResponsesProvider(_httpClient, credentials, "gpt-5.6-terra");
         var speechOutputProvider = new OpenAiSpeechOutputProvider(_httpClient, credentials);
@@ -62,7 +63,7 @@ public partial class App : Application
         var deletion = adminAuthorized ? new Memento.Core.Admin.ArchiveDeletionService(Repository, adminAuthorizer) : null;
         var withdrawal = adminAuthorized ? new Memento.Core.Admin.ArchiveWithdrawalService(Repository, adminAuthorizer) : null;
         var sourceAudioPlayback = adminAuthorized ? new WaveFileSourceAudioPlayback() : null;
-        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, voiceConversation, new WaveFileSpeechOutputPlayback(derivedAudioStore), adminReview, adminActorId, retryWorker, () => !string.IsNullOrWhiteSpace(credentials.GetApiKey()), dataDirectory, deletion, withdrawal, sourceAudioPlayback, currentInformation);
+        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, voiceConversation, new WaveFileSpeechOutputPlayback(derivedAudioStore), adminReview, adminActorId, retryWorker, () => !string.IsNullOrWhiteSpace(credentials.GetApiKey()), dataDirectory, deletion, withdrawal, sourceAudioPlayback, currentInformation, applicationLock);
         _window.Activate();
     }
 }
