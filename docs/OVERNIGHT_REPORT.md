@@ -2,7 +2,7 @@
 
 **Report date:** 2026-09-14
 **Starting reviewed checkpoint:** `82cbccc` (`main` on `origin`)
-**Current local checkpoint:** `5eed3c5` (`fix: handle malformed app lock in UI`).
+**Current local checkpoint:** `08abffb` (`test: validate MSIX identity and assets`).
 **Environment:** Windows, .NET 10 SDK, `win-x64`, repository worktree
 
 This report records what is implemented and verified in the local worktree. It does not turn simulated, automated, or process-only checks into native GUI, hardware, live-provider, or participant evidence.
@@ -22,6 +22,7 @@ This report records what is implemented and verified in the local worktree. It d
 - Realtime shell output path — the separate live-conversation consent/action now persists provider PCM output as a verified derived WAV and routes it through the existing replay control. No live provider or physical output-device call was made.
 - Realtime device path — the capture flow now opens a bounded WebSocket session before microphone capture, forwards local PCM chunks, commits on stop, and records policy-gated success/failure metadata. The transport and archive boundaries, including post-provider Source deletion, are automated-tested; live credentials and physical microphone/output verification remain open.
 - MSIX deployment path — corrected the manifest schema, removed duplicate publish payloads from staging, and generated an unsigned package with portable Windows SDK BuildTools `makeappx.exe`; `makeappx unpack` verified one executable occurrence and the manifest. The signing path now accepts an explicit timestamp service or an offline development signature. A temporary development certificate produced a timestamped package that `signtool verify /pa` could verify, but current-user package deployment still requires a machine-trusted publisher certificate.
+- MSIX verification hardening — `Test-MementoMsix.ps1` now validates the package identity/version, expected MEMENTO application entry, visual asset references, and exact asset names before reporting the payload gate as passed; the latest unsigned package passed this stricter check.
 
 ## Milestone status
 
