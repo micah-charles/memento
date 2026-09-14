@@ -32,6 +32,7 @@ internal static class SourcePathGuard
     {
         if (string.IsNullOrWhiteSpace(source.FilePath) || !PathsEqual(source.FilePath, requestedPath))
             throw new InvalidDataException("The requested audio path does not match the archived Source.");
+        ArchivePathSafety.EnsureNoReparsePointInPath(source.FilePath, "The Source audio path");
         if (!File.Exists(source.FilePath))
             throw new FileNotFoundException("The archived Source audio file was not found.", source.FilePath);
 

@@ -149,6 +149,56 @@ public sealed class DeletionTests
     }
 
     [Fact]
+    public void Source_deletion_refuses_reparse_media_path_without_following_it()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new DeletionFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var fixtureDirectory = Path.GetDirectoryName(fixture.SourcePath)!;
+        var target = Path.Combine(fixtureDirectory, "outside-target.wav");
+        File.WriteAllBytes(target, [9, 8, 7]);
+        var link = Path.Combine(fixtureDirectory, "recording-link.wav");
+        try
+        {
+            File.CreateSymbolicLink(link, target);
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        var bytes = File.ReadAllBytes(target);
+        var source = repository.AddSource(new SourceMetadata(
+            "source-reparse-delete",
+            "audio",
+            session.SessionId,
+            null,
+            link,
+            "PCM WAV",
+            48000,
+            1,
+            16,
+            bytes.LongLength,
+            0,
+            Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(),
+            DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow,
+            "finalized",
+            DateTimeOffset.UtcNow));
+
+        var result = new ArchiveDeletionService(repository, new FixedTestAdminAuthorizer("admin-1"))
+            .DeleteSource("admin-1", source.SourceId, "remove unsafe media reference");
+
+        Assert.False(result.MediaRemoved);
+        Assert.Contains(result.Findings, finding => finding.Contains("unsafe path", StringComparison.Ordinal));
+        Assert.True(File.Exists(target));
+        Assert.True(File.Exists(link));
+        Assert.Null(repository.GetSource(source.SourceId));
+    }
+
+    [Fact]
     public void Sessionless_placeholder_source_can_be_deleted_without_crashing()
     {
         using var fixture = new DeletionFixture();

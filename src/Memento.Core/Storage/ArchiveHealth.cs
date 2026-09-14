@@ -113,6 +113,14 @@ public static class ArchiveHealthCheck
 
     private static bool IsFileMatching(string path, long expectedLength, string? expectedHash)
     {
+        try
+        {
+            ArchivePathSafety.EnsureNoReparsePointInPath(path, "The archive media path");
+        }
+        catch (Exception error) when (error is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
         if (!File.Exists(path)) return false;
         var fileLength = new FileInfo(path).Length;
         if (expectedLength >= 0 && fileLength != expectedLength) return false;

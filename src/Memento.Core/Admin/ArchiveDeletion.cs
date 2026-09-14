@@ -131,6 +131,16 @@ public sealed class ArchiveDeletionService
         using var remainingReferences = _repository.Archive.OpenConnection();
         foreach (var path in mediaPaths)
         {
+            try
+            {
+                ArchivePathSafety.EnsureNoReparsePointInPath(path, "The media deletion path");
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                mediaRemoved = false;
+                findings.Add($"Could not remove media asset '{Path.GetFileName(path)}': unsafe path ({error.GetType().Name}).");
+                continue;
+            }
             if (!File.Exists(path)) continue;
             if (IsMediaPathReferenced(remainingReferences, path))
             {

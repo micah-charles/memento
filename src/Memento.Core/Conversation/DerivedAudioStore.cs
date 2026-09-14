@@ -96,6 +96,7 @@ public sealed class DerivedAudioStore
     public byte[] ReadVerified(DerivedSpeechAsset asset)
     {
         ArgumentNullException.ThrowIfNull(asset);
+        ArchivePathSafety.EnsureNoReparsePointInPath(asset.FilePath, "The derived audio path");
         var bytes = File.ReadAllBytes(asset.FilePath);
         var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
         if (bytes.LongLength != asset.ByteLength || !string.Equals(hash, asset.Sha256, StringComparison.OrdinalIgnoreCase))
