@@ -32,11 +32,53 @@ function Assert-NoReparsePointInPath {
     }
 }
 
+function Assert-SafeBundleArchive {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path
+    )
+
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($Path)
+    try {
+        $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        foreach ($entry in $archive.Entries) {
+            $entryName = $entry.FullName.Replace('\', '/')
+            if ([string]::IsNullOrWhiteSpace($entryName)) { throw 'The installation bundle contains an empty ZIP entry name.' }
+            if ($entryName.StartsWith('/') -or [System.IO.Path]::IsPathRooted($entryName)) {
+                throw "The installation bundle contains a rooted ZIP entry: $($entry.FullName)"
+            }
+
+            $segments = $entryName.Split('/', [System.StringSplitOptions]::RemoveEmptyEntries)
+            if ($segments | Where-Object { $_ -eq '..' -or $_ -eq '.' -or $_.Contains(':') }) {
+                throw "The installation bundle contains an unsafe ZIP entry: $($entry.FullName)"
+            }
+            $canonicalName = [string]::Join('/', $segments)
+            if (-not $seen.Add($canonicalName)) {
+                throw "The installation bundle contains duplicate ZIP entries: $($entry.FullName)"
+            }
+
+            # Unix-mode symlink entries can otherwise be materialised as a link
+            # by extraction tooling. Portable MEMENTO bundles contain regular
+            # files and directories only.
+            $unixMode = ([uint32]$entry.ExternalAttributes -shr 16) -band 0xF000
+            if ($unixMode -eq 0xA000) {
+                throw "The installation bundle contains a symbolic-link ZIP entry: $($entry.FullName)"
+            }
+        }
+    }
+    finally {
+        $archive.Dispose()
+    }
+}
+
 Assert-NoReparsePointInPath -Path $InstallRoot -Description 'The install path'
 
 if (-not (Test-Path -LiteralPath $BundlePath -PathType Leaf)) {
     throw "Bundle not found: $BundlePath. Run scripts\Publish-Memento.ps1 first."
 }
+
+Assert-SafeBundleArchive -Path $BundlePath
 
 $hashPath = "$BundlePath.sha256"
 if (Test-Path -LiteralPath $hashPath -PathType Leaf) {
