@@ -76,7 +76,10 @@ try {
     if ($null -eq $application -or $application.Id -ne 'Memento' -or $application.Executable -ne 'Memento.App.exe' -or $application.EntryPoint -ne 'Windows.FullTrustApplication') {
         throw 'MSIX manifest does not describe the expected MEMENTO application entry.'
     }
-    $visualElements = $application.SelectSingleNode('uap:VisualElements', $namespaceManager)
+    $visualElements = $null
+    if ($null -ne $application) {
+        $visualElements = $application.SelectSingleNode('uap:VisualElements', $namespaceManager)
+    }
     $splashScreen = $null
     if ($null -ne $visualElements) {
         $splashScreen = $visualElements.SelectSingleNode('uap:SplashScreen', $namespaceManager)
