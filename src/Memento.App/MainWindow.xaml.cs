@@ -1207,8 +1207,16 @@ public sealed partial class MainWindow : Window
         finally
         {
             passwordBox.Password = string.Empty;
-            if (Directory.Exists(temporaryRoot))
-                Directory.Delete(temporaryRoot, recursive: true);
+            try
+            {
+                if (Directory.Exists(temporaryRoot))
+                    Directory.Delete(temporaryRoot, recursive: true);
+            }
+            catch
+            {
+                // Cleanup failure must not escape an async UI event or replace
+                // the backup result; the temporary path is outside the archive.
+            }
         }
     }
 
