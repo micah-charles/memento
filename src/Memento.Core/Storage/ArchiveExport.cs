@@ -22,6 +22,7 @@ public static class ArchiveExporter
     public static ArchiveExportResult Export(SqliteArchive archive, string destinationDirectory, bool includeMedia = false, bool includeWithdrawn = false)
     {
         if (string.IsNullOrWhiteSpace(destinationDirectory)) throw new ArgumentException("An export directory is required.", nameof(destinationDirectory));
+        ArchivePathSafety.EnsureNoReparsePointInPath(destinationDirectory, "The export directory");
         var archiveRoot = ArchivePathSafety.GetArchiveRoot(archive);
         Directory.CreateDirectory(destinationDirectory);
         var exportDirectory = Path.Combine(destinationDirectory, "memento-export-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N"));
@@ -130,6 +131,7 @@ public static class ArchiveExporter
     {
         if (string.IsNullOrWhiteSpace(destinationDirectory)) throw new ArgumentException("An export directory is required.", nameof(destinationDirectory));
         if (memoryClaimIds is null || memoryClaimIds.Count == 0) throw new ArgumentException("At least one Memory Claim ID is required.", nameof(memoryClaimIds));
+        ArchivePathSafety.EnsureNoReparsePointInPath(destinationDirectory, "The export directory");
 
         var requestedClaimIds = memoryClaimIds
             .Where(id => !string.IsNullOrWhiteSpace(id))

@@ -384,6 +384,28 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void Export_rejects_reparse_point_destination_without_writing_through_it()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new OperationsFixture();
+        using var archive = fixture.CreateArchive();
+        var actualTarget = Path.Combine(fixture.ExportRoot, "export-target");
+        Directory.CreateDirectory(actualTarget);
+        var link = Path.Combine(fixture.ExportRoot, "export-link");
+        try
+        {
+            Directory.CreateSymbolicLink(link, actualTarget);
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        Assert.Throws<IOException>(() => ArchiveExporter.Export(archive, link));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(actualTarget));
+    }
+
+    [Fact]
     public void Backup_file_replacement_is_complete_before_destination_is_replaced()
     {
         using var fixture = new OperationsFixture();
