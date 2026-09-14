@@ -2,7 +2,7 @@
 
 **Report date:** 2026-09-14
 **Starting reviewed checkpoint:** `82cbccc` (`main` on `origin`)
-**Final local checkpoint:** the commit containing this report is the local checkpoint; verify its SHA with `git log -1 --oneline`.
+**Current local checkpoint:** verify the local HEAD with `git log -1 --oneline`.
 **Environment:** Windows, .NET 10 SDK, `win-x64`, repository worktree
 
 This report records what is implemented and verified in the local worktree. It does not turn simulated, automated, or process-only checks into native GUI, hardware, live-provider, or participant evidence.
