@@ -83,7 +83,7 @@
 - Each result now exposes a machine-readable `CorrectionRequired` flag, and reports count cases that need participant clarification instead of inferring it from display text.
 - Fixtures are synthetic and contain no family recordings or private transcripts.
 - M04 is **PARTIAL/BLOCKED**: 18 deterministic tests pass cumulatively, but no real provider corpus or credentialed Cantonese measurement has been run. See [M04 evidence](evidence/M04.md).
-- The M04 command now accepts an external redacted JSON dataset (`--input`) containing expected cases and observed provider results, validates duplicate IDs/required fields/latency, and writes a corpus-labelled report. Synthetic output remains explicitly labelled as wiring evidence; no personal corpus is stored in the repository.
+- The M04 command now accepts an external redacted JSON dataset (`--input`) containing expected cases and observed provider results, validates duplicate IDs/required fields/latency, and writes an anonymously labelled report. Synthetic output remains explicitly labelled as wiring evidence; input filenames are not copied into reports and no personal corpus is stored in the repository.
 
 ## M05 implementation attempt — 2026-09-13
 

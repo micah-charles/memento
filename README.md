@@ -135,9 +135,11 @@ dotnet run --project .\tools\Memento.LanguageValidation\Memento.LanguageValidati
 ```
 
 The input reader rejects empty datasets, missing observations, duplicate case
-IDs, and negative latency. Synthetic output remains clearly labelled as
-`m04-synthetic-v1`; an external report uses the input filename as its corpus
-label and does not copy audio or credentials into the report.
+IDs, and negative latency. Synthetic output is labelled `m04-synthetic-v1`;
+external reports use the anonymous `m04-external-redacted-v1` label by default.
+If a non-sensitive run identifier is needed, pass `--corpus` with only letters,
+numbers, dots, dashes, or underscores. The input filename is never copied into
+the report, and the report does not contain audio or credentials.
 
 ## Non-goals for M00/M00.1
 
