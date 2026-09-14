@@ -103,6 +103,7 @@
 - Speaker-confirmed aliases and vocabulary now require a linked clarification event with a speaker-confirmed outcome; refusal, uncertainty, and missing-event inputs cannot create participant authority.
 - M06–M09 now include a rebuildable SQLite FTS5 lexical index and `ArchiveSearchService` for transcript, Evidence, and candidate Claim text; its public `Rebuild()` operation recreates the index from canonical tables, while Cantonese substring fallback keeps short CJK queries usable and withdrawn/deleted Source records stay out of results. A real Chinese corpus is still needed to measure ranking/tokenization quality.
 - Search index migration 17 now reconstructs transcript rows with the owning Source session, and incremental index writes derive that session when callers provide only a Source ID; search results therefore retain session provenance after upgrades as well as after a manual rebuild.
+- The latest-source selector now includes `recovered` audio assets, so an interrupted recording promoted by Family Admin remains available for playback, review, export, and (when policy permits) later processing.
 - The WinUI shell now exposes this local search through a small Cantonese-friendly query box; results are limited to the bounded local lexical service and inherit the withdrawn-Source privacy filter.
 - The WinUI shell now exposes a participant-facing clarification panel for the latest transcript, with explicit person/place/relationship/date/event/identity/preference categories and separate speaker-confirmed, two-possibility, “唔記得”, and refusal outcomes. Original transcript revisions remain visible in the protocol and are never overwritten.
 - The participant shell now exposes `NORMAL`, `PRIVATE_CONVERSATION`, and `LOCAL_CAPTURE_ONLY` as selectable modes for the next recording. Private and local-only modes disable cloud consent and current-information queries in the UI, while the persisted session policy remains authoritative in every service boundary.
@@ -110,7 +111,7 @@
 - Current-information queries now enforce the same privacy mode and explicit cloud-consent boundary in `CurrentInformationService`, so non-UI callers cannot bypass the participant guard.
 - M04 now includes a complete non-sensitive synthetic corpus covering every required language-validation category; the corpus is wired through the report harness and remains clearly separate from real-provider quality evidence.
 - The shell also exposes a local index repair action, so a health-check parity finding can be fixed from the app without opening SQLite or a terminal.
-- The cumulative suite now passes **138/138** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while target-machine restart/power-loss observation, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
+- The cumulative suite now passes **139/139** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while target-machine restart/power-loss observation, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
 - Clarification provenance now rejects cross-session or unpersisted initial revisions before creating a correction chain.
 - Clarification ownership checks now reject sessionless or mismatched Source context before creating a corrected revision, avoiding orphaned correction records.
 - Clarification chain persistence now uses one SQLite transaction for corrected revision, event, vocabulary, and provenance search row.
@@ -145,7 +146,7 @@
 - The WinUI shell now exposes the M12/M13 health-check, media export, encrypted-backup, and disposable restore/verification operations with plain Cantonese status messages; these actions still require supervised native UI verification.
 - The Family Admin shell now exposes a confirmation-gated deletion of the latest finalized Source; it removes dependent content through the authenticated deletion service and preserves only a minimal audit tombstone.
 - The Family Admin shell also exposes a confirmation-gated withdrawal of the latest finalized Source; it retains local history and media but disables future cloud processing and ordinary search/export paths.
-- The cumulative suite now passes **138/138** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
+- The cumulative suite now passes **139/139** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
 
 ## M14 status
 
