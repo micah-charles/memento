@@ -2,7 +2,7 @@
 
 **Report date:** 2026-09-14
 **Starting reviewed checkpoint:** `82cbccc` (`main` on `origin`)
-**Current local checkpoint:** `2115010` (`docs: record credential setup verification`).
+**Current local checkpoint:** `0a507d3` (`feat: gate deployment on enumerated audio devices`).
 **Environment:** Windows, .NET 10 SDK, `win-x64`, repository worktree
 
 This report records what is implemented and verified in the local worktree. It does not turn simulated, automated, or process-only checks into native GUI, hardware, live-provider, or participant evidence.
@@ -14,6 +14,7 @@ This report records what is implemented and verified in the local worktree. It d
 - M04 CLI — synthetic corpus `m04-synthetic-v1`, **14/14 PASS**, `correctionRequiredCount: 0`.
 - Published bundle — `artifacts/MEMENTO-win-x64.zip`, 106,512,677 bytes, SHA-256 `29cda6e5ad3305d8a17eb8241f310fa03df9541dd5bc8828d2776970e7b744a4`.
 - Deployment preflight — **PASS** for bundle, sidecar, installed executable, Start Menu shortcut, archive paths, free disk, stopped-process state, one wave-in device, and one active WASAPI render device; no microphone was opened and no audio was played.
+- Deployment policy gates — `Setup-Memento.ps1 -SkipPublish -RequireAudioInput -RequireAudioOutput` passed; the same switches can promote missing enumerated devices to blocking failures without claiming physical capture/playback.
 - Credential setup plumbing — the installed hidden-input helper created a disposable `MEMENTO/OpenAI` Credential Manager target, then the target was removed; no live provider request was made.
 - Deployment preflight — **PASS** for the current-user Installed apps registration and its stable per-user install path.
 - Credential setup check — default preflight emitted a **WARN** because `MEMENTO/OpenAI` is absent (local-only mode remains available); `-RequireCloudCredential` correctly returned one blocking failure without exposing a secret.
