@@ -98,6 +98,26 @@ Use `-RemoveData` only after a checked backup and an explicit decision to delete
 the local archive. Re-running `Install-Memento.ps1` with a verified bundle
 stages a clean app tree and keeps the archive outside the replacement path.
 
+## Optional packaged Windows build
+
+The verified everyday path is the per-user bundle above. The repository can
+also produce an unsigned MSIX for structural inspection:
+
+```powershell
+.\scripts\Build-MementoMsix.ps1 -Publisher "CN=Your Publisher"
+.\scripts\Test-MementoMsix.ps1
+```
+
+An MSIX intended for Windows deployment must be signed with an owner-selected
+publisher certificate whose subject matches the manifest, then verified with:
+
+```powershell
+.\scripts\Test-MementoMsix.ps1 -PackagePath .\artifacts\msix\MEMENTO-0.1.0.0.msix -RequireSignature
+```
+
+The unsigned artifact is not a production installer. Publisher trust and
+target-machine install/upgrade/uninstall evidence remain deployment gates.
+
 ## Pilot-only requirements
 
 Before a real participant session, complete the supervised runbook in
