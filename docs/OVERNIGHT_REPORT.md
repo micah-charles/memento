@@ -45,6 +45,7 @@ This report records what is implemented and verified in the local worktree. It d
 - Archive export now snapshots SQLite first and derives JSONL/media metadata from that same snapshot, preventing concurrent retry writes from producing a mixed-time bundle.
 - Media-inclusive archive export now requires snapshot-listed files to exist and match recorded byte length and valid SHA-256 metadata; changed or missing media aborts the run and removes the incomplete export directory.
 - The per-user installer now copies an app-local uninstall script and registers MEMENTO in Windows Installed apps; uninstall removes the app registration immediately and schedules app-tree cleanup after the script exits while preserving archive data by default.
+- A real uninstall/reinstall exercise removed the app tree and registration, preserved the archive database hash, and restored the installed app from the matching bundle sidecar.
 - WAV playback now marks cancellation before stopping the Windows output device, avoiding a stop-event race that could report an interrupted playback as successful.
 - No credentials, recordings, transcripts, exports, backups, or provider responses were committed.
 
