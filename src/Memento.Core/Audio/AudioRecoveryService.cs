@@ -138,6 +138,28 @@ public sealed class AudioRecoveryService
         var root = _audioRootDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
         if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("The recovery marker must be inside the archive audio directory.", nameof(path));
+
+        var current = path;
+        while (!string.IsNullOrEmpty(current))
+        {
+            if (File.Exists(current) || Directory.Exists(current))
+            {
+                try
+                {
+                    if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                        throw new IOException("The recovery marker path cannot contain a reparse point.");
+                }
+                catch (UnauthorizedAccessException error)
+                {
+                    throw new IOException("The recovery marker path cannot be inspected safely.", error);
+                }
+            }
+
+            var parent = Path.GetDirectoryName(current);
+            if (string.IsNullOrEmpty(parent) || string.Equals(parent, current, StringComparison.OrdinalIgnoreCase))
+                break;
+            current = parent;
+        }
     }
 
     private static string ComputeSha256(string path)

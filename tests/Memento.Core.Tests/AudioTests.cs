@@ -180,6 +180,38 @@ public sealed class AudioTests
     }
 
     [Fact]
+    public void Recovery_scanner_and_service_do_not_follow_reparse_point_audio_paths()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new AudioFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.LocalCaptureOnly);
+        var targetRoot = Path.Combine(fixture.DirectoryPath, "audio-target");
+        Directory.CreateDirectory(targetRoot);
+        using var writer = PcmWaveWriter.Create(targetRoot, session.SessionId, DateTimeOffset.UtcNow, new PcmWaveFormat(16000, 1, 16), "reparse-source");
+        writer.Append(new byte[320]);
+        writer.Dispose();
+        var marker = writer.TemporaryPath;
+
+        var link = Path.Combine(fixture.AudioRoot, "linked-outside");
+        try
+        {
+            Directory.CreateSymbolicLink(link, targetRoot);
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        var linkedMarker = Path.Combine(link, Path.GetFileName(marker));
+        Assert.Empty(AudioRecoveryScanner.Scan(fixture.AudioRoot));
+        Assert.Throws<IOException>(() => new AudioRecoveryService(repository, fixture.AudioRoot).Recover(linkedMarker, session.SessionId));
+        Assert.True(File.Exists(marker));
+    }
+
+    [Fact]
     public void Recovery_service_restores_valid_marker_when_source_registration_fails()
     {
         using var fixture = new AudioFixture();

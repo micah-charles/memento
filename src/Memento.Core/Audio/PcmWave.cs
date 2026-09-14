@@ -232,10 +232,34 @@ public static class AudioRecoveryScanner
 {
     public static IReadOnlyList<RecoverableAudioAsset> Scan(string audioRootDirectory)
     {
-        if (!Directory.Exists(audioRootDirectory)) return [];
-        return Directory.EnumerateFiles(audioRootDirectory, "*.capture.tmp", SearchOption.AllDirectories)
+        if (string.IsNullOrWhiteSpace(audioRootDirectory)) return [];
+        var root = Path.GetFullPath(audioRootDirectory);
+        if (!Directory.Exists(root) || IsReparsePoint(root)) return [];
+        var options = new EnumerationOptions
+        {
+            RecurseSubdirectories = true,
+            IgnoreInaccessible = true,
+            AttributesToSkip = FileAttributes.ReparsePoint
+        };
+        return Directory.EnumerateFiles(root, "*.capture.tmp", options)
             .Select(path => Inspect(path))
             .ToArray();
+    }
+
+    private static bool IsReparsePoint(string path)
+    {
+        try
+        {
+            return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
+        }
+        catch (IOException)
+        {
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return true;
+        }
     }
 
     private static RecoverableAudioAsset Inspect(string path)
