@@ -133,7 +133,7 @@ M00/M00.1 did not build a production application, start WinUI or SQLite runtime 
 
 ## Research currency
 
-Current API, pricing, platform, privacy, and license claims in the documents are dated **2026-09-12** and include source URLs. Re-check those sources at the start of any implementation milestone; model aliases, pricing, endpoint behaviour, Windows SDK versions, and legal guidance can change.
+Current API, pricing, platform, privacy, and license claims in the documents are dated **2026-09-14** and include source URLs. Re-check those sources at the start of any implementation milestone; model aliases, pricing, endpoint behaviour, Windows SDK versions, and legal guidance can change.
 
 ## Git and public-repository hygiene
 
