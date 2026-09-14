@@ -9,7 +9,7 @@ into completed evidence.
 Requirements:
 
 - Windows x64 with the repository's .NET 10 and Windows App SDK prerequisites.
-- The repository checkout, or an already-built `artifacts\\MEMENTO-win-x64.zip` bundle.
+- The repository checkout, or an already-built `artifacts\MEMENTO-win-x64.zip` bundle.
 - A local Windows user account that can write to `%LOCALAPPDATA%`.
 
 From the repository root, run:
@@ -19,10 +19,10 @@ From the repository root, run:
 ```
 
 This publishes the self-contained bundle, verifies its SHA-256 sidecar, installs
-MEMENTO under `%LOCALAPPDATA%\\MEMENTO\\App`, creates a Start Menu shortcut,
+MEMENTO under `%LOCALAPPDATA%\MEMENTO\App`, creates a Start Menu shortcut,
 registers a per-user Installed apps entry, runs the read-only preflight, and
 launches the app. The archive is stored separately under
-`%LOCALAPPDATA%\\MEMENTO`.
+`%LOCALAPPDATA%\MEMENTO`.
 
 For an existing verified bundle, add `-SkipPublish`. For the strict local gate,
 run:
