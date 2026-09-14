@@ -214,7 +214,11 @@ public static class ArchiveExporter
         };
     }
 
-    private static string Hash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
+    private static string Hash(string path)
+    {
+        using var stream = File.OpenRead(path);
+        return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+    }
 
     private static void SanitizeWithdrawnRecords(string databasePath)
     {
