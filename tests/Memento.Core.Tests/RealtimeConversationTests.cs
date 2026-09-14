@@ -138,6 +138,25 @@ public sealed class RealtimeConversationTests
     }
 
     [Fact]
+    public void Derived_audio_store_rejects_incomplete_realtime_pcm_frames()
+    {
+        using var fixture = new RealtimeFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var store = new DerivedAudioStore(repository, Path.Combine(fixture.DirectoryPath, "derived", "audio"));
+
+        Assert.Throws<ArgumentException>(() => store.StorePcm(
+            "session",
+            null,
+            new PcmWaveFormat(24000, 1, 16),
+            [1],
+            "openai",
+            "gpt-realtime-2.1-mini"));
+        Assert.Empty(repository.ListDerivedSpeechAssets("session"));
+    }
+
+    [Fact]
     public async Task Realtime_orchestrator_persists_content_free_provider_failure_metadata()
     {
         using var fixture = new RealtimeFixture();
