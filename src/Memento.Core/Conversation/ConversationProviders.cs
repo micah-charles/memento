@@ -26,6 +26,24 @@ public sealed record ConversationResponse(
 
 public sealed class CloudConsentRequiredException() : InvalidOperationException("Cloud conversation requires explicit cloud consent.");
 
+/// <summary>Produces bounded, content-free diagnostics for persisted provider failures.</summary>
+public static class ProviderFailureSummary
+{
+    public static string ForPersistence(Exception error)
+    {
+        ArgumentNullException.ThrowIfNull(error);
+        return error switch
+        {
+            ProviderRequestException request => $"provider request failed (HTTP {request.StatusCode})",
+            HttpRequestException => "network request failed",
+            TaskCanceledException => "provider request timed out or was cancelled",
+            CloudNotPermittedException => "cloud processing was not permitted",
+            CloudConsentRequiredException => "cloud consent was required",
+            _ => error.GetType().Name
+        };
+    }
+}
+
 public sealed class CloudNotPermittedException(string? message = null) : InvalidOperationException(message ?? DefaultMessage)
 {
     public const string DefaultMessage = "Cloud processing is disabled for PRIVATE_CONVERSATION and LOCAL_CAPTURE_ONLY sessions.";
@@ -136,8 +154,8 @@ public sealed class ConversationOrchestrator
             var interaction = _repository.AddProviderInteraction(new ProviderInteraction(
                 Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, _provider.Provider, "conversation",
                 _provider.Model, null, null, started, DateTimeOffset.UtcNow, null, null, false,
-                error.GetType().Name, error.Message, DateTimeOffset.UtcNow));
-            return new ConversationExecution(true, null, interaction, error.Message);
+                error.GetType().Name, ProviderFailureSummary.ForPersistence(error), DateTimeOffset.UtcNow));
+            return new ConversationExecution(true, null, interaction, ProviderFailureSummary.ForPersistence(error));
         }
 
         // A Source can be withdrawn while a provider request is in flight. Do

@@ -52,22 +52,25 @@ public sealed class ConversationJobWorker
             }
             catch (CloudNotPermittedException error)
             {
-                _writer.MarkFailed(processing, error.Message, null, clock);
-                errors.Add(error.Message);
+                var summary = ProviderFailureSummary.ForPersistence(error);
+                _writer.MarkFailed(processing, summary, null, clock);
+                errors.Add(summary);
                 failed++;
             }
             catch (CloudConsentRequiredException error)
             {
-                _writer.MarkFailed(processing, error.Message, null, clock);
-                errors.Add(error.Message);
+                var summary = ProviderFailureSummary.ForPersistence(error);
+                _writer.MarkFailed(processing, summary, null, clock);
+                errors.Add(summary);
                 failed++;
             }
             catch (Exception error)
             {
                 var exponent = Math.Min(processing.AttemptCount - 1, 8);
                 var retryAt = clock + TimeSpan.FromMilliseconds(Math.Min(_baseRetryDelay.TotalMilliseconds * Math.Pow(2, exponent), TimeSpan.FromHours(1).TotalMilliseconds));
-                _writer.MarkFailed(processing, error.Message, retryAt, clock);
-                errors.Add(error.Message);
+                var summary = ProviderFailureSummary.ForPersistence(error);
+                _writer.MarkFailed(processing, summary, retryAt, clock);
+                errors.Add(summary);
                 failed++;
             }
         }

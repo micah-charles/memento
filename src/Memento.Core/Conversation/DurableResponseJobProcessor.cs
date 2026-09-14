@@ -50,7 +50,7 @@ public sealed class DurableResponseJobProcessor : IConversationJobProcessor
         }
         catch (Exception error)
         {
-            _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), job.SessionId, job.TurnId, _speechOutput.Provider, "speech_output", _speechOutput.Model, null, null, started, DateTimeOffset.UtcNow, null, null, false, error.GetType().Name, error.Message, DateTimeOffset.UtcNow));
+            _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), job.SessionId, job.TurnId, _speechOutput.Provider, "speech_output", _speechOutput.Model, null, null, started, DateTimeOffset.UtcNow, null, null, false, error.GetType().Name, ProviderFailureSummary.ForPersistence(error), DateTimeOffset.UtcNow));
             throw;
         }
 

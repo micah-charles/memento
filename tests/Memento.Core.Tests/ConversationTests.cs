@@ -489,6 +489,26 @@ public sealed class ConversationTests
         Assert.Equal("ProviderUnavailableException", result.Interaction.ErrorCode);
     }
 
+    [Fact]
+    public async Task Provider_failure_metadata_does_not_persist_exception_content()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        File.WriteAllBytes(fixture.AudioPath, [7, 8, 9]);
+
+        var result = await new ConversationOrchestrator(repository, new ContentLeakingProvider()).ExecuteAsync(
+            new ConversationRequest(session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow));
+
+        Assert.Equal(nameof(ContentLeakingProviderException), result.Interaction!.ErrorCode);
+        Assert.Equal(nameof(ContentLeakingProviderException), result.Interaction.ErrorMessage);
+        Assert.DoesNotContain("private transcript", result.Interaction.ErrorMessage!, StringComparison.Ordinal);
+        Assert.Equal(nameof(ContentLeakingProviderException), result.Failure);
+    }
+
     private sealed class CountingProvider : IConversationProvider
     {
         public int Calls { get; private set; }
@@ -518,6 +538,17 @@ public sealed class ConversationTests
     }
 
     private sealed class ProviderUnavailableException() : InvalidOperationException;
+
+    private sealed class ContentLeakingProvider : IConversationProvider
+    {
+        public string Provider => "content-leaking-test";
+        public string Model => "content-leaking-v1";
+        public Task<ConversationResponse> SendAsync(ConversationRequest request, CancellationToken cancellationToken = default)
+            => throw new ContentLeakingProviderException();
+    }
+
+    private sealed class ContentLeakingProviderException()
+        : InvalidOperationException("private transcript: 阿貞; api-key=should-not-persist");
 
     private sealed class RecordingHttpHandler : HttpMessageHandler
     {

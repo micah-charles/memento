@@ -66,7 +66,7 @@ public sealed class BoundedVoiceConversationService
         }
         catch (Exception error)
         {
-            _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, _transcription.Provider, "transcription", _transcription.Model, null, null, started, DateTimeOffset.UtcNow, null, null, false, error.GetType().Name, error.Message, DateTimeOffset.UtcNow));
+            _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, _transcription.Provider, "transcription", _transcription.Model, null, null, started, DateTimeOffset.UtcNow, null, null, false, error.GetType().Name, ProviderFailureSummary.ForPersistence(error), DateTimeOffset.UtcNow));
             if (request.SourceId is not null && IsRetryableProviderFailure(error))
             {
                 var retryAt = DateTimeOffset.UtcNow.AddSeconds(30);
@@ -101,7 +101,7 @@ public sealed class BoundedVoiceConversationService
             }
             catch (Exception error)
             {
-                _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, _speechOutput.Provider, "speech_output", _speechOutput.Model, null, null, speechStarted, DateTimeOffset.UtcNow, null, null, false, error.GetType().Name, error.Message, DateTimeOffset.UtcNow));
+                _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, _speechOutput.Provider, "speech_output", _speechOutput.Model, null, null, speechStarted, DateTimeOffset.UtcNow, null, null, false, error.GetType().Name, ProviderFailureSummary.ForPersistence(error), DateTimeOffset.UtcNow));
                 throw;
             }
 
