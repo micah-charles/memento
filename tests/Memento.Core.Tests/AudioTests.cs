@@ -149,6 +149,16 @@ public sealed class AudioTests
     }
 
     [Fact]
+    public void Recovery_service_only_infers_generated_session_ids()
+    {
+        var sessionId = Guid.NewGuid().ToString("N");
+
+        Assert.True(AudioRecoveryService.TryInferSessionId($"{sessionId}-source.wav.capture.tmp", out var inferred));
+        Assert.Equal(sessionId, inferred);
+        Assert.False(AudioRecoveryService.TryInferSessionId("hand-created-source.wav.capture.tmp", out _));
+    }
+
+    [Fact]
     public void Recovery_service_restores_valid_marker_when_source_registration_fails()
     {
         using var fixture = new AudioFixture();
