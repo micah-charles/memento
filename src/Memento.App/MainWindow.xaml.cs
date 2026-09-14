@@ -416,7 +416,7 @@ public sealed partial class MainWindow : Window
             {
                 try
                 {
-                        _activeRealtimeStreaming = await _realtimeStreaming.StartAsync(
+                    _activeRealtimeStreaming = await _realtimeStreaming.StartAsync(
                         new RealtimeStreamingRequest(_session.SessionId, _turn.TurnId, privacyMode, true, startedAt),
                         _capture);
                     realtimeStreamingReady = true;

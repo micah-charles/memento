@@ -19,7 +19,7 @@ public sealed class RealtimeConversationTests
             "{\"type\":\"response.output_audio_transcript.delta\",\"delta\":\"你好，\"}",
             "{\"type\":\"response.output_audio_transcript.delta\",\"delta\":\"我係 MEMENTO。\"}",
             "{\"type\":\"response.output_audio.delta\",\"delta\":\"AQID\"}",
-            "{\"type\":\"response.done\",\"event_id\":\"evt_done\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\"}}" );
+            "{\"type\":\"response.done\",\"event_id\":\"evt_done\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\"}}");
         var provider = new OpenAiRealtimeWebSocketProvider(
             new DelegateApiCredentialProvider(() => "test-key"),
             "gpt-test",
@@ -109,7 +109,7 @@ public sealed class RealtimeConversationTests
 
         var transport = new FakeRealtimeTransport(
             "{\"type\":\"response.output_audio.delta\",\"delta\":\"AQ==\"}",
-            "{\"type\":\"response.done\",\"response\":{\"status\":\"completed\"}}" );
+            "{\"type\":\"response.done\",\"response\":{\"status\":\"completed\"}}");
         var provider = new OpenAiRealtimeWebSocketProvider(
             new DelegateApiCredentialProvider(() => "test-key"),
             transportFactory: () => transport,
