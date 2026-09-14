@@ -370,6 +370,28 @@ public sealed class ConversationTests
     }
 
     [Fact]
+    public async Task Repeated_retryable_transcription_failure_does_not_duplicate_the_job()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        File.WriteAllBytes(fixture.AudioPath, [1, 2]);
+        var source = repository.AddSource(new SourceMetadata("source-retry-dedup", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        var service = new BoundedVoiceConversationService(repository, new FailingTranscriptionProvider(), new DeterministicConversationProvider());
+        var request = new ConversationRequest(session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, SourceId: source.SourceId);
+
+        await Assert.ThrowsAsync<ProviderRequestException>(() => service.ExecuteAsync(request));
+        await Assert.ThrowsAsync<ProviderRequestException>(() => service.ExecuteAsync(request));
+
+        var jobs = repository.ListRetryableConversationJobs(DateTimeOffset.UtcNow.AddMinutes(1));
+        var job = Assert.Single(jobs);
+        Assert.Equal("durable_transcription", job.JobType);
+    }
+
+    [Fact]
     public async Task Retryable_response_failure_queues_a_durable_response_job_after_transcript_persistence()
     {
         using var fixture = new ConversationFixture();
@@ -386,6 +408,31 @@ public sealed class ConversationTests
 
         Assert.Null(result.Conversation.Response);
         var job = Assert.Single(repository.ListRetryableConversationJobs(DateTimeOffset.UtcNow.AddMinutes(1)));
+        Assert.Equal("durable_response", job.JobType);
+        Assert.Single(repository.ListTranscriptRevisions(source.SourceId));
+    }
+
+    [Fact]
+    public async Task Repeated_retryable_response_failure_does_not_duplicate_the_job()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        File.WriteAllBytes(fixture.AudioPath, [1, 2]);
+        var source = repository.AddSource(new SourceMetadata("source-response-retry-dedup", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        var service = new BoundedVoiceConversationService(repository, new InlineTranscriptionProvider(), new FailingResponseProvider());
+        var request = new ConversationRequest(session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, SourceId: source.SourceId);
+
+        var first = await service.ExecuteAsync(request);
+        var second = await service.ExecuteAsync(request);
+
+        Assert.Null(first.Conversation.Response);
+        Assert.Null(second.Conversation.Response);
+        var jobs = repository.ListRetryableConversationJobs(DateTimeOffset.UtcNow.AddMinutes(1));
+        var job = Assert.Single(jobs);
         Assert.Equal("durable_response", job.JobType);
         Assert.Single(repository.ListTranscriptRevisions(source.SourceId));
     }

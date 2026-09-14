@@ -71,7 +71,7 @@ public sealed class BoundedVoiceConversationService
             if (request.SourceId is not null && IsRetryableProviderFailure(error))
             {
                 var retryAt = DateTimeOffset.UtcNow.AddSeconds(30);
-                _repository.AddConversationJob(new ConversationJob(Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, request.SourceId, "durable_transcription", ConversationJobStatus.Failed, 0, retryAt, "transcription provider unavailable: " + error.GetType().Name, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+                QueueRetryIfMissing(request.SessionId, request.TurnId, request.SourceId, "durable_transcription", "transcription provider unavailable: " + error.GetType().Name, retryAt);
             }
             throw;
         }
@@ -84,7 +84,7 @@ public sealed class BoundedVoiceConversationService
         if (conversation.Response is null && request.SourceId is not null && conversation.Interaction is not null && IsRetryableProviderFailure(conversation.Interaction.ErrorCode))
         {
             var retryAt = DateTimeOffset.UtcNow.AddSeconds(30);
-            _repository.AddConversationJob(new ConversationJob(Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, request.SourceId, "durable_response", ConversationJobStatus.Failed, 0, retryAt, "conversation provider unavailable: " + conversation.Interaction.ErrorCode, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            QueueRetryIfMissing(request.SessionId, request.TurnId, request.SourceId, "durable_response", "conversation provider unavailable: " + conversation.Interaction.ErrorCode, retryAt);
         }
         SpeechOutputResult? speech = null;
         DerivedSpeechAsset? speechAsset = null;
@@ -129,6 +129,13 @@ public sealed class BoundedVoiceConversationService
 
     private static bool IsRetryableProviderFailure(string? errorCode)
         => string.Equals(errorCode, nameof(ProviderRequestException), StringComparison.Ordinal) || string.Equals(errorCode, nameof(HttpRequestException), StringComparison.Ordinal) || string.Equals(errorCode, nameof(TaskCanceledException), StringComparison.Ordinal);
+
+    private void QueueRetryIfMissing(string sessionId, string? turnId, string sourceId, string jobType, string error, DateTimeOffset retryAt)
+    {
+        if (_repository.HasActiveConversationJob(sessionId, sourceId, jobType)) return;
+        var now = DateTimeOffset.UtcNow;
+        _repository.AddConversationJob(new ConversationJob(Guid.NewGuid().ToString("N"), sessionId, turnId, sourceId, jobType, ConversationJobStatus.Failed, 0, retryAt, error, now, now));
+    }
 
     private void EnsureSourceStillAvailable(ConversationRequest request)
     {
