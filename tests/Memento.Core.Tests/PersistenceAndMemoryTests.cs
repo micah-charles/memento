@@ -139,6 +139,24 @@ public sealed class PersistenceAndMemoryTests
     }
 
     [Fact]
+    public void Transcription_jobs_are_deduplicated_atomically_per_source()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-transcription-jobs"));
+        var writer = new ConversationSessionWriter(repository);
+
+        var first = writer.QueueTranscriptionIfNeeded(session, null, source);
+        var duplicate = writer.QueueTranscriptionIfNeeded(session, null, source);
+
+        Assert.NotNull(first);
+        Assert.Null(duplicate);
+        Assert.Single(repository.ListRetryableConversationJobs(DateTimeOffset.UtcNow.AddMinutes(1)));
+    }
+
+    [Fact]
     public void Private_conversation_does_not_queue_automatic_extraction()
     {
         using var fixture = new PersistenceFixture();

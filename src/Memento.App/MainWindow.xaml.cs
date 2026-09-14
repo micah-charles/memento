@@ -550,9 +550,10 @@ public sealed partial class MainWindow : Window
         if (_session is null || _lastSource is null || !HasGrantedCloudConsent()) return false;
         try
         {
-            if (_repository.ListTranscriptRevisions(_lastSource.SourceId).Count > 0 || _repository.HasActiveConversationJob(_session.SessionId, _lastSource.SourceId, "durable_transcription"))
+            if (_repository.ListTranscriptRevisions(_lastSource.SourceId).Count > 0)
                 return false;
-            new ConversationSessionWriter(_repository).QueueTranscription(_session, _turn, _lastSource);
+            if (new ConversationSessionWriter(_repository).QueueTranscriptionIfNeeded(_session, _turn, _lastSource) is null)
+                return false;
             StartRetryWorkerIfAvailable();
             return true;
         }

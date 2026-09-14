@@ -17,12 +17,19 @@ public sealed class ConversationSessionWriter
 
     public ConversationJob QueueTranscription(Session session, Turn? turn, SourceMetadata source, DateTimeOffset? now = null)
     {
+        return QueueTranscriptionIfNeeded(session, turn, source, now)
+            ?? throw new InvalidOperationException("An active transcription job already exists for this Source.");
+    }
+
+    public ConversationJob? QueueTranscriptionIfNeeded(Session session, Turn? turn, SourceMetadata source, DateTimeOffset? now = null)
+    {
         if (source.SessionId != session.SessionId) throw new InvalidOperationException("The audio Source belongs to another session.");
         if (turn is not null && turn.SessionId != session.SessionId) throw new InvalidOperationException("The turn belongs to another session.");
         if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) || string.Equals(_repository.GetSource(source.SourceId)?.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
             throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
         var timestamp = now ?? DateTimeOffset.UtcNow;
-        return _repository.AddConversationJob(new ConversationJob(Guid.NewGuid().ToString("N"), session.SessionId, turn?.TurnId, source.SourceId, "durable_transcription", ConversationJobStatus.Pending, 0, timestamp, null, timestamp, timestamp));
+        var job = new ConversationJob(Guid.NewGuid().ToString("N"), session.SessionId, turn?.TurnId, source.SourceId, "durable_transcription", ConversationJobStatus.Pending, 0, timestamp, null, timestamp, timestamp);
+        return _repository.TryAddConversationJobIfMissing(job) ? job : null;
     }
 
     public ConversationJob? QueueExtractionIfNeeded(string sessionId, string? turnId, string sourceId, string transcriptRevisionId, DateTimeOffset? now = null)
