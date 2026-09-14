@@ -182,6 +182,7 @@
 - Added a cancellable device-chunk Realtime session boundary. When the separate live consent is selected, the shell opens the session before capture, forwards locally-written PCM chunks with 48→24 kHz downsampling, commits after stop, and preserves the local Source if connection or provider work fails. Continuous live transport is now implemented and tested; credential-broker, target-device, and live-account verification remain open.
 - Realtime completion now has a bounded two-minute timeout by default (configurable in the provider for tests); a provider that never sends a terminal response becomes a content-free HTTP 504 failure instead of leaving the stop flow waiting forever.
 - If a Realtime turn fails after local capture, the shell now queues the finalized Source for the existing durable transcription worker when the broader cloud-transcription consent is also granted; duplicate or already-transcribed work is skipped.
+- At launch, the shell now reports due retry work when a credential is absent and reports the initial due-job count when the worker starts, so restart recovery is visible without exposing provider errors or recording content.
 
 ## Next action
 

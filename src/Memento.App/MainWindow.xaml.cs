@@ -1472,15 +1472,33 @@ public sealed partial class MainWindow : Window
     private void StartRetryWorkerIfAvailable()
     {
         if (_locked || _retryWorker is null || _retryTask is not null || _credentialAvailable is null) return;
+        var dueJobs = 0;
         try
         {
-            if (!_credentialAvailable()) return;
+            dueJobs = _repository.ListRetryableConversationJobs(DateTimeOffset.UtcNow).Count;
+        }
+        catch
+        {
+            // The launch path should remain usable even if this health/read
+            // query fails; the worker reports later processing errors itself.
+        }
+
+        try
+        {
+            if (!_credentialAvailable())
+            {
+                if (dueJobs > 0)
+                    StatusText.Text = $"有 {dueJobs} 項雲端工作等待 credential；本機錄音仍然保留。";
+                return;
+            }
         }
         catch
         {
             return;
         }
 
+        if (dueJobs > 0)
+            StatusText.Text = $"背景重試已啟動：{dueJobs} 項工作等待處理。";
         _retryCancellation = new CancellationTokenSource();
         _retryTask = RunRetryWorkerAsync(_retryCancellation.Token);
     }
