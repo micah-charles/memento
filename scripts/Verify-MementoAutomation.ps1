@@ -5,6 +5,7 @@ param(
     [switch]$SkipDotnet,
     [switch]$SkipLanguageValidation,
     [switch]$SkipPreflight,
+    [switch]$VerifyLaunch,
     [switch]$VerifyMsix,
     [switch]$RequireMsixSignature,
     [string]$MsixPackagePath = '',
@@ -66,6 +67,10 @@ try {
             throw "Synthetic language validation report failed its deterministic gate."
         }
         Write-Output ("Synthetic language validation: PASS ({0} case(s), 0 correction-required)" -f $report.TotalCases)
+    }
+
+    if ($VerifyLaunch) {
+        Invoke-NativeStep 'powershell' @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', '.\scripts\Test-MementoLaunch.ps1')
     }
 
     if ($VerifyMsix) {

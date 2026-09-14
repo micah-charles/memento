@@ -103,6 +103,9 @@ claiming native visual inspection):
 .\scripts\Test-MementoLaunch.ps1
 ```
 
+The same smoke can be included in the repository gate with
+`-VerifyLaunch` after the app is installed.
+
 Before a cloud-enabled pilot, verify the credential target without exposing its value:
 
 ```powershell

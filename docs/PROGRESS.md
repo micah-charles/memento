@@ -227,6 +227,7 @@
 - Realtime transcription fallback now uses an atomic `QueueTranscriptionIfNeeded` API; an already queued Source is reported as no-op instead of creating a second retry job.
 - Added `scripts/Verify-MementoAutomation.ps1` as a repeatable repository gate: it parser-checks all PowerShell helpers, runs the Release test/build, regenerates the deterministic M04 report, and invokes the read-only deployment preflight with optional blocking policy switches. The latest run includes 13 PowerShell scripts and the launch-smoke helper has passed against the installed bundle.
 - The repository now also passes `dotnet format Memento.slnx --verify-no-changes --no-restore --severity warn`; the final whitespace findings were corrected in the Realtime capture startup path and fixture literals.
+- `Verify-MementoAutomation.ps1 -VerifyLaunch -RequireAudioInput -RequireAudioOutput -RequireArchiveIntegrity` now provides one complete local gate and passed parser, Release tests/build, M04 validation, launch/graceful-close process smoke, device enumeration, and SQLite integrity on the installed bundle.
 - Deployment preflight now verifies the installed archive through the bundled native SQLite library (`PRAGMA integrity_check` and schema version) without loading the app's .NET assemblies into PowerShell; `-RequireArchiveIntegrity` promotes a failed check to a blocking deployment policy.
 
 ## Next action
