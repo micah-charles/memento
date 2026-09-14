@@ -44,6 +44,14 @@ To create a portable self-contained bundle:
 .\scripts\Publish-Memento.ps1
 ```
 
+For the normal publish, install, and deployment-check flow in one command:
+
+```powershell
+.\scripts\Setup-Memento.ps1 -Launch
+```
+
+Add `-RequireCloudCredential` and/or `-RequireApplicationLock` when those pilot policies are mandatory. Add `-SkipPublish` only when reusing an existing bundle whose sidecar has already been verified.
+
 The publish step also writes `artifacts\MEMENTO-win-x64.zip.sha256`; `Install-Memento.ps1` verifies that sidecar automatically when it is present.
 
 To install that bundle for the current Windows user, create a Start Menu shortcut, and register MEMENTO in Windows Installed apps:
