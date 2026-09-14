@@ -132,6 +132,27 @@ public sealed class RealtimeConversationTests
     }
 
     [Fact]
+    public async Task Streaming_session_fails_with_bounded_timeout_when_provider_never_completes()
+    {
+        using var source = new FakeAudioChunkSource(new PcmWaveFormat(24000, 1, 16));
+        await using var transport = new StreamingFakeRealtimeTransport();
+        var provider = new OpenAiRealtimeStreamingProvider(
+            new DelegateApiCredentialProvider(() => "test-key"),
+            transportFactory: () => transport,
+            endpoint: new Uri("wss://example.test/v1/realtime"),
+            completionTimeout: TimeSpan.FromMilliseconds(75));
+
+        await using var session = await provider.StartAsync(new RealtimeStreamingRequest(
+            "session", null, PrivacyMode.Normal, true, DateTimeOffset.UtcNow), source);
+        source.Emit([1, 0, 2, 0]);
+
+        var error = await Assert.ThrowsAsync<ProviderRequestException>(() => session.CompleteAsync());
+
+        Assert.Equal(504, error.StatusCode);
+        Assert.Equal("provider request failed (HTTP 504)", ProviderFailureSummary.ForPersistence(error));
+    }
+
+    [Fact]
     public async Task Streaming_provider_requires_live_consent_before_connecting()
     {
         using var source = new FakeAudioChunkSource(new PcmWaveFormat(24000, 1, 16));

@@ -9,7 +9,7 @@ This report records what is implemented and verified in the local worktree. It d
 
 ## Verification run
 
-- `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **152 passed, 0 failed**.
+- `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **153 passed, 0 failed**.
 - `dotnet build Memento.slnx --configuration Release --no-restore` — **0 warnings, 0 errors**.
 - M04 CLI — synthetic corpus `m04-synthetic-v1`, **14/14 PASS**, `correctionRequiredCount: 0`.
 - Published bundle — `artifacts/MEMENTO-win-x64.zip`, 109,612,078 bytes, SHA-256 `cd38c913c68f95972955f4f361cdbfa1749156bc047867e8c5234b87b7df9240`.

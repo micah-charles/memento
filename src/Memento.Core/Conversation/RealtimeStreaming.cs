@@ -31,21 +31,26 @@ public sealed class OpenAiRealtimeStreamingProvider : IRealtimeStreamingProvider
 {
     private const int OutputLimitBytes = 64 * 1024 * 1024;
     private const long InputLimitBytes = 256L * 1024 * 1024;
+    private static readonly TimeSpan DefaultCompletionTimeout = TimeSpan.FromMinutes(2);
     private readonly IApiCredentialProvider _credentials;
     private readonly Func<IRealtimeMessageTransport> _transportFactory;
     private readonly Uri _endpoint;
+    private readonly TimeSpan _completionTimeout;
 
     public OpenAiRealtimeStreamingProvider(
         IApiCredentialProvider credentials,
         string model = "gpt-realtime-2.1-mini",
         Func<IRealtimeMessageTransport>? transportFactory = null,
-        Uri? endpoint = null)
+        Uri? endpoint = null,
+        TimeSpan? completionTimeout = null)
     {
         _credentials = credentials ?? throw new ArgumentNullException(nameof(credentials));
         Model = string.IsNullOrWhiteSpace(model) ? throw new ArgumentException("A model is required.", nameof(model)) : model;
         _transportFactory = transportFactory ?? (() => new ClientWebSocketRealtimeTransport());
         _endpoint = endpoint ?? new Uri("wss://api.openai.com/v1/realtime?model=" + Uri.EscapeDataString(Model), UriKind.Absolute);
         if (_endpoint.Scheme is not ("wss" or "ws")) throw new ArgumentException("The realtime endpoint must use ws or wss.", nameof(endpoint));
+        _completionTimeout = completionTimeout ?? DefaultCompletionTimeout;
+        if (_completionTimeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(completionTimeout), "Realtime completion timeout must be positive.");
     }
 
     public string Provider => "openai";
@@ -84,7 +89,7 @@ public sealed class OpenAiRealtimeStreamingProvider : IRealtimeStreamingProvider
                     }
                 }
             }), cancellationToken).ConfigureAwait(false);
-            return RealtimeStreamingSession.Create(transport, audioSource, request, Provider, Model);
+            return RealtimeStreamingSession.Create(transport, audioSource, request, Provider, Model, _completionTimeout);
         }
         catch
         {
@@ -293,6 +298,7 @@ public sealed class RealtimeStreamingSession : IAsyncDisposable
     private readonly StringBuilder _inputTranscript = new();
     private readonly MemoryStream _outputAudio = new();
     private readonly PcmRealtimeEncoder _encoder;
+    private readonly TimeSpan _completionTimeout;
     private Task? _sender;
     private Task? _receiver;
     private long _inputBytes;
@@ -300,19 +306,20 @@ public sealed class RealtimeStreamingSession : IAsyncDisposable
     private int _completionStarted;
     private bool _disposed;
 
-    private RealtimeStreamingSession(IRealtimeMessageTransport transport, IAudioChunkSource audioSource, RealtimeStreamingRequest request, string provider, string model)
+    private RealtimeStreamingSession(IRealtimeMessageTransport transport, IAudioChunkSource audioSource, RealtimeStreamingRequest request, string provider, string model, TimeSpan completionTimeout)
     {
         _transport = transport;
         _audioSource = audioSource;
         _request = request;
         _provider = provider;
         _model = model;
+        _completionTimeout = completionTimeout;
         _encoder = new PcmRealtimeEncoder(audioSource.Format);
     }
 
-    internal static RealtimeStreamingSession Create(IRealtimeMessageTransport transport, IAudioChunkSource audioSource, RealtimeStreamingRequest request, string provider, string model)
+    internal static RealtimeStreamingSession Create(IRealtimeMessageTransport transport, IAudioChunkSource audioSource, RealtimeStreamingRequest request, string provider, string model, TimeSpan completionTimeout)
     {
-        var session = new RealtimeStreamingSession(transport, audioSource, request, provider, model);
+        var session = new RealtimeStreamingSession(transport, audioSource, request, provider, model, completionTimeout);
         session.Start();
         return session;
     }
@@ -329,7 +336,7 @@ public sealed class RealtimeStreamingSession : IAsyncDisposable
     public async Task<RealtimeConversationResult> CompleteAsync(CancellationToken cancellationToken = default)
     {
         if (Interlocked.Exchange(ref _completionStarted, 1) != 0)
-            return await _completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return await WaitForCompletionAsync(cancellationToken).ConfigureAwait(false);
 
         _audioSource.DataAvailable -= OnDataAvailable;
         _chunks.Writer.TryComplete();
@@ -337,16 +344,30 @@ public sealed class RealtimeStreamingSession : IAsyncDisposable
         {
             await (_sender ?? Task.CompletedTask).ConfigureAwait(false);
             if (_completion.Task.IsCompleted)
-                return await _completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+                return await WaitForCompletionAsync(cancellationToken).ConfigureAwait(false);
             _encoder.Complete();
             await _transport.SendAsync("{\"type\":\"input_audio_buffer.commit\"}", cancellationToken).ConfigureAwait(false);
             await _transport.SendAsync("{\"type\":\"response.create\"}", cancellationToken).ConfigureAwait(false);
-            return await _completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return await WaitForCompletionAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (Exception error) when (error is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             Fail(error);
             throw;
+        }
+    }
+
+    private async Task<RealtimeConversationResult> WaitForCompletionAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _completion.Task.WaitAsync(_completionTimeout, cancellationToken).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            var bounded = new ProviderRequestException("OpenAI realtime response timed out.", 504);
+            Fail(bounded);
+            throw bounded;
         }
     }
 
