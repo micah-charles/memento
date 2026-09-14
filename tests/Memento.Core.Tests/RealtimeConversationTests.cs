@@ -350,6 +350,36 @@ public sealed class RealtimeConversationTests
     }
 
     [Fact]
+    public async Task Realtime_orchestrator_does_not_persist_after_source_is_deleted_during_provider_call()
+    {
+        using var fixture = new RealtimeFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.LiveCloudConversation, PrivacyMode.Normal, true, "privacy-1");
+        var source = repository.AddSource(new SourceMetadata(
+            "source-realtime-deleted", "audio", session.SessionId, null, fixture.AudioPath,
+            "PCM WAV", 24000, 1, 16, fixture.PcmBytes.LongLength + 44, 20,
+            "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        var provider = new SourceDeletingRealtimeProvider(repository, source.SourceId);
+        var speechStore = new DerivedAudioStore(repository, Path.Combine(fixture.DirectoryPath, "derived", "audio"));
+        var orchestrator = new RealtimeConversationOrchestrator(repository, provider, speechStore);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => orchestrator.ExecuteAsync(new RealtimeConversationRequest(
+            session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true,
+            DateTimeOffset.UtcNow, source.SourceId)));
+
+        Assert.Null(repository.GetSource(source.SourceId));
+        Assert.Empty(repository.ListDerivedSpeechAssets(session.SessionId));
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM provider_interactions WHERE session_id = $session";
+        command.Parameters.AddWithValue("$session", session.SessionId);
+        Assert.Equal(0L, (long)(command.ExecuteScalar() ?? 0L));
+    }
+
+    [Fact]
     public void Derived_audio_store_rejects_incomplete_realtime_pcm_frames()
     {
         using var fixture = new RealtimeFixture();
@@ -493,6 +523,21 @@ public sealed class RealtimeConversationTests
 
         public Task<RealtimeConversationResult> SendAsync(RealtimeConversationRequest request, CancellationToken cancellationToken = default)
             => throw new ProviderRequestException("private transcript must never be persisted", 429);
+    }
+
+    private sealed class SourceDeletingRealtimeProvider(ArchiveRepository repository, string sourceId) : IRealtimeConversationProvider
+    {
+        public string Provider => "source-deleting-realtime";
+        public string Model => "source-deleting-realtime-v1";
+
+        public Task<RealtimeConversationResult> SendAsync(RealtimeConversationRequest request, CancellationToken cancellationToken = default)
+        {
+            new Memento.Core.Admin.ArchiveDeletionService(repository, new Memento.Core.Admin.FixedTestAdminAuthorizer("admin"))
+                .DeleteSource("admin", sourceId, "test source deletion during realtime conversation");
+            return Task.FromResult(new RealtimeConversationResult(
+                new ConversationResponse(Provider, "realtime_conversation", Model, null, "request", "stale response", 100, 0, DateTimeOffset.UtcNow),
+                [1, 2], "stale input"));
+        }
     }
 
     private sealed class RealtimeFixture : IDisposable

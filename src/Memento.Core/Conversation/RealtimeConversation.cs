@@ -380,8 +380,7 @@ public sealed class RealtimeConversationOrchestrator
         }
 
         if (!_repository.HasGrantedConsent(session.SessionId, ConsentScope.LiveCloudConversation)) throw new CloudNotPermittedException();
-        if (request.SourceId is not null && string.Equals(_repository.GetSource(request.SourceId)?.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
-            throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
+        EnsureSourceStillAvailable(request);
         DerivedSpeechAsset? outputSpeechAsset = null;
         if (result.OutputAudioPcm.Length > 0 && _speechStore is not null)
         {
@@ -398,8 +397,7 @@ public sealed class RealtimeConversationOrchestrator
             {
                 if (!_repository.HasGrantedConsent(session.SessionId, ConsentScope.LiveCloudConversation))
                     throw new CloudNotPermittedException();
-                if (request.SourceId is not null && string.Equals(_repository.GetSource(request.SourceId)?.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
-                    throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
+                EnsureSourceStillAvailable(request);
             }
             catch
             {
@@ -409,6 +407,15 @@ public sealed class RealtimeConversationOrchestrator
         }
         _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, result.Response.Provider, result.Response.Capability, result.Response.Model, result.Response.ModelSnapshot, result.Response.RequestId, started, result.Response.CompletedAt, result.Response.InputAudioMs, result.Response.OutputAudioMs, true, null, null, DateTimeOffset.UtcNow));
         return result with { OutputSpeechAsset = outputSpeechAsset };
+    }
+
+    private void EnsureSourceStillAvailable(RealtimeConversationRequest request)
+    {
+        if (request.SourceId is null) return;
+        var source = _repository.GetSource(request.SourceId)
+            ?? throw new InvalidDataException("The requested Source was removed while realtime conversation was running.");
+        if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
+            throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
     }
 
     private void TryDeleteDerivedAsset(DerivedSpeechAsset asset)
