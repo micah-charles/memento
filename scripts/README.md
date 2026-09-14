@@ -22,7 +22,7 @@ Scripts must not read or upload personal data by default.
 .\scripts\Start-Memento.ps1
 ```
 
-`Test-MementoPreflight.ps1` performs a read-only deployment check for the bundle checksum, installed executable, shortcut, archive paths, free disk space, and running-process state. It also checks whether the `MEMENTO/OpenAI` Windows Credential Manager target exists without reading its secret. The credential is a warning by default because local-only capture does not need it; make it blocking for a cloud-enabled pilot with `-RequireCloudCredential`. Native GUI, microphone, live exchange, and participant checks remain supervised gates:
+`Test-MementoPreflight.ps1` performs a read-only deployment check for the bundle checksum, installed executable, shortcut, archive paths, free disk space, running-process state, and the count of Windows wave-in devices exposed by the installed NAudio adapter. The audio probe only enumerates capabilities; it never opens the microphone or starts a recording. It also checks whether the `MEMENTO/OpenAI` Windows Credential Manager target exists without reading its secret. The credential is a warning by default because local-only capture does not need it; make it blocking for a cloud-enabled pilot with `-RequireCloudCredential`. Native GUI, physical microphone capture, live exchange, and participant checks remain supervised gates:
 
 ```powershell
 .\scripts\Test-MementoPreflight.ps1

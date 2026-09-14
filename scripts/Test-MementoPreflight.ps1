@@ -54,6 +54,24 @@ $installedRecoveryHelper = Join-Path $InstallRoot 'Reset-MementoApplicationLock.
 $recoveryHelperExists = Test-Path -LiteralPath $installedRecoveryHelper -PathType Leaf
 Write-Check 'app-lock recovery helper' $recoveryHelperExists ($(if ($recoveryHelperExists) { $installedRecoveryHelper } else { "not found at $installedRecoveryHelper" }))
 
+try {
+    # Loading the adapter and enumerating wave-in capabilities is read-only;
+    # this check never opens the microphone or starts a recording.
+    $audioAssemblyRoot = Split-Path -Parent $installedExecutable
+    $naudioCore = Join-Path $audioAssemblyRoot 'NAudio.Core.dll'
+    $naudioWinMm = Join-Path $audioAssemblyRoot 'NAudio.WinMM.dll'
+    if (-not (Test-Path -LiteralPath $naudioCore -PathType Leaf) -or -not (Test-Path -LiteralPath $naudioWinMm -PathType Leaf)) {
+        throw 'installed NAudio WinMM adapter assemblies are missing'
+    }
+    [System.Reflection.Assembly]::LoadFrom($naudioCore) | Out-Null
+    [System.Reflection.Assembly]::LoadFrom($naudioWinMm) | Out-Null
+    $inputDeviceCount = [NAudio.Wave.WaveInEvent]::DeviceCount
+    Write-Check 'audio input devices' ($inputDeviceCount -gt 0) ("{0} Windows wave-in device(s) detected; no microphone was opened" -f $inputDeviceCount) 'WARN'
+}
+catch {
+    Write-Check 'audio input devices' $false ('unable to enumerate Windows wave-in devices: ' + $_.Exception.GetType().Name) 'WARN'
+}
+
 $shortcutPath = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs\MEMENTO\MEMENTO.lnk'
 Write-Check 'Start Menu shortcut' (Test-Path -LiteralPath $shortcutPath -PathType Leaf) $shortcutPath 'WARN'
 

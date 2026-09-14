@@ -180,6 +180,7 @@
 - The installer now copies that recovery helper into the app-local tree alongside the uninstaller, so a moved or deleted repository does not remove the documented recovery path.
 - A persistent `recording_enabled` setting now gives the participant an explicit enable/disable control independent of per-session consent.
 - Added a read-only `Test-MementoPreflight.ps1` command for bundle checksum, installed executable, shortcut, archive path, free-space, process-state, and Credential Manager target checks; the cloud credential is a warning by default and becomes blocking with `-RequireCloudCredential`, while GUI, microphone, live exchange, and participant checks remain supervised.
+- The same preflight now enumerates installed NAudio Windows wave-in capabilities without opening the microphone; this machine reports one input device, while physical capture, permission, and disconnect behavior remain supervised gates.
 - The same preflight can now require the optional application-lock verifier with `-RequireApplicationLock`, so a family policy can make lock setup a blocking deployment check without exposing the stored verifier.
 - Added `scripts/Setup-Memento.ps1` as the one-command publish/install/preflight workflow, with `-SkipPublish`, `-RequireCloudCredential`, `-RequireApplicationLock`, and `-Launch` options for explicit deployment policy.
 - The WinUI shell now locks privacy, recording, and cloud-consent controls while bounded cloud processing is in flight, preventing a participant from changing policy mid-turn.
