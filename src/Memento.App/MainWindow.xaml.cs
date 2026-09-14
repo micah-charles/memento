@@ -48,6 +48,9 @@ public sealed partial class MainWindow : Window
     private CancellationTokenSource? _sourcePlaybackCancellation;
     private CancellationTokenSource? _currentInfoCancellation;
     private RealtimeStreamingArchiveSession? _activeRealtimeStreaming;
+    private readonly object _archiveOperationGate = new();
+    private TaskCompletionSource<bool> _archiveOperationsIdle = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _activeArchiveOperations;
 
     public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null, ConversationJobWorker? retryWorker = null, Func<bool>? credentialAvailable = null, string? dataRoot = null, ArchiveDeletionService? deletion = null, ArchiveWithdrawalService? withdrawal = null, ISourceAudioPlayback? sourceAudioPlayback = null, CurrentInformationService? currentInformation = null, IApplicationLock? applicationLock = null, RealtimeConversationOrchestrator? realtimeConversation = null, RealtimeStreamingOrchestrator? realtimeStreaming = null)
     {
@@ -741,7 +744,7 @@ public sealed partial class MainWindow : Window
         UpdateRecordControl();
         try
         {
-            var hits = await Task.Run(() => new ArchiveSearchService(_repository.Archive).Search(query, 20));
+            var hits = await RunArchiveWorkAsync(() => new ArchiveSearchService(_repository.Archive).Search(query, 20));
             SearchResultsText.Text = hits.Count == 0
                 ? "未找到符合嘅本機記錄。"
                 : string.Join(Environment.NewLine, hits.Select(hit => $"[{hit.RecordType}] {hit.Content}"));
@@ -845,7 +848,7 @@ public sealed partial class MainWindow : Window
         IReadOnlyList<MemoryClaim> candidates;
         try
         {
-            candidates = await Task.Run(() => _adminReview.ListCandidates(_adminActorId));
+            candidates = await RunArchiveWorkAsync(() => _adminReview.ListCandidates(_adminActorId));
         }
         catch (UnauthorizedAccessException)
         {
@@ -939,12 +942,12 @@ public sealed partial class MainWindow : Window
 
             if (result == ContentDialogResult.Primary)
             {
-                await Task.Run(() => _adminReview.AnnotateClaim(_adminActorId, claim, "family_assessment", "家庭管理審閱：支持候選記憶。", "supported"));
+                await RunArchiveWorkAsync(() => _adminReview.AnnotateClaim(_adminActorId, claim, "family_assessment", "家庭管理審閱：支持候選記憶。", "supported"));
                 StatusText.Text = "已記錄家庭支持；仍保留原始證據鏈。";
             }
             else if (result == ContentDialogResult.Secondary)
             {
-                await Task.Run(() => _adminReview.AnnotateClaim(_adminActorId, claim, "admin_annotation", "家庭管理審閱：拒絕候選記憶。", "rejected"));
+                await RunArchiveWorkAsync(() => _adminReview.AnnotateClaim(_adminActorId, claim, "admin_annotation", "家庭管理審閱：拒絕候選記憶。", "rejected"));
                 StatusText.Text = "已拒絕候選記憶；原始證據仍然保留。";
             }
         }
@@ -984,7 +987,7 @@ public sealed partial class MainWindow : Window
         try
         {
             var sourceId = _lastSource.SourceId;
-            var result = await Task.Run(() => _deletion.DeleteSource(_adminActorId, sourceId, "participant requested deletion"));
+            var result = await RunArchiveWorkAsync(() => _deletion.DeleteSource(_adminActorId, sourceId, "participant requested deletion"));
             _lastSource = null;
             _session = null;
             _pendingClarificationRevision = null;
@@ -1031,8 +1034,8 @@ public sealed partial class MainWindow : Window
         try
         {
             var sourceId = _lastSource.SourceId;
-            var result = await Task.Run(() => _withdrawal.WithdrawSource(_adminActorId, sourceId, "participant requested future cloud processing withdrawal"));
-            _lastSource = await Task.Run(() => _repository.GetSource(result.SourceId));
+            var result = await RunArchiveWorkAsync(() => _withdrawal.WithdrawSource(_adminActorId, sourceId, "participant requested future cloud processing withdrawal"));
+            _lastSource = await RunArchiveWorkAsync(() => _repository.GetSource(result.SourceId));
             _pendingClarificationRevision = null;
             ClarificationPanel.Visibility = Visibility.Collapsed;
             StatusText.Text = "已停止此錄音日後雲端處理；歷史資料及原始錄音仍然保留。";
@@ -1056,7 +1059,7 @@ public sealed partial class MainWindow : Window
         UpdateRecordControl();
         try
         {
-            var report = await Task.Run(() => ArchiveHealthCheck.Run(_repository.Archive, _audioRoot));
+            var report = await RunArchiveWorkAsync(() => ArchiveHealthCheck.Run(_repository.Archive, _audioRoot));
             StatusText.Text = report.Findings.Count == 0
                 ? $"健康檢查完成：SQLite {report.SchemaVersion}，未發現問題。"
                 : $"健康檢查發現 {report.Findings.Count} 項：{string.Join("；", report.Findings)}";
@@ -1084,7 +1087,7 @@ public sealed partial class MainWindow : Window
         RecoverableAudioAsset[] candidates;
         try
         {
-            candidates = await Task.Run(() => AudioRecoveryScanner.Scan(_audioRoot).Where(candidate => candidate.IsValidPcm).ToArray());
+            candidates = await RunArchiveWorkAsync(() => AudioRecoveryScanner.Scan(_audioRoot).Where(candidate => candidate.IsValidPcm).ToArray());
         }
         catch (Exception)
         {
@@ -1116,7 +1119,7 @@ public sealed partial class MainWindow : Window
         UpdateRecordControl();
         try
         {
-            var result = await Task.Run(() =>
+            var result = await RunArchiveWorkAsync(() =>
             {
                 var recovered = 0;
                 var skipped = 0;
@@ -1167,7 +1170,7 @@ public sealed partial class MainWindow : Window
         UpdateRecordControl();
         try
         {
-            var count = await Task.Run(() => new ArchiveSearchService(_repository.Archive).Rebuild());
+            var count = await RunArchiveWorkAsync(() => new ArchiveSearchService(_repository.Archive).Rebuild());
             StatusText.Text = $"本機搜尋索引已修復：{count} 項。";
         }
         catch (Exception)
@@ -1187,7 +1190,7 @@ public sealed partial class MainWindow : Window
         StatusText.Text = "正在匯出本機資料…";
         try
         {
-            var result = await Task.Run(() =>
+            var result = await RunArchiveWorkAsync(() =>
             {
                 var export = ArchiveExporter.Export(_repository.Archive, Path.Combine(_dataRoot, "exports"), includeMedia: true);
                 _adminReview!.RecordAdminOperation(_adminActorId!, "export");
@@ -1258,7 +1261,7 @@ public sealed partial class MainWindow : Window
         {
             StatusText.Text = "正在匯出精簡記憶…";
             var selectedClaimIds = selectedClaims.Select(claim => claim.MemoryClaimId).ToArray();
-            var result = await Task.Run(() =>
+            var result = await RunArchiveWorkAsync(() =>
             {
                 var export = ArchiveExporter.ExportRedacted(_repository.Archive, Path.Combine(_dataRoot, "exports"), selectedClaimIds);
                 _adminReview.RecordAdminOperation(_adminActorId!, "export_redacted");
@@ -1297,7 +1300,7 @@ public sealed partial class MainWindow : Window
         try
         {
             var destination = Path.Combine(_dataRoot, "backups", "memento-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N") + ".memento");
-            await Task.Run(() =>
+            await RunArchiveWorkAsync(() =>
             {
                 var export = ArchiveExporter.Export(_repository.Archive, temporaryRoot, includeMedia: true);
                 ArchiveBackupProtector.EncryptDirectory(export.ExportDirectory, destination, password);
@@ -1362,7 +1365,7 @@ public sealed partial class MainWindow : Window
         StatusText.Text = "正在驗證及還原加密備份…";
         try
         {
-            var result = await Task.Run(() =>
+            var result = await RunArchiveWorkAsync(() =>
             {
                 var report = ArchiveBackupProtector.DecryptDirectory(sourcePath, restoreRoot, password);
                 _adminReview!.RecordAdminOperation(_adminActorId!, "restore_verification");
@@ -1437,7 +1440,7 @@ public sealed partial class MainWindow : Window
         StatusText.Text = "正在更新備份密碼…";
         try
         {
-            var report = await Task.Run(() => ArchiveBackupProtector.ReencryptDirectory(
+            var report = await RunArchiveWorkAsync(() => ArchiveBackupProtector.ReencryptDirectory(
                 sourcePath, destination, previousPassword, replacementPassword));
             if (!report.IntegrityOk)
             {
@@ -1519,8 +1522,67 @@ public sealed partial class MainWindow : Window
     {
         try { await StopRetryWorkerAsync().ConfigureAwait(false); } catch { }
         try { await DisposeActiveRealtimeStreamingAsync().ConfigureAwait(false); } catch { }
+        try { await WaitForArchiveOperationsAsync().ConfigureAwait(false); } catch { }
         if (Application.Current is App app)
             app.DisposeRuntimeServices();
+    }
+
+    private async Task<T> RunArchiveWorkAsync<T>(Func<T> work)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+        BeginArchiveOperation();
+        try
+        {
+            return await Task.Run(work).ConfigureAwait(true);
+        }
+        finally
+        {
+            EndArchiveOperation();
+        }
+    }
+
+    private async Task RunArchiveWorkAsync(Action work)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+        BeginArchiveOperation();
+        try
+        {
+            await Task.Run(work).ConfigureAwait(true);
+        }
+        finally
+        {
+            EndArchiveOperation();
+        }
+    }
+
+    private void BeginArchiveOperation()
+    {
+        lock (_archiveOperationGate)
+        {
+            if (_activeArchiveOperations == 0)
+                _archiveOperationsIdle = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _activeArchiveOperations++;
+        }
+    }
+
+    private void EndArchiveOperation()
+    {
+        TaskCompletionSource<bool>? idle = null;
+        lock (_archiveOperationGate)
+        {
+            if (_activeArchiveOperations <= 0) return;
+            _activeArchiveOperations--;
+            if (_activeArchiveOperations == 0)
+                idle = _archiveOperationsIdle;
+        }
+
+        idle?.TrySetResult(true);
+    }
+
+    private Task WaitForArchiveOperationsAsync()
+    {
+        lock (_archiveOperationGate)
+            return _activeArchiveOperations == 0 ? Task.CompletedTask : _archiveOperationsIdle.Task;
     }
 
     private void CaptureFailed(object? sender, Exception error)
