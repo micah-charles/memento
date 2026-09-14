@@ -59,6 +59,36 @@ public sealed class RealtimeConversationTests
     }
 
     [Fact]
+    public async Task Websocket_provider_downsamples_memento_48khz_pcm_to_realtime_24khz()
+    {
+        using var fixture = new RealtimeFixture();
+        var sourcePath = Path.Combine(fixture.AudioRoot, "input-48.wav");
+        var sourceBytes = new byte[] { 1, 0, 2, 0, 3, 0, 4, 0 };
+        using (var writer = PcmWaveWriter.Create(fixture.AudioRoot, "session", DateTimeOffset.UtcNow, new PcmWaveFormat(48000, 1, 16), "input-48"))
+        {
+            writer.Append(sourceBytes);
+            var asset = writer.FinalizeAsset();
+            File.Move(asset.FilePath, sourcePath);
+        }
+
+        var transport = new FakeRealtimeTransport(
+            "{\"type\":\"response.output_audio.delta\",\"delta\":\"AQ==\"}",
+            "{\"type\":\"response.done\",\"response\":{\"status\":\"completed\"}}" );
+        var provider = new OpenAiRealtimeWebSocketProvider(
+            new DelegateApiCredentialProvider(() => "test-key"),
+            transportFactory: () => transport,
+            endpoint: new Uri("wss://example.test/v1/realtime?model=gpt-realtime-2.1-mini"));
+
+        await provider.SendAsync(new RealtimeConversationRequest(
+            "session", null, sourcePath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow));
+
+        var append = transport.Messages.Where(message => message.Contains("input_audio_buffer.append", StringComparison.Ordinal)).ToArray();
+        Assert.Single(append);
+        using var document = JsonDocument.Parse(append[0]);
+        Assert.Equal(Convert.ToBase64String([1, 0, 3, 0]), document.RootElement.GetProperty("audio").GetString());
+    }
+
+    [Fact]
     public async Task Realtime_orchestrator_requires_live_scope_and_persists_success_metadata()
     {
         using var fixture = new RealtimeFixture();
@@ -69,7 +99,7 @@ public sealed class RealtimeConversationTests
         repository.AddConsent(session.SessionId, ConsentScope.LiveCloudConversation, PrivacyMode.Normal, true, "privacy-1");
         var source = repository.AddSource(new SourceMetadata(
             "source-realtime", "audio", session.SessionId, null, fixture.AudioPath,
-            "PCM WAV", 16000, 1, 16, fixture.PcmBytes.LongLength + 44, 100,
+            "PCM WAV", 24000, 1, 16, fixture.PcmBytes.LongLength + 44, 20,
             "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
         var provider = new StubRealtimeProvider();
         var orchestrator = new RealtimeConversationOrchestrator(repository, provider);
@@ -138,8 +168,8 @@ public sealed class RealtimeConversationTests
             Directory.CreateDirectory(AudioRoot);
             DatabasePath = Path.Combine(DirectoryPath, "data", "memory.db");
             AudioPath = Path.Combine(AudioRoot, "input.wav");
-            PcmBytes = new byte[320];
-            using var writer = PcmWaveWriter.Create(AudioRoot, "session", DateTimeOffset.UtcNow, new PcmWaveFormat(16000, 1, 16), "input");
+            PcmBytes = new byte[480];
+            using var writer = PcmWaveWriter.Create(AudioRoot, "session", DateTimeOffset.UtcNow, new PcmWaveFormat(24000, 1, 16), "input");
             writer.Append(PcmBytes);
             var asset = writer.FinalizeAsset();
             File.Move(asset.FilePath, AudioPath);

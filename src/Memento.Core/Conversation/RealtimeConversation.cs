@@ -49,7 +49,6 @@ public sealed class ClientWebSocketRealtimeTransport : IRealtimeMessageTransport
 
         var socket = new ClientWebSocket();
         socket.Options.SetRequestHeader("Authorization", "Bearer " + apiKey);
-        socket.Options.SetRequestHeader("OpenAI-Beta", "realtime=v1");
         try
         {
             await socket.ConnectAsync(endpoint, cancellationToken).ConfigureAwait(false);
@@ -150,6 +149,8 @@ public sealed class OpenAiRealtimeWebSocketProvider : IRealtimeConversationProvi
         var format = PcmWaveValidator.Validate(request.LocalAudioPath, allowPartial: false);
         if (format.BitsPerSample != 16 || format.Channels != 1)
             throw new InvalidDataException("Realtime input requires mono 16-bit PCM WAV audio.");
+        if (format.SampleRate is not (24000 or 48000))
+            throw new InvalidDataException("Realtime input requires 24 kHz or 48 kHz PCM WAV audio.");
         var dataBytes = PcmWaveValidator.GetDataBytes(request.LocalAudioPath);
         if (dataBytes <= 0) throw new InvalidDataException("Realtime input audio is empty.");
 
@@ -162,20 +163,23 @@ public sealed class OpenAiRealtimeWebSocketProvider : IRealtimeConversationProvi
             {
                 type = "realtime",
                 model = Model,
-                output_modalities = new[] { "text", "audio" },
+                output_modalities = new[] { "audio" },
                 audio = new
                 {
-                    input = new { format = new { type = "audio/pcm", rate = format.SampleRate } },
+                    input = new
+                    {
+                        format = new { type = "audio/pcm", rate = format.SampleRate },
+                        turn_detection = (object?)null,
+                        transcription = new { model = "gpt-transcribe" }
+                    },
                     output = new { format = new { type = "audio/pcm", rate = 24000 } }
-                },
-                turn_detection = (object?)null,
-                input_audio_transcription = new { model = "gpt-transcribe" }
+                }
             }
         }), cancellationToken).ConfigureAwait(false);
 
-        await SendAudioAsync(transport, request.LocalAudioPath, dataBytes, cancellationToken).ConfigureAwait(false);
+        await SendAudioAsync(transport, request.LocalAudioPath, dataBytes, format, cancellationToken).ConfigureAwait(false);
         await transport.SendAsync("{\"type\":\"input_audio_buffer.commit\"}", cancellationToken).ConfigureAwait(false);
-        await transport.SendAsync("{\"type\":\"response.create\",\"response\":{\"output_modalities\":[\"text\",\"audio\"]}}", cancellationToken).ConfigureAwait(false);
+        await transport.SendAsync("{\"type\":\"response.create\"}", cancellationToken).ConfigureAwait(false);
 
         var outputText = new StringBuilder();
         var outputAudioTranscript = new StringBuilder();
@@ -229,21 +233,73 @@ public sealed class OpenAiRealtimeWebSocketProvider : IRealtimeConversationProvi
         }
     }
 
-    private async Task SendAudioAsync(IRealtimeMessageTransport transport, string path, long dataBytes, CancellationToken cancellationToken)
+    private static async Task SendAudioAsync(IRealtimeMessageTransport transport, string path, long dataBytes, PcmWaveFormat format, CancellationToken cancellationToken)
     {
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, InputChunkBytes, FileOptions.SequentialScan);
         stream.Position = 44;
         var buffer = new byte[InputChunkBytes];
+        var output = new byte[InputChunkBytes / 2];
         long remaining = dataBytes;
+        var pending = new byte[4];
+        var pendingCount = 0;
         while (remaining > 0)
         {
             var requested = (int)Math.Min(buffer.Length, remaining);
             var read = await stream.ReadAsync(buffer.AsMemory(0, requested), cancellationToken).ConfigureAwait(false);
             if (read == 0) throw new InvalidDataException("Realtime input WAV ended before its declared data length.");
             remaining -= read;
-            var audio = Convert.ToBase64String(buffer, 0, read);
-            await transport.SendAsync(JsonSerializer.Serialize(new { type = "input_audio_buffer.append", audio }), cancellationToken).ConfigureAwait(false);
+
+            if (format.SampleRate == 24000)
+            {
+                var audio = Convert.ToBase64String(buffer, 0, read);
+                await transport.SendAsync(JsonSerializer.Serialize(new { type = "input_audio_buffer.append", audio }), cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+
+            // MEMENTO capture defaults to 48 kHz. Realtime GA PCM input is
+            // 24 kHz, so downsample by taking one frame from each pair. The
+            // input is mono 16-bit, making this a safe integer-ratio path.
+            var offset = 0;
+            if (pendingCount > 0)
+            {
+                var needed = 4 - pendingCount;
+                var copied = Math.Min(needed, read);
+                Buffer.BlockCopy(buffer, 0, pending, pendingCount, copied);
+                pendingCount += copied;
+                offset += copied;
+                if (pendingCount == 4)
+                {
+                    Buffer.BlockCopy(pending, 0, output, 0, 2);
+                    var emitted = 2;
+                    pendingCount = 0;
+                    await transport.SendAsync(JsonSerializer.Serialize(new { type = "input_audio_buffer.append", audio = Convert.ToBase64String(output, 0, emitted) }), cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            var complete = read - offset;
+            complete -= complete % 4;
+            var outputOffset = 0;
+            for (var sourceOffset = offset; sourceOffset < offset + complete; sourceOffset += 4)
+            {
+                if (outputOffset + 2 > output.Length)
+                {
+                    await transport.SendAsync(JsonSerializer.Serialize(new { type = "input_audio_buffer.append", audio = Convert.ToBase64String(output, 0, outputOffset) }), cancellationToken).ConfigureAwait(false);
+                    outputOffset = 0;
+                }
+                Buffer.BlockCopy(buffer, sourceOffset, output, outputOffset, 2);
+                outputOffset += 2;
+            }
+            if (outputOffset > 0)
+                await transport.SendAsync(JsonSerializer.Serialize(new { type = "input_audio_buffer.append", audio = Convert.ToBase64String(output, 0, outputOffset) }), cancellationToken).ConfigureAwait(false);
+
+            var trailing = read - (offset + complete);
+            if (trailing > 0)
+            {
+                Buffer.BlockCopy(buffer, offset + complete, pending, 0, trailing);
+                pendingCount = trailing;
+            }
         }
+        if (pendingCount != 0) throw new InvalidDataException("Realtime input WAV does not contain complete 48 kHz sample pairs.");
     }
 
     private static JsonDocument ParseMessage(string message)
