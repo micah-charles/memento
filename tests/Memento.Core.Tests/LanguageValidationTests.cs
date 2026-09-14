@@ -55,4 +55,20 @@ public sealed class LanguageValidationTests
         Assert.Equal(1, report.CorrectionRequiredCount);
         Assert.Equal(120, report.Results[1].LatencyMs);
     }
+
+    [Fact]
+    public void Synthetic_corpus_covers_every_required_category_without_private_content()
+    {
+        var cases = LanguageValidationCorpus.SyntheticCases;
+
+        Assert.Equal(Enum.GetValues<LanguageValidationCategory>().Length, cases.Count);
+        Assert.Equal(cases.Count, cases.Select(testCase => testCase.CaseId).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(Enum.GetValues<LanguageValidationCategory>().OrderBy(category => category), cases.Select(testCase => testCase.Category).OrderBy(category => category));
+
+        var report = LanguageValidationHarness.Evaluate(cases.Select(testCase =>
+            (testCase, new LanguageValidationObservation(testCase.ExpectedTranscript, testCase.ExpectedEntities, 100, testCase.RequiresUncertaintyPreservation))));
+
+        Assert.Equal(cases.Count, report.Count(ValidationDisposition.Pass));
+        Assert.Equal(0, report.CorrectionRequiredCount);
+    }
 }
