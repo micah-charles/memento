@@ -540,6 +540,21 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void Backup_rejects_same_source_and_destination_path()
+    {
+        using var fixture = new OperationsFixture();
+        Directory.CreateDirectory(fixture.ExportRoot);
+        var path = Path.Combine(fixture.ExportRoot, "same-path-backup.memento");
+        File.WriteAllBytes(path, [1, 2, 3]);
+
+        Assert.Throws<ArgumentException>(() => ArchiveBackupProtector.EncryptFile(path, path, "test-password"));
+        Assert.Throws<ArgumentException>(() => ArchiveBackupProtector.DecryptFile(path, path, "test-password"));
+        Assert.Throws<ArgumentException>(() => ArchiveBackupProtector.ReencryptFile(path, path, "old-password", "new-password"));
+        Assert.Throws<ArgumentException>(() => ArchiveBackupProtector.ReencryptDirectory(path, path, "old-password", "new-password"));
+        Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(path));
+    }
+
+    [Fact]
     public void Health_check_reports_recoverable_audio_and_due_jobs()
     {
         using var fixture = new OperationsFixture();

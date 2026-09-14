@@ -493,6 +493,7 @@ public static class ArchiveBackupProtector
     public static void EncryptFile(string sourcePath, string destinationPath, string password)
     {
         if (string.IsNullOrEmpty(password)) throw new ArgumentException("A backup password is required.", nameof(password));
+        EnsureDistinctPaths(sourcePath, destinationPath, "The backup source and destination must differ.");
         using var input = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.SequentialScan);
         var salt = RandomNumberGenerator.GetBytes(SaltLength);
         var key = Rfc2898DeriveBytes.Pbkdf2(password, salt, 150_000, HashAlgorithmName.SHA256, 32);
@@ -507,6 +508,7 @@ public static class ArchiveBackupProtector
     public static void DecryptFile(string sourcePath, string destinationPath, string password)
     {
         if (string.IsNullOrEmpty(password)) throw new ArgumentException("A backup password is required.", nameof(password));
+        EnsureDistinctPaths(sourcePath, destinationPath, "The backup source and destination must differ.");
         var magic = new byte[StreamingMagic.Length];
         using (var header = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.SequentialScan))
         {
@@ -634,6 +636,7 @@ public static class ArchiveBackupProtector
     {
         if (string.IsNullOrEmpty(oldPassword)) throw new ArgumentException("The existing backup password is required.", nameof(oldPassword));
         if (string.IsNullOrEmpty(newPassword)) throw new ArgumentException("The new backup password is required.", nameof(newPassword));
+        EnsureDistinctPaths(sourcePath, destinationPath, "The backup source and destination must differ.");
         var temporaryPlaintext = Path.Combine(Path.GetTempPath(), "memento-rekey-" + Guid.NewGuid().ToString("N"));
         try
         {
@@ -694,6 +697,7 @@ public static class ArchiveBackupProtector
     {
         if (string.IsNullOrEmpty(oldPassword)) throw new ArgumentException("The existing backup password is required.", nameof(oldPassword));
         if (string.IsNullOrEmpty(newPassword)) throw new ArgumentException("The new backup password is required.", nameof(newPassword));
+        EnsureDistinctPaths(sourcePath, destinationPath, "The backup source and destination must differ.");
         var temporaryDirectory = Path.Combine(Path.GetTempPath(), "memento-rekey-" + Guid.NewGuid().ToString("N"));
         try
         {
@@ -757,6 +761,12 @@ public static class ArchiveBackupProtector
                 break;
             current = parent;
         }
+    }
+
+    private static void EnsureDistinctPaths(string sourcePath, string destinationPath, string message)
+    {
+        if (string.Equals(Path.GetFullPath(sourcePath), Path.GetFullPath(destinationPath), StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException(message);
     }
 
     private static void WriteAtomically(string destinationPath, Action<FileStream> write)
