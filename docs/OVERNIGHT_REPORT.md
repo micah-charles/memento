@@ -21,6 +21,7 @@ This report records what is implemented and verified in the local worktree. It d
 - Installed process smoke — launched via `scripts\\Start-Memento.ps1`; observed title `MEMENTO` and `Responding=True` after seven seconds, then stopped cleanly. This is process evidence only; no visual GUI claim is made.
 - Realtime shell output path — the separate live-conversation consent/action now persists provider PCM output as a verified derived WAV and routes it through the existing replay control. No live provider or physical output-device call was made.
 - Realtime device path — the capture flow now opens a bounded WebSocket session before microphone capture, forwards local PCM chunks, commits on stop, and records policy-gated success/failure metadata. The transport and archive boundaries are automated-tested; live credentials and physical microphone/output verification remain open.
+- MSIX deployment path — added a parameterized manifest/template and `Build-MementoMsix.ps1` that stages, packages, and optionally signs the self-contained output. PowerShell parsing passed; Windows SDK `makeappx`, a publisher identity, and a trusted certificate remain required for an installable package.
 
 ## Milestone status
 

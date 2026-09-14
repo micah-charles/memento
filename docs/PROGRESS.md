@@ -153,7 +153,8 @@
 ## M14 status
 
 - Real-user pilot work has not started. A supervised checklist is documented in [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md), and the deployment evidence is recorded in [M14 evidence](evidence/M14.md); the app still requires consent, microphone, provider, admin, export/restore, and incident/rollback review before pilot use.
-- A publish script now produces a self-contained `artifacts/MEMENTO-win-x64.zip` plus a SHA-256 sidecar; MSIX generation remains separate because it requires a publisher identity, certificate, and package manifest.
+- A publish script now produces a self-contained `artifacts/MEMENTO-win-x64.zip` plus a SHA-256 sidecar; the optional MSIX staging/signing script remains separately gated by publisher identity, certificate, SDK tooling, and package validation.
+- Added `packaging/Package.appxmanifest.template.xml` and `scripts/Build-MementoMsix.ps1`. The script parameterizes publisher/version, stages the self-contained app, calls Windows SDK `makeappx`, and optionally signs with `signtool`; it refuses missing tools/certificates and labels unsigned output clearly.
 - `scripts/Install-Memento.ps1` now installs the portable bundle per user under `%LOCALAPPDATA%\\MEMENTO\\App`, creates a Start Menu shortcut, and registers a current-user Windows Installed apps entry; it does not claim signed package identity.
 - `scripts/Start-Memento.ps1` now resolves the installed executable first and otherwise starts the repository publish output, making the supported launch path explicit.
 - `scripts/Uninstall-Memento.ps1` removes that app registration and Start Menu shortcut, then schedules guarded app-tree cleanup after the script exits; it preserves `%LOCALAPPDATA%\\MEMENTO` archive data unless `-RemoveData` is explicitly passed.

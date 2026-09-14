@@ -60,6 +60,14 @@ To install that bundle for the current Windows user, create a Start Menu shortcu
 .\scripts\Install-Memento.ps1
 ```
 
+To produce an MSIX package when a Windows SDK and an owner-selected publisher certificate are available, pass the certificate subject exactly as the manifest publisher:
+
+```powershell
+.\scripts\Build-MementoMsix.ps1 -Publisher 'CN=Your Publisher' -CertificatePath .\certs\memento.pfx
+```
+
+The script also supports an unsigned output for package inspection, but an unsigned MSIX is not an ordinary installable release. The checked-in manifest uses placeholder artwork; replace it with reviewed product assets before distribution. The portable per-user installer above remains the supported path until publisher identity, certificate trust, package validation, and update policy are approved.
+
 To start MEMENTO after installation, or start the repository's published executable when no install exists:
 
 ```powershell

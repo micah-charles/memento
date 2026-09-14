@@ -52,7 +52,7 @@ If the application-lock passcode is forgotten, close MEMENTO and use the explici
 .\scripts\Reset-MementoApplicationLock.ps1
 ```
 
-These helpers do not provide MSIX package identity, signing, or enterprise installer registration. The Installed apps entry is a per-user registry registration and is intentionally not an MSIX package identity. Cloud features additionally require a Windows Credential Manager generic credential named `MEMENTO/OpenAI`.
+`Build-MementoMsix.ps1` is the separate MSIX staging/signing path. It requires Windows SDK `makeappx.exe`, an owner-selected publisher identity, and (for an installable release) a matching certificate plus `signtool.exe`; it is intentionally not part of the portable per-user flow. The Installed apps entry created by `Install-Memento.ps1` is a per-user registry registration and is intentionally not an MSIX package identity. Cloud features additionally require a Windows Credential Manager generic credential named `MEMENTO/OpenAI`.
 
 The M04 validation CLI can regenerate the non-sensitive synthetic report without provider credentials:
 
