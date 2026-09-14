@@ -8,6 +8,7 @@ param(
     [switch]$RequireAudioInput,
     [switch]$RequireAudioOutput,
     [switch]$RequireArchiveIntegrity,
+    [switch]$RequireInstalledPayloadMatch,
     [switch]$Launch
 )
 
@@ -40,6 +41,7 @@ if ($RequireApplicationLock) { $preflightParameters.RequireApplicationLock = $tr
 if ($RequireAudioInput) { $preflightParameters.RequireAudioInput = $true }
 if ($RequireAudioOutput) { $preflightParameters.RequireAudioOutput = $true }
 if ($RequireArchiveIntegrity) { $preflightParameters.RequireArchiveIntegrity = $true }
+if ($RequireInstalledPayloadMatch) { $preflightParameters.RequireInstalledPayloadMatch = $true }
 Invoke-MementoStep 'Test-MementoPreflight.ps1' $preflightParameters
 
 if ($Launch) {

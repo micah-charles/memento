@@ -13,7 +13,8 @@ param(
     [switch]$RequireApplicationLock,
     [switch]$RequireAudioInput,
     [switch]$RequireAudioOutput,
-    [switch]$RequireArchiveIntegrity
+    [switch]$RequireArchiveIntegrity,
+    [switch]$RequireInstalledPayloadMatch
 )
 
 $ErrorActionPreference = 'Stop'
@@ -95,6 +96,7 @@ try {
         if ($RequireAudioInput) { $preflightParameters.RequireAudioInput = $true }
         if ($RequireAudioOutput) { $preflightParameters.RequireAudioOutput = $true }
         if ($RequireArchiveIntegrity) { $preflightParameters.RequireArchiveIntegrity = $true }
+        if ($RequireInstalledPayloadMatch) { $preflightParameters.RequireInstalledPayloadMatch = $true }
         Invoke-NativeStep 'powershell' (@('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', '.\scripts\Test-MementoPreflight.ps1') + $(foreach ($key in $preflightParameters.Keys) { "-$key" }))
     }
 

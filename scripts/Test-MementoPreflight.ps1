@@ -8,7 +8,8 @@ param(
     [switch]$RequireApplicationLock,
     [switch]$RequireAudioInput,
     [switch]$RequireAudioOutput,
-    [switch]$RequireArchiveIntegrity
+    [switch]$RequireArchiveIntegrity,
+    [switch]$RequireInstalledPayloadMatch
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,6 +33,39 @@ function Write-Check([string]$Name, [bool]$Passed, [string]$Detail, [string]$Sev
     if ($Severity -eq 'FAIL') { $script:failures++ }
 }
 
+function Convert-BytesToLowerHex([byte[]]$Bytes) {
+    return ([System.BitConverter]::ToString($Bytes) -replace '-', '').ToLowerInvariant()
+}
+
+function Get-ZipEntrySha256([string]$ArchivePath, [string]$EntryName) {
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($ArchivePath)
+    try {
+        $entries = @($archive.Entries | Where-Object { $_.FullName.Replace('\', '/') -eq $EntryName })
+        if ($entries.Count -ne 1) {
+            throw "Expected exactly one ZIP entry named '$EntryName'; found $($entries.Count)."
+        }
+
+        $stream = $entries[0].Open()
+        try {
+            $sha = [System.Security.Cryptography.SHA256]::Create()
+            try {
+                return Convert-BytesToLowerHex -Bytes $sha.ComputeHash($stream)
+            }
+            finally {
+                $sha.Dispose()
+            }
+        }
+        finally {
+            $stream.Dispose()
+        }
+    }
+    finally {
+        $archive.Dispose()
+    }
+}
+
 $bundleExists = Test-Path -LiteralPath $BundlePath -PathType Leaf
 Write-Check 'bundle' $bundleExists ($(if ($bundleExists) { $BundlePath } else { "not found at $BundlePath" }))
 if ($bundleExists) {
@@ -48,6 +82,18 @@ if ($bundleExists) {
 $installedExecutable = Join-Path $InstallRoot 'Memento.App.exe'
 $installedExists = Test-Path -LiteralPath $installedExecutable -PathType Leaf
 Write-Check 'installed executable' $installedExists ($(if ($installedExists) { $installedExecutable } else { "not found at $installedExecutable" }))
+if ($bundleExists -and $installedExists) {
+    try {
+        $bundleExecutableHash = Get-ZipEntrySha256 -ArchivePath $BundlePath -EntryName 'Memento.App.exe'
+        $installedExecutableHash = (Get-FileHash -LiteralPath $installedExecutable -Algorithm SHA256).Hash.ToLowerInvariant()
+        $payloadSeverity = if ($RequireInstalledPayloadMatch) { 'FAIL' } else { 'WARN' }
+        Write-Check 'installed payload match' ($bundleExecutableHash -eq $installedExecutableHash) ("bundle executable SHA-256 $bundleExecutableHash; installed executable SHA-256 $installedExecutableHash") $payloadSeverity
+    }
+    catch {
+        $payloadSeverity = if ($RequireInstalledPayloadMatch) { 'FAIL' } else { 'WARN' }
+        Write-Check 'installed payload match' $false ('unable to compare installed executable with bundle: ' + $_.Exception.GetType().Name) $payloadSeverity
+    }
+}
 
 $installedUninstaller = Join-Path $InstallRoot 'Uninstall-Memento.ps1'
 $uninstallerExists = Test-Path -LiteralPath $installedUninstaller -PathType Leaf
