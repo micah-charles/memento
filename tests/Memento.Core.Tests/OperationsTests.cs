@@ -57,6 +57,16 @@ public sealed class OperationsTests
         Assert.Equal(0, provider.CallCount);
     }
 
+    [Theory]
+    [InlineData(PrivacyMode.Normal, true, true)]
+    [InlineData(PrivacyMode.Normal, false, false)]
+    [InlineData(PrivacyMode.PrivateConversation, true, false)]
+    [InlineData(PrivacyMode.LocalCaptureOnly, true, false)]
+    public void Consent_policy_requires_the_checkbox_and_allows_only_normal_cloud_sessions(PrivacyMode privacyMode, bool requested, bool expected)
+    {
+        Assert.Equal(expected, ConsentPolicy.CloudConsentGranted(privacyMode, requested));
+    }
+
     [Fact]
     public void Family_admin_review_requires_authorization_and_keeps_annotation_attributed()
     {

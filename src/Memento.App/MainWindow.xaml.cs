@@ -329,12 +329,16 @@ public sealed partial class MainWindow : Window
             _session = _repository.AddSession(startedAt, privacyMode);
             _turn = _repository.AddTurn(_session.SessionId, _repository.GetNextTurnSequence(_session.SessionId), "participant", startedAt);
             _repository.AddConsent(_session.SessionId, ConsentScope.LocalCapture, privacyMode, true, "privacy-1");
-            if (!CloudNotPermittedException.IsBlocked(privacyMode))
-                _repository.AddConsent(_session.SessionId, ConsentScope.CloudTranscription, privacyMode, true, "privacy-1");
+            var cloudConsentGranted = ConsentPolicy.CloudConsentGranted(privacyMode, CloudConsentCheckBox.IsChecked == true);
+            _repository.AddConsent(_session.SessionId, ConsentScope.CloudTranscription, privacyMode, cloudConsentGranted, "privacy-1");
             _capture = new AudioCaptureController(_repository, _audioRoot);
             _capture.CaptureFailed += CaptureFailed;
             _capture.Start(_session.SessionId, _turn.TurnId, ConsentCheckBox.IsChecked == true, format => new WaveInAudioInput(format), startedAt);
-            StatusText.Text = CloudNotPermittedException.IsBlocked(privacyMode) ? $"Listening… 本機錄音中（{PrivacyModeLabel(privacyMode)}）" : "Listening… 本機錄音中（已同意完成後雲端處理）";
+            StatusText.Text = CloudNotPermittedException.IsBlocked(privacyMode)
+                ? $"Listening… 本機錄音中（{PrivacyModeLabel(privacyMode)}）"
+                : cloudConsentGranted
+                    ? "Listening… 本機錄音中（已同意完成後雲端處理）"
+                    : "Listening… 本機錄音中（未同意雲端處理）";
             RecordButton.Content = "停止錄音";
             ConsentCheckBox.IsEnabled = false;
             CloudConsentCheckBox.IsEnabled = false;
