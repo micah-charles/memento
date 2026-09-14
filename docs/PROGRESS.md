@@ -202,6 +202,7 @@
 - Retry job insertion now uses an atomic SQLite `INSERT ... WHERE NOT EXISTS` guard, closing the concurrent enqueue race as well as the sequential duplicate path.
 - Revision-scoped durable extraction enqueueing now uses the same atomic guard, so corrected transcript revisions cannot accumulate duplicate extraction work under concurrent completion.
 - Realtime transcription fallback now uses an atomic `QueueTranscriptionIfNeeded` API; an already queued Source is reported as no-op instead of creating a second retry job.
+- Added `scripts/Verify-MementoAutomation.ps1` as a repeatable repository gate: it parser-checks all PowerShell helpers, runs the Release test/build, regenerates the deterministic M04 report, and invokes the read-only deployment preflight with optional blocking policy switches.
 
 ## Next action
 
