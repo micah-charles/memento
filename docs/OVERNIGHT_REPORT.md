@@ -2,7 +2,7 @@
 
 **Report date:** 2026-09-14
 **Starting reviewed checkpoint:** `82cbccc` (`main` on `origin`)
-**Current local checkpoint:** `7b1eb76` (`fix: gracefully dispose runtime services on app close`).
+**Current local checkpoint:** `8efa4b9` (`fix: checkpoint archive WAL on shutdown`).
 **Environment:** Windows, .NET 10 SDK, `win-x64`, repository worktree
 
 This report records what is implemented and verified in the local worktree. It does not turn simulated, automated, or process-only checks into native GUI, hardware, live-provider, or participant evidence.
@@ -21,6 +21,7 @@ This report records what is implemented and verified in the local worktree. It d
 - Repeatable automation gate — `scripts/Verify-MementoAutomation.ps1 -RequireAudioInput -RequireAudioOutput` passed PowerShell parsing for 12 scripts, Release test **167/167**, Release build with **0 warnings/0 errors**, synthetic M04 validation (**14 cases, 0 correction-required**), and read-only deployment preflight.
 - Dependency security check — `dotnet list Memento.slnx package --vulnerable --include-transitive` reported no vulnerable packages across all four solution projects.
 - Graceful close smoke — after a five-second launch, `CloseMainWindow()` returned true and the process exited within ten seconds with exit code 0; the handler now waits for retry/Realtime cleanup before disposing runtime services.
+- Archive shutdown durability — `SqliteArchive.Dispose()` now performs a guarded `wal_checkpoint(TRUNCATE)` when the database exists; an idempotent disposal regression confirms an uninitialized archive is not created accidentally.
 - Credential setup check — default preflight emitted a **WARN** because `MEMENTO/OpenAI` is absent (local-only mode remains available); `-RequireCloudCredential` correctly returned one blocking failure without exposing a secret.
 - Application-lock setup check — default preflight emitted an **optional WARN** because `MEMENTO/AppLock` is absent; `-RequireApplicationLock` correctly turns that policy choice into one blocking failure without exposing the verifier.
 - Deployment workflow — `scripts/Setup-Memento.ps1 -SkipPublish` now composes install and preflight, with optional cloud/app-lock policy gates and `-Launch` support; the launch branch was smoke-tested and stopped cleanly.
