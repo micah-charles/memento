@@ -71,4 +71,23 @@ public sealed class LanguageValidationTests
         Assert.Equal(cases.Count, report.Count(ValidationDisposition.Pass));
         Assert.Equal(0, report.CorrectionRequiredCount);
     }
+
+    [Fact]
+    public void Code_switch_metric_fails_when_a_required_language_segment_is_missing()
+    {
+        var testCase = new LanguageValidationCase(
+            "mix-zh-missing",
+            LanguageValidationCategory.CantoneseMandarin,
+            "我聽日要返工，但是有啲攰",
+            [],
+            true,
+            false,
+            ["聽日要返工", "但是有啲攰"]);
+
+        var result = LanguageValidationHarness.Evaluate(testCase, new LanguageValidationObservation("我聽日要返工", [], 180));
+
+        Assert.False(result.CodeSwitchPreserved);
+        Assert.Equal(ValidationDisposition.AcceptableWithClarification, result.Disposition);
+        Assert.True(result.CorrectionRequired);
+    }
 }

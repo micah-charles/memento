@@ -35,7 +35,8 @@ public sealed record LanguageValidationCase(
     string ExpectedTranscript,
     IReadOnlyList<string> ExpectedEntities,
     bool RequiresCodeSwitchPreservation = false,
-    bool RequiresUncertaintyPreservation = false);
+    bool RequiresUncertaintyPreservation = false,
+    IReadOnlyList<string>? RequiredCodeSwitchSegments = null);
 
 public sealed record LanguageValidationObservation(
     string ObservedTranscript,
@@ -73,7 +74,10 @@ public static partial class LanguageValidationHarness
         var expectedEntities = testCase.ExpectedEntities.Select(Normalize).Where(value => value.Length > 0).ToArray();
         var observedEntities = observation.ObservedEntities.Select(Normalize).Where(value => value.Length > 0).ToHashSet(StringComparer.Ordinal);
         var entityAccuracy = expectedEntities.Length == 0 ? 1d : expectedEntities.Count(observedEntities.Contains) / (double)expectedEntities.Length;
-        var codeSwitch = !testCase.RequiresCodeSwitchPreservation || (HasLatin(expected) == HasLatin(observed) && expected.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(HasLatin).All(observed.Contains));
+        var requiredSegments = testCase.RequiredCodeSwitchSegments?.Select(Normalize).Where(value => value.Length > 0).ToArray() ?? [];
+        var codeSwitch = !testCase.RequiresCodeSwitchPreservation || (HasLatin(expected) == HasLatin(observed)
+            && expected.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(HasLatin).All(observed.Contains)
+            && requiredSegments.All(observed.Contains));
         var uncertainty = !testCase.RequiresUncertaintyPreservation || observation.UncertaintyPreserved || UncertaintyMarkers.Any(observed.Contains);
 
         var disposition = ValidationDisposition.Pass;
