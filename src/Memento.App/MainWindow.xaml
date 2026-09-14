@@ -69,6 +69,7 @@
             <Button x:Name="RecoverAudioButton" Content="整理未完成錄音" Click="RecoverAudioButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="RebuildSearchButton" Content="修復本機搜尋索引" Click="RebuildSearchButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="ExportButton" Content="匯出本機資料" Click="ExportButton_Click" HorizontalAlignment="Center" Padding="20,8" />
+            <Button x:Name="ScopedExportButton" Content="匯出精簡記憶（遮蔽錄音）" Click="ScopedExportButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="BackupButton" Content="建立加密備份" Click="BackupButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="RotateBackupButton" Content="更新備份密碼" Click="RotateBackupButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="RestoreButton" Content="驗證及還原加密備份" Click="RestoreButton_Click" HorizontalAlignment="Center" Padding="20,8" />

@@ -30,6 +30,12 @@ public sealed class FamilyAdminReviewService
         return _repository.ListCandidateClaims();
     }
 
+    public IReadOnlyList<MemoryClaim> ListReviewedClaims(string actorId)
+    {
+        DemandAuthorization(actorId);
+        return _repository.ListReviewedClaims();
+    }
+
     public void EnsureAuthorized(string actorId) => DemandAuthorization(actorId);
 
     public ReviewAnnotation RecordAdminOperation(string actorId, string operation)

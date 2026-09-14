@@ -797,6 +797,29 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return claims;
     }
 
+    public IReadOnlyList<MemoryClaim> ListReviewedClaims()
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT c.memory_claim_id, c.statement, c.subject_person_id, c.predicate, c.object, c.status, c.created_at
+            FROM memory_claims c
+            WHERE c.status = 'Reviewed'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM evidence_claim_links l
+                  JOIN evidence_records e ON e.evidence_id = l.evidence_id
+                  JOIN sources s ON s.source_id = e.source_id AND s.recovery_status = 'withdrawn'
+                  WHERE l.memory_claim_id = c.memory_claim_id
+              )
+            ORDER BY c.created_at, c.memory_claim_id
+            """;
+        using var reader = command.ExecuteReader();
+        var claims = new List<MemoryClaim>();
+        while (reader.Read()) claims.Add(new MemoryClaim(reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetString(3), reader.GetString(4), Enum.Parse<ClaimStatus>(reader.GetString(5)), DateTimeOffset.Parse(reader.GetString(6), null, System.Globalization.DateTimeStyles.RoundtripKind)));
+        return claims;
+    }
+
     public IReadOnlyList<ClaimEvidence> ListEvidenceForClaim(string claimId)
     {
         if (string.IsNullOrWhiteSpace(claimId)) throw new ArgumentException("A claim ID is required.", nameof(claimId));

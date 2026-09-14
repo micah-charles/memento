@@ -1107,6 +1107,69 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async void ScopedExportButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!EnsureAdminForOperation()) return;
+        IReadOnlyList<MemoryClaim> claims;
+        try
+        {
+            claims = _adminReview!.ListReviewedClaims(_adminActorId!);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            await ShowAdminMessageAsync("未獲授權", "只有獲授權嘅 Windows 管理員可以匯出精簡記憶。", "知道了");
+            return;
+        }
+
+        if (claims.Count == 0)
+        {
+            StatusText.Text = "目前沒有可分享嘅已審閱記憶。";
+            return;
+        }
+
+        var selector = new ComboBox
+        {
+            Header = "選擇要分享嘅已審閱記憶",
+            ItemsSource = claims,
+            DisplayMemberPath = nameof(MemoryClaim.Statement),
+            SelectedIndex = 0,
+            MinWidth = 420
+        };
+        var panel = new StackPanel { Spacing = 12 };
+        panel.Children.Add(selector);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "只會匯出 Claim、審閱狀態同遮蔽後 Evidence 關係；錄音、Source 路徑、transcript 內容、provider 資料同 annotation 內容都會留喺本機。",
+            TextWrapping = TextWrapping.Wrap
+        });
+        var dialog = new ContentDialog
+        {
+            XamlRoot = RootGrid.XamlRoot,
+            Title = "匯出精簡記憶（遮蔽錄音）",
+            Content = panel,
+            PrimaryButtonText = "匯出",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        if (selector.SelectedItem is not MemoryClaim claim)
+        {
+            StatusText.Text = "未選擇要分享嘅記憶。";
+            return;
+        }
+
+        try
+        {
+            var result = ArchiveExporter.ExportRedacted(_repository.Archive, Path.Combine(_dataRoot, "exports"), [claim.MemoryClaimId]);
+            _adminReview.RecordAdminOperation(_adminActorId!, "export_redacted");
+            StatusText.Text = $"已匯出精簡記憶（錄音已遮蔽）：{result.ExportDirectory}";
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "未能匯出精簡記憶；原有資料仍然保留。";
+        }
+    }
+
     private async void BackupButton_Click(object sender, RoutedEventArgs e)
     {
         if (!EnsureAdminForOperation()) return;
@@ -1433,6 +1496,7 @@ public sealed partial class MainWindow : Window
         WithdrawLatestSourceButton.IsEnabled = adminIdle && _withdrawal is not null && _lastSource is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase);
         PlaySourceButton.IsEnabled = adminIdle && _sourceAudioPlayback is not null && _lastSource is not null;
         ExportButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
+        ScopedExportButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
         BackupButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
         RotateBackupButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
         RestoreButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;

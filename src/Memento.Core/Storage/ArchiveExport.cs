@@ -167,7 +167,7 @@ public static class ArchiveExporter
             {
                 var claimParameters = AddIdParameters(command, requestedClaimIds);
                 var claimFilter = string.Join(", ", claimParameters.Select(parameter => parameter.ParameterName));
-                command.CommandText = $"SELECT c.memory_claim_id, c.statement, c.subject_person_id, c.predicate, c.object, c.status, c.created_at FROM memory_claims c WHERE c.memory_claim_id IN ({claimFilter}){withdrawnClaimFilter} ORDER BY c.created_at, c.memory_claim_id";
+                command.CommandText = $"SELECT c.memory_claim_id, c.statement, c.subject_person_id, c.predicate, c.object, c.status, c.created_at FROM memory_claims c WHERE c.status = 'Reviewed' AND c.memory_claim_id IN ({claimFilter}){withdrawnClaimFilter} ORDER BY c.created_at, c.memory_claim_id";
                 foreach (var parameter in claimParameters) command.Parameters.Add(parameter);
                 using var reader = command.ExecuteReader();
                 using var writer = new StreamWriter(claimsPath, false);
@@ -189,7 +189,7 @@ public static class ArchiveExporter
             }
 
             if (exportedClaimIds.Count != requestedClaimIds.Length)
-                throw new InvalidDataException("One or more selected Memory Claims are missing or withdrawn.");
+                throw new InvalidDataException("One or more selected Memory Claims are missing, withdrawn, or not reviewed.");
             hashes["memory_claims.jsonl"] = Hash(claimsPath);
 
             var evidencePath = Path.Combine(exportDirectory, "evidence.jsonl");
@@ -198,7 +198,6 @@ public static class ArchiveExporter
             var exportedEvidence = new HashSet<string>(StringComparer.Ordinal);
             using (var evidenceWriter = new StreamWriter(evidencePath, false))
             using (var linkWriter = new StreamWriter(linkPath, false))
-            using (var annotationWriter = new StreamWriter(annotationPath, false))
             using (var command = snapshot.CreateCommand())
             {
                 var includedClaimParameters = AddIdParameters(command, exportedClaimIds);

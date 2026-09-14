@@ -102,6 +102,9 @@ public sealed class OperationsTests
         Assert.Equal("supports", supportingEvidence.Relationship);
         Assert.Equal(extraction.Evidence[0].EvidenceId, supportingEvidence.Evidence.EvidenceId);
         Assert.Empty(service.ListCandidates("admin-1"));
+        var reviewedClaims = service.ListReviewedClaims("admin-1");
+        Assert.Single(reviewedClaims);
+        Assert.Equal(claim.MemoryClaimId, reviewedClaims[0].MemoryClaimId);
         Assert.Equal(ClaimStatus.Candidate, claim.Status);
         Assert.NotNull(extraction);
     }
@@ -314,6 +317,18 @@ public sealed class OperationsTests
 
         Assert.Throws<ArgumentException>(() => ArchiveExporter.ExportRedacted(archive, fixture.ExportRoot, []));
         Assert.Throws<InvalidDataException>(() => ArchiveExporter.ExportRedacted(archive, fixture.ExportRoot, ["missing-claim"]));
+        Assert.Empty(Directory.GetDirectories(fixture.ExportRoot, "memento-scoped-export-*"));
+    }
+
+    [Fact]
+    public void Scoped_redacted_export_rejects_unreviewed_claims()
+    {
+        using var fixture = new OperationsFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        repository.AddMemoryClaim(new MemoryClaim("candidate-only", "Candidate claim", null, "is", "candidate", ClaimStatus.Candidate, DateTimeOffset.UtcNow));
+
+        Assert.Throws<InvalidDataException>(() => ArchiveExporter.ExportRedacted(archive, fixture.ExportRoot, ["candidate-only"]));
         Assert.Empty(Directory.GetDirectories(fixture.ExportRoot, "memento-scoped-export-*"));
     }
 
