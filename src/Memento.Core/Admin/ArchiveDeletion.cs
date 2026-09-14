@@ -135,7 +135,7 @@ public sealed class ArchiveDeletionService
             {
                 ArchivePathSafety.EnsureNoReparsePointInPath(path, "The media deletion path");
             }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            catch (Exception error) when (error is ArgumentException or IOException or UnauthorizedAccessException)
             {
                 mediaRemoved = false;
                 findings.Add($"Could not remove media asset '{Path.GetFileName(path)}': unsafe path ({error.GetType().Name}).");
