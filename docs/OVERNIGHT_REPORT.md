@@ -2,7 +2,7 @@
 
 **Report date:** 2026-09-14
 **Starting reviewed checkpoint:** `82cbccc` (`main` on `origin`)
-**Current local checkpoint:** `8ae791a` (`feat: add cloud credential revocation helper`).
+**Current local checkpoint:** `e9038bc` (`feat: add repeatable automation verification runner`).
 **Environment:** Windows, .NET 10 SDK, `win-x64`, repository worktree
 
 This report records what is implemented and verified in the local worktree. It does not turn simulated, automated, or process-only checks into native GUI, hardware, live-provider, or participant evidence.
@@ -18,6 +18,7 @@ This report records what is implemented and verified in the local worktree. It d
 - Credential setup plumbing — the installed hidden-input helper created a disposable `MEMENTO/OpenAI` Credential Manager target, then the target was removed; no live provider request was made.
 - Credential revocation plumbing — the installed fixed-target removal helper removed a disposable `MEMENTO/OpenAI` target after MEMENTO was closed, and `cmdkey.exe /list:MEMENTO/OpenAI` confirmed `* NONE *`; archive data was unchanged.
 - Deployment preflight — **PASS** for the current-user Installed apps registration and its stable per-user install path.
+- Repeatable automation gate — `scripts/Verify-MementoAutomation.ps1 -RequireAudioInput -RequireAudioOutput` passed PowerShell parsing for 12 scripts, Release test **166/166**, Release build with **0 warnings/0 errors**, synthetic M04 validation (**14 cases, 0 correction-required**), and read-only deployment preflight.
 - Credential setup check — default preflight emitted a **WARN** because `MEMENTO/OpenAI` is absent (local-only mode remains available); `-RequireCloudCredential` correctly returned one blocking failure without exposing a secret.
 - Application-lock setup check — default preflight emitted an **optional WARN** because `MEMENTO/AppLock` is absent; `-RequireApplicationLock` correctly turns that policy choice into one blocking failure without exposing the verifier.
 - Deployment workflow — `scripts/Setup-Memento.ps1 -SkipPublish` now composes install and preflight, with optional cloud/app-lock policy gates and `-Launch` support; the launch branch was smoke-tested and stopped cleanly.
