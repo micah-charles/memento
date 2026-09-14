@@ -109,8 +109,11 @@ public sealed class WindowsApplicationLock : IApplicationLock
                 || credential.CredentialBlobSize == 0
                 || credential.CredentialBlobSize % 2 != 0
                 || credential.CredentialBlobSize > MaxCredentialBlobBytes)
-                return null;
-            return Marshal.PtrToStringUni(credential.CredentialBlob, checked((int)credential.CredentialBlobSize / 2))?.TrimEnd('\0');
+                throw new InvalidDataException("The MEMENTO application-lock credential is malformed.");
+            var secret = Marshal.PtrToStringUni(credential.CredentialBlob, checked((int)credential.CredentialBlobSize / 2))?.TrimEnd('\0');
+            if (string.IsNullOrEmpty(secret))
+                throw new InvalidDataException("The MEMENTO application-lock credential is empty.");
+            return secret;
         }
         finally
         {

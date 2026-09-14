@@ -1,4 +1,5 @@
 using Memento.Core.Security;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
 namespace Memento.Core.Tests;
@@ -55,5 +56,71 @@ public sealed class SecurityTests
         }
 
         Assert.False(applicationLock.IsConfigured);
+    }
+
+    [Fact]
+    public void Windows_application_lock_fails_closed_for_a_malformed_credential_blob()
+    {
+        var target = "MEMENTO/TestMalformedLock/" + Guid.NewGuid().ToString("N");
+        var applicationLock = new WindowsApplicationLock(target);
+        try
+        {
+            WriteMalformedCredential(target);
+
+            Assert.Throws<InvalidDataException>(() => _ = applicationLock.IsConfigured);
+            Assert.Throws<InvalidDataException>(() => applicationLock.Verify("any passcode"));
+        }
+        finally
+        {
+            applicationLock.Clear();
+        }
+    }
+
+    private static void WriteMalformedCredential(string target)
+    {
+        var targetPointer = Marshal.StringToCoTaskMemUni(target);
+        var userNamePointer = Marshal.StringToCoTaskMemUni("MEMENTO");
+        var blob = new byte[] { 0x41 };
+        var blobPointer = Marshal.AllocCoTaskMem(blob.Length);
+        try
+        {
+            Marshal.Copy(blob, 0, blobPointer, blob.Length);
+            var credential = new NativeCredential
+            {
+                Type = 1,
+                TargetName = targetPointer,
+                CredentialBlobSize = (uint)blob.Length,
+                CredentialBlob = blobPointer,
+                Persist = 2,
+                UserName = userNamePointer
+            };
+            Assert.True(CredWrite(ref credential, 0), $"CredWrite failed: {Marshal.GetLastWin32Error()}");
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(targetPointer);
+            Marshal.FreeCoTaskMem(userNamePointer);
+            Marshal.FreeCoTaskMem(blobPointer);
+        }
+    }
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool CredWrite(ref NativeCredential userCredential, uint flags);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct NativeCredential
+    {
+        public uint Flags;
+        public int Type;
+        public IntPtr TargetName;
+        public IntPtr Comment;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastWritten;
+        public uint CredentialBlobSize;
+        public IntPtr CredentialBlob;
+        public uint Persist;
+        public uint AttributeCount;
+        public IntPtr Attributes;
+        public IntPtr TargetAlias;
+        public IntPtr UserName;
     }
 }
