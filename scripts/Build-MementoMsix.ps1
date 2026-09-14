@@ -9,6 +9,7 @@ param(
     [string]$PackageName = 'MicahCharles.Memento',
     [string]$CertificatePath = '',
     [string]$CertificatePassword = '',
+    [string]$TimestampUrl = 'http://timestamp.digicert.com',
     [string]$MakeAppxPath = '',
     [string]$SignToolPath = '',
     [string]$OutputRoot = ''
@@ -97,7 +98,11 @@ try {
     if (Test-Path -LiteralPath $signedPackage) { Remove-Item -LiteralPath $signedPackage -Force }
     $signArguments = @('sign', '/fd', 'SHA256', '/f', $CertificatePath)
     if (-not [string]::IsNullOrWhiteSpace($CertificatePassword)) { $signArguments += @('/p', $CertificatePassword) }
-    $signArguments += @('/a', '/tr', 'http://timestamp.digicert.com', '/td', 'SHA256', $unsignedPackage)
+    $signArguments += @('/a')
+    if (-not [string]::IsNullOrWhiteSpace($TimestampUrl)) {
+        $signArguments += @('/tr', $TimestampUrl, '/td', 'SHA256')
+    }
+    $signArguments += $unsignedPackage
     & $signtool @signArguments
     if ($LASTEXITCODE -ne 0) { throw "signtool failed with exit code $LASTEXITCODE." }
     Move-Item -LiteralPath $unsignedPackage -Destination $signedPackage -Force
