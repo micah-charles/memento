@@ -28,7 +28,7 @@ For a cloud-enabled pilot, require the credential target explicitly:
 .\scripts\Test-MementoPreflight.ps1 -RequireCloudCredential
 ```
 
-`Uninstall-Memento.ps1` removes the app files, shortcut, and current-user Installed apps registration while preserving the `%LOCALAPPDATA%\MEMENTO` archive by default. Pass `-RemoveData` only after making and checking a backup:
+`Uninstall-Memento.ps1` removes the shortcut and current-user Installed apps registration immediately, then schedules deletion of the app files after the script exits; it preserves the `%LOCALAPPDATA%\MEMENTO` archive by default. Pass `-RemoveData` only after making and checking a backup:
 
 ```powershell
 .\scripts\Uninstall-Memento.ps1
