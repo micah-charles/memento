@@ -262,17 +262,24 @@ public static class ArchiveBackupProtector
         var destination = Path.GetFullPath(destinationDirectory);
         if (Directory.Exists(destination) && Directory.EnumerateFileSystemEntries(destination).Any())
             throw new IOException("The restore directory must be empty.");
-        Directory.CreateDirectory(destination);
+        var parent = Path.GetDirectoryName(destination);
+        if (parent is not null) Directory.CreateDirectory(parent);
+        var staging = destination + ".staging-" + Guid.NewGuid().ToString("N");
+        Directory.CreateDirectory(staging);
         var temporaryZip = Path.Combine(Path.GetTempPath(), "memento-restore-" + Guid.NewGuid().ToString("N") + ".zip");
         try
         {
             DecryptFile(sourcePath, temporaryZip, password);
-            ExtractZipSafely(temporaryZip, destination);
-            return VerifyManifest(destination);
+            ExtractZipSafely(temporaryZip, staging);
+            var result = VerifyManifest(staging);
+            if (Directory.Exists(destination)) Directory.Delete(destination, recursive: true);
+            Directory.Move(staging, destination);
+            return result;
         }
         finally
         {
             if (File.Exists(temporaryZip)) File.Delete(temporaryZip);
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
         }
     }
 

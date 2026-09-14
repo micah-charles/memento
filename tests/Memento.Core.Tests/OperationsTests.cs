@@ -195,7 +195,9 @@ public sealed class OperationsTests
             writer.Write("unsafe");
         var maliciousBackup = Path.Combine(fixture.ExportRoot, "malicious.memento");
         ArchiveBackupProtector.EncryptFile(maliciousZip, maliciousBackup, "test-password");
-        Assert.Throws<InvalidDataException>(() => ArchiveBackupProtector.DecryptDirectory(maliciousBackup, Path.Combine(fixture.ExportRoot, "malicious-restore"), "test-password"));
+        var maliciousRestore = Path.Combine(fixture.ExportRoot, "malicious-restore");
+        Assert.Throws<InvalidDataException>(() => ArchiveBackupProtector.DecryptDirectory(maliciousBackup, maliciousRestore, "test-password"));
+        Assert.False(Directory.Exists(maliciousRestore));
 
         var duplicateZip = Path.Combine(fixture.ExportRoot, "duplicate.zip");
         using (var zip = ZipFile.Open(duplicateZip, ZipArchiveMode.Create))
@@ -205,7 +207,9 @@ public sealed class OperationsTests
         }
         var duplicateBackup = Path.Combine(fixture.ExportRoot, "duplicate.memento");
         ArchiveBackupProtector.EncryptFile(duplicateZip, duplicateBackup, "test-password");
-        Assert.Throws<InvalidDataException>(() => ArchiveBackupProtector.DecryptDirectory(duplicateBackup, Path.Combine(fixture.ExportRoot, "duplicate-restore"), "test-password"));
+        var duplicateRestore = Path.Combine(fixture.ExportRoot, "duplicate-restore");
+        Assert.Throws<InvalidDataException>(() => ArchiveBackupProtector.DecryptDirectory(duplicateBackup, duplicateRestore, "test-password"));
+        Assert.False(Directory.Exists(duplicateRestore));
 
         var aliasZip = Path.Combine(fixture.ExportRoot, "alias.zip");
         using (var zip = ZipFile.Open(aliasZip, ZipArchiveMode.Create))
@@ -215,7 +219,9 @@ public sealed class OperationsTests
         }
         var aliasBackup = Path.Combine(fixture.ExportRoot, "alias.memento");
         ArchiveBackupProtector.EncryptFile(aliasZip, aliasBackup, "test-password");
-        Assert.Throws<InvalidDataException>(() => ArchiveBackupProtector.DecryptDirectory(aliasBackup, Path.Combine(fixture.ExportRoot, "alias-restore"), "test-password"));
+        var aliasRestore = Path.Combine(fixture.ExportRoot, "alias-restore");
+        Assert.Throws<InvalidDataException>(() => ArchiveBackupProtector.DecryptDirectory(aliasBackup, aliasRestore, "test-password"));
+        Assert.False(Directory.Exists(aliasRestore));
     }
 
     [Fact]
