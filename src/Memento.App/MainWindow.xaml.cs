@@ -816,41 +816,72 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var claim = candidates[0];
-        IReadOnlyList<ClaimEvidence> claimEvidence;
-        try
+        var claimSelector = new ComboBox
         {
-            claimEvidence = _repository.ListEvidenceForClaim(claim.MemoryClaimId);
-        }
-        catch (Exception)
+            Header = "選擇候選記憶",
+            ItemsSource = candidates,
+            DisplayMemberPath = nameof(MemoryClaim.Statement),
+            SelectedIndex = 0,
+            MinWidth = 420
+        };
+        var evidenceSummary = new TextBlock
         {
-            StatusText.Text = "未能讀取候選記憶嘅原始證據。";
-            return;
-        }
-
-        var evidenceSummary = claimEvidence.Count == 0
-            ? "未有可顯示嘅 supporting Evidence。"
-            : string.Join(Environment.NewLine + Environment.NewLine, claimEvidence.Select(item =>
-                $"[{item.Relationship}] {item.Evidence.Statement}" +
-                $"\n確定程度：{item.Evidence.ParticipantCertainty}；講者確認：{(item.Evidence.SpeakerConfirmed ? "是" : "未有")}" +
-                $"\nSource：{item.Evidence.SourceId}"));
-        var reviewContent = new TextBlock
-        {
-            Text = $"候選記憶：{claim.Statement}\n\n原始證據：\n{evidenceSummary}",
             TextWrapping = TextWrapping.Wrap,
             FontSize = 16
         };
+        var reviewContentPanel = new StackPanel { Spacing = 12 };
+        reviewContentPanel.Children.Add(new TextBlock
+        {
+            Text = $"共有 {candidates.Count} 個候選記憶；請逐一查看原始 Evidence，再決定是否支持或拒絕。",
+            TextWrapping = TextWrapping.Wrap
+        });
+        reviewContentPanel.Children.Add(claimSelector);
+        reviewContentPanel.Children.Add(evidenceSummary);
+
+        void RefreshReviewEvidence()
+        {
+            if (claimSelector.SelectedItem is not MemoryClaim selectedClaim)
+            {
+                evidenceSummary.Text = "未選擇候選記憶。";
+                return;
+            }
+
+            try
+            {
+                var claimEvidence = _repository.ListEvidenceForClaim(selectedClaim.MemoryClaimId);
+                evidenceSummary.Text = claimEvidence.Count == 0
+                    ? $"狀態：{selectedClaim.Status}\n未有可顯示嘅 supporting Evidence。"
+                    : $"狀態：{selectedClaim.Status}\n\n原始 Evidence：\n" + string.Join(Environment.NewLine + Environment.NewLine, claimEvidence.Select(item =>
+                        $"[{item.Relationship}] {item.Evidence.Statement}" +
+                        $"\n原始表達：{item.Evidence.OriginalExpression}" +
+                        $"\n確定程度：{item.Evidence.ParticipantCertainty}；講者確認：{(item.Evidence.SpeakerConfirmed ? "是" : "未有")}" +
+                        $"\nSource：{item.Evidence.SourceId}" +
+                        (item.Evidence.AudioStartMs is null ? string.Empty : $"\nAudio span：{item.Evidence.AudioStartMs}–{item.Evidence.AudioEndMs} ms")));
+            }
+            catch (Exception)
+            {
+                evidenceSummary.Text = "未能讀取候選記憶嘅原始證據。";
+            }
+        }
+
+        claimSelector.SelectionChanged += (_, _) => RefreshReviewEvidence();
+        RefreshReviewEvidence();
         var dialog = new ContentDialog
         {
             XamlRoot = RootGrid.XamlRoot,
             Title = "家庭管理審閱",
-            Content = new ScrollViewer { Content = reviewContent, MaxHeight = 420 },
+            Content = new ScrollViewer { Content = reviewContentPanel, MaxHeight = 520 },
             PrimaryButtonText = "支持候選記憶",
             SecondaryButtonText = "拒絕候選記憶",
             CloseButtonText = "稍後處理",
             DefaultButton = ContentDialogButton.Close
         };
         var result = await dialog.ShowAsync();
+        if (claimSelector.SelectedItem is not MemoryClaim claim)
+        {
+            StatusText.Text = "未選擇候選記憶。";
+            return;
+        }
         try
         {
             if (result == ContentDialogResult.Primary)
