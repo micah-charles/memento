@@ -130,6 +130,30 @@ public sealed class RealtimeConversationTests
         Assert.Equal(1, reader.GetInt32(1));
     }
 
+    [Fact]
+    public async Task Realtime_orchestrator_persists_content_free_provider_failure_metadata()
+    {
+        using var fixture = new RealtimeFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.LiveCloudConversation, PrivacyMode.Normal, true, "privacy-1");
+        var provider = new FailingRealtimeProvider();
+        var orchestrator = new RealtimeConversationOrchestrator(repository, provider);
+
+        await Assert.ThrowsAsync<ProviderRequestException>(() => orchestrator.ExecuteAsync(new RealtimeConversationRequest(
+            session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow)));
+
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT error_message FROM provider_interactions WHERE session_id = $session";
+        command.Parameters.AddWithValue("$session", session.SessionId);
+        var errorMessage = command.ExecuteScalar()?.ToString();
+        Assert.Equal("provider request failed (HTTP 429)", errorMessage);
+        Assert.DoesNotContain("private transcript", errorMessage, StringComparison.Ordinal);
+    }
+
     private sealed class FakeRealtimeTransport(params string[] events) : IRealtimeMessageTransport
     {
         private readonly Queue<string> _events = new(events);
@@ -167,6 +191,15 @@ public sealed class RealtimeConversationTests
                 new ConversationResponse(Provider, "realtime_conversation", Model, null, "request", "stub response", 100, 0, DateTimeOffset.UtcNow),
                 [1, 2], "stub input"));
         }
+    }
+
+    private sealed class FailingRealtimeProvider : IRealtimeConversationProvider
+    {
+        public string Provider => "stub";
+        public string Model => "stub-model";
+
+        public Task<RealtimeConversationResult> SendAsync(RealtimeConversationRequest request, CancellationToken cancellationToken = default)
+            => throw new ProviderRequestException("private transcript must never be persisted", 429);
     }
 
     private sealed class RealtimeFixture : IDisposable
