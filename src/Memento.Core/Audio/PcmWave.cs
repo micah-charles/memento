@@ -82,8 +82,17 @@ public sealed class PcmWaveWriter : IDisposable
         ThrowIfClosed();
         if (pcmBytes.Length % _format.BlockAlign != 0)
             throw new ArgumentException("PCM data must contain complete sample frames.", nameof(pcmBytes));
-        _stream.Write(pcmBytes);
-        _dataBytes += pcmBytes.Length;
+        try
+        {
+            _stream.Write(pcmBytes);
+        }
+        finally
+        {
+            // A storage failure can occur after a partial write. Derive the
+            // durable count from the file itself so Dispose() can preserve
+            // every byte that reached the recovery marker.
+            _dataBytes = Math.Max(_dataBytes, Math.Max(0, _stream.Length - HeaderLength));
+        }
         Flush();
     }
 
