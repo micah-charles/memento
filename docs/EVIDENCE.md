@@ -194,6 +194,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - The WinUI shell now presents the latest persisted transcript in a clarification panel. It requires a question for every outcome, requires explicit corrected wording for speaker confirmation, keeps uncertain/refused/forgotten answers separate, and delegates persistence to `ClarificationProtocol`.
 - The participant shell now exposes all three privacy modes for the next recording. `PRIVATE_CONVERSATION` and `LOCAL_CAPTURE_ONLY` disable cloud consent/current-information UI, and the core boundaries reject private sessions before any cloud provider call even when consent data is inconsistent.
 - Current-information UI now re-checks both the selected next-recording mode and the persisted session mode before enabling a query.
+- Selecting a cloud-blocked privacy mode also cancels any in-flight current-information request while revoking the visible consent control.
 - `CurrentInformationService` now requires an explicit privacy mode and cloud-consent flag; blocked modes and missing consent fail before the search provider is called.
 - The core clarification boundary rejects corrected wording on uncertainty, refusal, or “唔記得” outcomes; the regression confirms no corrected revision is written for that invalid input.
 - The optional application lock stores a salted PBKDF2 verifier in Windows Credential Manager, overlays the shell when configured, pauses background retry work while locked, and has pure plus live Credential Manager round-trip regression coverage.

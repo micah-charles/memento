@@ -251,6 +251,7 @@ public sealed partial class MainWindow : Window
             _initializing = true;
             try { CloudConsentCheckBox.IsChecked = false; }
             finally { _initializing = false; }
+            _currentInfoCancellation?.Cancel();
             CloudConsentCheckBox.IsEnabled = false;
             StatusText.Text = privacyMode == PrivacyMode.PrivateConversation
                 ? "已選擇私密對話：錄音只會保留喺本機。"
