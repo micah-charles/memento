@@ -376,8 +376,7 @@ public sealed partial class MainWindow : Window
             return;
 
         _processing = true;
-        ProcessButton.IsEnabled = false;
-        PlaySpeechButton.IsEnabled = false;
+        UpdateRecordControl();
         StatusText.Text = "正在轉錄及準備回覆…";
         try
         {
@@ -1064,8 +1063,9 @@ public sealed partial class MainWindow : Window
         MainContentScrollViewer.IsEnabled = true;
         var capturing = _capture?.State == AudioCaptureState.Capturing;
         var selectedPrivacyMode = GetSelectedPrivacyMode();
-        if (!capturing && !_processing)
-            CloudConsentCheckBox.IsEnabled = !CloudNotPermittedException.IsBlocked(selectedPrivacyMode);
+        CloudConsentCheckBox.IsEnabled = !capturing && !_processing && !CloudNotPermittedException.IsBlocked(selectedPrivacyMode);
+        ConsentCheckBox.IsEnabled = !capturing && !_processing;
+        RecordingEnabledCheckBox.IsEnabled = !capturing && !_processing;
         PrivacyModeBox.IsEnabled = !capturing && !_processing && _sourcePlaybackCancellation is null;
         RecordButton.IsEnabled = capturing
             ? !_processing && _sourcePlaybackCancellation is null

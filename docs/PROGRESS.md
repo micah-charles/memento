@@ -150,6 +150,7 @@
 - The optional application lock stores a salted PBKDF2 verifier in the current Windows user's Credential Manager, blocks the participant shell and retry worker while locked, and provides configure, disable, lock-now, and unlock flows. Pure hashing and live Credential Manager round-trip tests pass; target-machine recovery/policy review remains open.
 - A persistent `recording_enabled` setting now gives the participant an explicit enable/disable control independent of per-session consent.
 - Added a read-only `Test-MementoPreflight.ps1` command for bundle checksum, installed executable, shortcut, archive path, free-space, process-state, and Credential Manager target checks; the cloud credential is a warning by default and becomes blocking with `-RequireCloudCredential`, while GUI, microphone, live exchange, and participant checks remain supervised.
+- The WinUI shell now locks privacy, recording, and cloud-consent controls while bounded cloud processing is in flight, preventing a participant from changing policy mid-turn.
 - Optional TTS now completes the turn-based pipeline as local WAV → transcription → text response → verified derived speech storage → optional NAudio WAV playback. The WinUI shell can replay the latest stored assistant output; real output-device playback and Realtime/WebRTC transport remain deployment work.
 
 ## Next action
