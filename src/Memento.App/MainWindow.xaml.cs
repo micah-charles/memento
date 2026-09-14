@@ -21,6 +21,7 @@ public sealed partial class MainWindow : Window
     private readonly DispatcherQueue _dispatcherQueue;
     private readonly string _dataRoot;
     private readonly BoundedVoiceConversationService? _voiceConversation;
+    private readonly RealtimeConversationOrchestrator? _realtimeConversation;
     private readonly ISpeechOutputPlayback? _speechPlayback;
     private readonly ISourceAudioPlayback? _sourceAudioPlayback;
     private readonly FamilyAdminReviewService? _adminReview;
@@ -46,7 +47,7 @@ public sealed partial class MainWindow : Window
     private CancellationTokenSource? _sourcePlaybackCancellation;
     private CancellationTokenSource? _currentInfoCancellation;
 
-    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null, ConversationJobWorker? retryWorker = null, Func<bool>? credentialAvailable = null, string? dataRoot = null, ArchiveDeletionService? deletion = null, ArchiveWithdrawalService? withdrawal = null, ISourceAudioPlayback? sourceAudioPlayback = null, CurrentInformationService? currentInformation = null, IApplicationLock? applicationLock = null)
+    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null, ConversationJobWorker? retryWorker = null, Func<bool>? credentialAvailable = null, string? dataRoot = null, ArchiveDeletionService? deletion = null, ArchiveWithdrawalService? withdrawal = null, ISourceAudioPlayback? sourceAudioPlayback = null, CurrentInformationService? currentInformation = null, IApplicationLock? applicationLock = null, RealtimeConversationOrchestrator? realtimeConversation = null)
     {
         _repository = repository;
         _audioRoot = audioRoot;
@@ -55,6 +56,7 @@ public sealed partial class MainWindow : Window
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
         _dataRoot = dataRoot is null ? Path.GetFullPath(Path.Combine(audioRoot, "..", "..")) : Path.GetFullPath(dataRoot);
         _voiceConversation = voiceConversation;
+        _realtimeConversation = realtimeConversation;
         _speechPlayback = speechPlayback;
         _sourceAudioPlayback = sourceAudioPlayback;
         _adminReview = adminReview;
@@ -86,6 +88,8 @@ public sealed partial class MainWindow : Window
                     ConsentCheckBox.IsChecked = _repository.HasGrantedConsent(_session.SessionId, ConsentScope.LocalCapture);
                     CloudConsentCheckBox.IsChecked = !CloudNotPermittedException.IsBlocked(_session.PrivacyMode)
                         && _repository.HasGrantedConsent(_session.SessionId, ConsentScope.CloudTranscription);
+                    RealtimeConsentCheckBox.IsChecked = !CloudNotPermittedException.IsBlocked(_session.PrivacyMode)
+                        && _repository.HasGrantedConsent(_session.SessionId, ConsentScope.LiveCloudConversation);
                 }
             }
             _latestSpeechAsset = _repository.GetLatestDerivedSpeechAsset();
@@ -128,6 +132,14 @@ public sealed partial class MainWindow : Window
             _repository.AddConsent(_session.SessionId, ConsentScope.CloudTranscription, _session.PrivacyMode, CloudConsentCheckBox.IsChecked == true, "privacy-1");
         if (CloudConsentCheckBox.IsChecked != true)
             _currentInfoCancellation?.Cancel();
+        UpdateRecordControl();
+    }
+
+    private void RealtimeConsentChanged(object sender, RoutedEventArgs e)
+    {
+        if (_initializing) return;
+        if (_session is not null && !CloudNotPermittedException.IsBlocked(_session.PrivacyMode))
+            _repository.AddConsent(_session.SessionId, ConsentScope.LiveCloudConversation, _session.PrivacyMode, RealtimeConsentCheckBox.IsChecked == true, "privacy-1");
         UpdateRecordControl();
     }
 
@@ -251,10 +263,15 @@ public sealed partial class MainWindow : Window
         if (CloudNotPermittedException.IsBlocked(privacyMode))
         {
             _initializing = true;
-            try { CloudConsentCheckBox.IsChecked = false; }
+            try
+            {
+                CloudConsentCheckBox.IsChecked = false;
+                RealtimeConsentCheckBox.IsChecked = false;
+            }
             finally { _initializing = false; }
             _currentInfoCancellation?.Cancel();
             CloudConsentCheckBox.IsEnabled = false;
+            RealtimeConsentCheckBox.IsEnabled = false;
             StatusText.Text = privacyMode == PrivacyMode.PrivateConversation
                 ? "已選擇私密對話：錄音只會保留喺本機。"
                 : "已選擇只本機保存：錄音只會保留喺本機。";
@@ -262,6 +279,7 @@ public sealed partial class MainWindow : Window
         else
         {
             CloudConsentCheckBox.IsEnabled = true;
+            RealtimeConsentCheckBox.IsEnabled = true;
             StatusText.Text = "已選擇一般模式：完成錄音後可使用雲端功能。";
         }
         UpdateRecordControl();
@@ -314,6 +332,7 @@ public sealed partial class MainWindow : Window
                 RecordButton.Content = "開始錄音";
                 ConsentCheckBox.IsEnabled = true;
                 CloudConsentCheckBox.IsEnabled = true;
+                RealtimeConsentCheckBox.IsEnabled = true;
                 RecordingEnabledCheckBox.IsEnabled = true;
                 PrivacyModeBox.IsEnabled = true;
                 UpdateRecordControl();
@@ -333,6 +352,8 @@ public sealed partial class MainWindow : Window
             _repository.AddConsent(_session.SessionId, ConsentScope.LocalCapture, privacyMode, true, "privacy-1");
             var cloudConsentGranted = ConsentPolicy.CloudConsentGranted(privacyMode, CloudConsentCheckBox.IsChecked == true);
             _repository.AddConsent(_session.SessionId, ConsentScope.CloudTranscription, privacyMode, cloudConsentGranted, "privacy-1");
+            var realtimeConsentGranted = ConsentPolicy.CloudConsentGranted(privacyMode, RealtimeConsentCheckBox.IsChecked == true);
+            _repository.AddConsent(_session.SessionId, ConsentScope.LiveCloudConversation, privacyMode, realtimeConsentGranted, "privacy-1");
             _capture = new AudioCaptureController(_repository, _audioRoot);
             _capture.CaptureFailed += CaptureFailed;
             _capture.Start(_session.SessionId, _turn.TurnId, ConsentCheckBox.IsChecked == true, format => new WaveInAudioInput(format), startedAt);
@@ -344,6 +365,7 @@ public sealed partial class MainWindow : Window
             RecordButton.Content = "停止錄音";
             ConsentCheckBox.IsEnabled = false;
             CloudConsentCheckBox.IsEnabled = false;
+            RealtimeConsentCheckBox.IsEnabled = false;
             RecordingEnabledCheckBox.IsEnabled = false;
             PrivacyModeBox.IsEnabled = false;
         }
@@ -366,6 +388,7 @@ public sealed partial class MainWindow : Window
             RecordButton.Content = "開始錄音";
             ConsentCheckBox.IsEnabled = true;
             CloudConsentCheckBox.IsEnabled = true;
+            RealtimeConsentCheckBox.IsEnabled = true;
             RecordingEnabledCheckBox.IsEnabled = true;
             PrivacyModeBox.IsEnabled = true;
             UpdateRecordControl();
@@ -404,6 +427,39 @@ public sealed partial class MainWindow : Window
         {
             StartRetryWorkerIfAvailable();
             StatusText.Text = "雲端處理未能完成；本機錄音仍然保留。";
+        }
+        finally
+        {
+            _processing = false;
+            UpdateRecordControl();
+        }
+    }
+
+    private async void RealtimeProcessButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_realtimeConversation is null || _lastSource?.FilePath is null || _session is null || _session.EndedAt is null || _capture?.State == AudioCaptureState.Capturing || CloudNotPermittedException.IsBlocked(_session.PrivacyMode) || !HasGrantedRealtimeConsent() || _processing)
+            return;
+
+        _processing = true;
+        UpdateRecordControl();
+        StatusText.Text = "正在使用 Realtime 語音回覆…";
+        try
+        {
+            var request = new RealtimeConversationRequest(_session.SessionId, _lastSource.TurnId, _lastSource.FilePath, _session.PrivacyMode, true, DateTimeOffset.UtcNow, _lastSource.SourceId);
+            var result = await _realtimeConversation.ExecuteAsync(request);
+            _latestSpeechAsset = result.OutputSpeechAsset ?? _repository.GetLatestDerivedSpeechAsset();
+            RefreshClarificationRevision();
+            StatusText.Text = result.OutputSpeechAsset is null
+                ? "Realtime 已完成文字回覆；沒有可播放嘅語音輸出。"
+                : "Realtime 已完成語音回覆，可以播放最近回覆。";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText.Text = "Realtime 處理已取消；本機錄音仍然保留。";
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "Realtime 處理未能完成；本機錄音仍然保留。請檢查 credential 或網絡。";
         }
         finally
         {
@@ -1074,6 +1130,7 @@ public sealed partial class MainWindow : Window
             RecordButton.Content = "開始錄音";
             ConsentCheckBox.IsEnabled = true;
             CloudConsentCheckBox.IsEnabled = true;
+            RealtimeConsentCheckBox.IsEnabled = true;
             RecordingEnabledCheckBox.IsEnabled = true;
             PrivacyModeBox.IsEnabled = true;
             UpdateRecordControl();
@@ -1119,6 +1176,7 @@ public sealed partial class MainWindow : Window
             MainContentScrollViewer.IsEnabled = false;
             RecordButton.IsEnabled = false;
             ProcessButton.IsEnabled = false;
+            RealtimeProcessButton.IsEnabled = false;
             PlaySpeechButton.IsEnabled = false;
             ClarificationPanel.IsHitTestVisible = false;
             return;
@@ -1128,6 +1186,7 @@ public sealed partial class MainWindow : Window
         var capturing = _capture?.State == AudioCaptureState.Capturing;
         var selectedPrivacyMode = GetSelectedPrivacyMode();
         CloudConsentCheckBox.IsEnabled = !capturing && !_processing && !CloudNotPermittedException.IsBlocked(selectedPrivacyMode);
+        RealtimeConsentCheckBox.IsEnabled = !capturing && !_processing && !CloudNotPermittedException.IsBlocked(selectedPrivacyMode);
         ConsentCheckBox.IsEnabled = !capturing && !_processing;
         RecordingEnabledCheckBox.IsEnabled = !capturing && !_processing;
         PrivacyModeBox.IsEnabled = !capturing && !_processing && _sourcePlaybackCancellation is null;
@@ -1135,6 +1194,7 @@ public sealed partial class MainWindow : Window
             ? !_processing && _sourcePlaybackCancellation is null
             : _recordingEnabled && ConsentCheckBox.IsChecked == true && ConsentCheckBox.IsEnabled && _sourcePlaybackCancellation is null;
         ProcessButton.IsEnabled = !_processing && _sourcePlaybackCancellation is null && _voiceConversation is not null && _capture?.State != AudioCaptureState.Capturing && _lastSource?.FilePath is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) && _session?.EndedAt is not null && _session is not null && !CloudNotPermittedException.IsBlocked(_session.PrivacyMode) && CloudConsentCheckBox.IsChecked == true;
+        RealtimeProcessButton.IsEnabled = !_processing && _sourcePlaybackCancellation is null && _realtimeConversation is not null && _capture?.State != AudioCaptureState.Capturing && _lastSource?.FilePath is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) && _session?.EndedAt is not null && _session is not null && !CloudNotPermittedException.IsBlocked(_session.PrivacyMode) && HasGrantedRealtimeConsent();
         PlaySpeechButton.IsEnabled = !_processing && _sourcePlaybackCancellation is null && _latestSpeechAsset is not null && _speechPlayback is not null;
         var adminIdle = !_processing && _capture?.State != AudioCaptureState.Capturing && _sourcePlaybackCancellation is null;
         ClarificationPanel.IsHitTestVisible = adminIdle && _pendingClarificationRevision is not null;
@@ -1155,6 +1215,12 @@ public sealed partial class MainWindow : Window
            && !CloudNotPermittedException.IsBlocked(_session.PrivacyMode)
            && CloudConsentCheckBox.IsChecked == true
            && _repository.HasGrantedConsent(_session.SessionId, ConsentScope.CloudTranscription);
+
+    private bool HasGrantedRealtimeConsent()
+        => _session is not null
+           && !CloudNotPermittedException.IsBlocked(_session.PrivacyMode)
+           && RealtimeConsentCheckBox.IsChecked == true
+           && _repository.HasGrantedConsent(_session.SessionId, ConsentScope.LiveCloudConversation);
 
     private PrivacyMode GetSelectedPrivacyMode()
     {

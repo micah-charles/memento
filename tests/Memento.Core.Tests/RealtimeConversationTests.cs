@@ -112,7 +112,8 @@ public sealed class RealtimeConversationTests
             "PCM WAV", 24000, 1, 16, fixture.PcmBytes.LongLength + 44, 20,
             "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
         var provider = new StubRealtimeProvider();
-        var orchestrator = new RealtimeConversationOrchestrator(repository, provider);
+        var speechStore = new DerivedAudioStore(repository, Path.Combine(fixture.DirectoryPath, "derived", "audio"));
+        var orchestrator = new RealtimeConversationOrchestrator(repository, provider, speechStore);
 
         var result = await orchestrator.ExecuteAsync(new RealtimeConversationRequest(
             session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true,
@@ -120,6 +121,12 @@ public sealed class RealtimeConversationTests
 
         Assert.Equal("stub response", result.Response.Text);
         Assert.Equal(1, provider.Calls);
+        Assert.NotNull(result.OutputSpeechAsset);
+        Assert.Equal("wav", result.OutputSpeechAsset!.Format);
+        var persistedAudio = speechStore.ReadVerified(result.OutputSpeechAsset);
+        Assert.Equal("RIFF", System.Text.Encoding.ASCII.GetString(persistedAudio, 0, 4));
+        Assert.Equal(46, persistedAudio.Length);
+        Assert.Single(repository.ListDerivedSpeechAssets(session.SessionId));
         using var connection = archive.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT capability, succeeded FROM provider_interactions WHERE session_id = $session";

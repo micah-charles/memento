@@ -171,6 +171,7 @@
 - The WinUI shell now locks privacy, recording, and cloud-consent controls while bounded cloud processing is in flight, preventing a participant from changing policy mid-turn.
 - Active capture markers now update their WAV data length after each append, and recovery scanning can recover complete PCM frames left behind by a stale header after interruption.
 - Optional TTS now completes the turn-based pipeline as local WAV → transcription → text response → verified derived speech storage → optional NAudio WAV playback. The WinUI shell can replay the latest stored assistant output; real output-device playback and continuous Realtime/WebRTC device streaming remain deployment work.
+- The optional Realtime shell path now has a separate `LiveCloudConversation` consent checkbox and action. Realtime PCM output is converted to a verified 24 kHz mono WAV in `derived_speech_assets`, so the existing local playback and integrity checks can be used without treating provider audio as participant evidence.
 
 ## Next action
 

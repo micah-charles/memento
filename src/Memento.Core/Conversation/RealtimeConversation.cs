@@ -19,7 +19,8 @@ public sealed record RealtimeConversationRequest(
 public sealed record RealtimeConversationResult(
     ConversationResponse Response,
     byte[] OutputAudioPcm,
-    string? InputTranscript);
+    string? InputTranscript,
+    DerivedSpeechAsset? OutputSpeechAsset = null);
 
 public interface IRealtimeConversationProvider
 {
@@ -339,11 +340,13 @@ public sealed class RealtimeConversationOrchestrator
 {
     private readonly ArchiveRepository _repository;
     private readonly IRealtimeConversationProvider _provider;
+    private readonly DerivedAudioStore? _speechStore;
 
-    public RealtimeConversationOrchestrator(ArchiveRepository repository, IRealtimeConversationProvider provider)
+    public RealtimeConversationOrchestrator(ArchiveRepository repository, IRealtimeConversationProvider provider, DerivedAudioStore? speechStore = null)
     {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _provider = provider ?? throw new ArgumentNullException(nameof(provider));
+        _speechStore = speechStore;
     }
 
     public async Task<RealtimeConversationResult> ExecuteAsync(RealtimeConversationRequest request, CancellationToken cancellationToken = default)
@@ -379,7 +382,50 @@ public sealed class RealtimeConversationOrchestrator
         if (!_repository.HasGrantedConsent(session.SessionId, ConsentScope.LiveCloudConversation)) throw new CloudNotPermittedException();
         if (request.SourceId is not null && string.Equals(_repository.GetSource(request.SourceId)?.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
             throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
+        DerivedSpeechAsset? outputSpeechAsset = null;
+        if (result.OutputAudioPcm.Length > 0 && _speechStore is not null)
+        {
+            outputSpeechAsset = _speechStore.StorePcm(
+                request.SessionId,
+                request.TurnId,
+                new PcmWaveFormat(24000, 1, 16),
+                result.OutputAudioPcm,
+                result.Response.Provider,
+                result.Response.Model,
+                result.Response.RequestId,
+                result.Response.CompletedAt);
+            try
+            {
+                if (!_repository.HasGrantedConsent(session.SessionId, ConsentScope.LiveCloudConversation))
+                    throw new CloudNotPermittedException();
+                if (request.SourceId is not null && string.Equals(_repository.GetSource(request.SourceId)?.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
+                    throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
+            }
+            catch
+            {
+                TryDeleteDerivedAsset(outputSpeechAsset);
+                throw;
+            }
+        }
         _repository.AddProviderInteraction(new ProviderInteraction(Guid.NewGuid().ToString("N"), request.SessionId, request.TurnId, result.Response.Provider, result.Response.Capability, result.Response.Model, result.Response.ModelSnapshot, result.Response.RequestId, started, result.Response.CompletedAt, result.Response.InputAudioMs, result.Response.OutputAudioMs, true, null, null, DateTimeOffset.UtcNow));
-        return result;
+        return result with { OutputSpeechAsset = outputSpeechAsset };
+    }
+
+    private void TryDeleteDerivedAsset(DerivedSpeechAsset asset)
+    {
+        try
+        {
+            if (File.Exists(asset.FilePath)) File.Delete(asset.FilePath);
+            using var connection = _repository.Archive.OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM derived_speech_assets WHERE derived_speech_asset_id = $id";
+            command.Parameters.AddWithValue("$id", asset.DerivedSpeechAssetId);
+            command.ExecuteNonQuery();
+        }
+        catch
+        {
+            // Preserve the policy failure; a later health check can expose any
+            // cleanup problem without leaking provider content.
+        }
     }
 }

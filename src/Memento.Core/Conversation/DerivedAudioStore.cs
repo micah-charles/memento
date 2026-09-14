@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Memento.Core.Audio;
 using Memento.Core.Domain;
 using Memento.Core.Storage;
 
@@ -51,6 +52,43 @@ public sealed class DerivedAudioStore
             TryDelete(finalPath);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Stores raw PCM returned by a Realtime provider as a verified WAV
+    /// derived asset. Realtime output is never treated as participant Source
+    /// evidence, but it can be replayed through the same safe playback path as
+    /// turn-based speech output.
+    /// </summary>
+    public DerivedSpeechAsset StorePcm(
+        string sessionId,
+        string? turnId,
+        PcmWaveFormat format,
+        byte[] pcmBytes,
+        string provider,
+        string model,
+        string? requestId = null,
+        DateTimeOffset? createdAt = null,
+        string? assetId = null)
+    {
+        if (string.IsNullOrWhiteSpace(provider)) throw new ArgumentException("A speech provider is required.", nameof(provider));
+        if (string.IsNullOrWhiteSpace(model)) throw new ArgumentException("A speech model is required.", nameof(model));
+        ArgumentNullException.ThrowIfNull(format);
+        ArgumentNullException.ThrowIfNull(pcmBytes);
+        format.Validate();
+        if (pcmBytes.Length == 0) throw new ArgumentException("PCM output cannot be empty.", nameof(pcmBytes));
+        if (pcmBytes.LongLength % format.BlockAlign != 0)
+            throw new ArgumentException("PCM output must contain complete sample frames.", nameof(pcmBytes));
+
+        using var wav = new MemoryStream(44 + pcmBytes.Length);
+        PcmWaveWriter.WriteHeader(wav, format, pcmBytes.LongLength);
+        wav.Write(pcmBytes);
+        return Store(
+            sessionId,
+            turnId,
+            new SpeechOutputResult(provider, model, "realtime", "wav", requestId, wav.ToArray(), createdAt ?? DateTimeOffset.UtcNow),
+            createdAt,
+            assetId);
     }
 
     public byte[] ReadVerified(DerivedSpeechAsset asset)

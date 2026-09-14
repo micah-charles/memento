@@ -37,6 +37,8 @@ public partial class App : Application
         var transcriptionProvider = new OpenAiTranscriptionProvider(_httpClient, credentials);
         var conversationProvider = new OpenAiResponsesProvider(_httpClient, credentials, "gpt-5.6-terra");
         var speechOutputProvider = new OpenAiSpeechOutputProvider(_httpClient, credentials);
+        var realtimeProvider = new OpenAiRealtimeWebSocketProvider(credentials);
+        var realtimeConversation = new RealtimeConversationOrchestrator(Repository, realtimeProvider, derivedAudioStore);
         var extractionProvider = new OpenAiMemoryExtractionProvider(_httpClient, credentials, "gpt-5.6-terra");
         var currentInformation = new CurrentInformationService(new OpenAiWebSearchProvider(
             _httpClient,
@@ -63,7 +65,7 @@ public partial class App : Application
         var deletion = adminAuthorized ? new Memento.Core.Admin.ArchiveDeletionService(Repository, adminAuthorizer) : null;
         var withdrawal = adminAuthorized ? new Memento.Core.Admin.ArchiveWithdrawalService(Repository, adminAuthorizer) : null;
         var sourceAudioPlayback = adminAuthorized ? new WaveFileSourceAudioPlayback() : null;
-        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, voiceConversation, new WaveFileSpeechOutputPlayback(derivedAudioStore), adminReview, adminActorId, retryWorker, () => !string.IsNullOrWhiteSpace(credentials.GetApiKey()), dataDirectory, deletion, withdrawal, sourceAudioPlayback, currentInformation, applicationLock);
+        _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, voiceConversation, new WaveFileSpeechOutputPlayback(derivedAudioStore), adminReview, adminActorId, retryWorker, () => !string.IsNullOrWhiteSpace(credentials.GetApiKey()), dataDirectory, deletion, withdrawal, sourceAudioPlayback, currentInformation, applicationLock, realtimeConversation);
         _window.Activate();
     }
 }

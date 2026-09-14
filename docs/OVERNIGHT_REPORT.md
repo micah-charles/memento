@@ -2,7 +2,7 @@
 
 **Report date:** 2026-09-14
 **Starting reviewed checkpoint:** `82cbccc` (`main` on `origin`)
-**Current local checkpoint:** `226052a` (`docs: update realtime test count`).
+**Current local checkpoint:** pending the next implementation checkpoint for the Realtime shell output path.
 **Environment:** Windows, .NET 10 SDK, `win-x64`, repository worktree
 
 This report records what is implemented and verified in the local worktree. It does not turn simulated, automated, or process-only checks into native GUI, hardware, live-provider, or participant evidence.
@@ -19,6 +19,7 @@ This report records what is implemented and verified in the local worktree. It d
 - Application-lock setup check — default preflight emitted an **optional WARN** because `MEMENTO/AppLock` is absent; `-RequireApplicationLock` correctly turns that policy choice into one blocking failure without exposing the verifier.
 - Deployment workflow — `scripts/Setup-Memento.ps1 -SkipPublish` now composes install and preflight, with optional cloud/app-lock policy gates and `-Launch` support; the launch branch was smoke-tested and stopped cleanly.
 - Installed process smoke — launched via `scripts\\Start-Memento.ps1`; observed title `MEMENTO` and `Responding=True` after seven seconds, then stopped cleanly. This is process evidence only; no visual GUI claim is made.
+- Realtime shell output path — the separate live-conversation consent/action now persists provider PCM output as a verified derived WAV and routes it through the existing replay control. No live provider or physical output-device call was made.
 
 ## Milestone status
 

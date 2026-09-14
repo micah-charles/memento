@@ -22,8 +22,10 @@
             </ComboBox>
             <CheckBox x:Name="ConsentCheckBox" Content="我同意本機錄音" HorizontalAlignment="Center" Checked="ConsentChanged" Unchecked="ConsentChanged" />
             <CheckBox x:Name="CloudConsentCheckBox" Content="我同意完成錄音後送到雲端轉錄、回覆及目前資訊查詢" HorizontalAlignment="Center" Checked="CloudConsentChanged" Unchecked="CloudConsentChanged" />
+            <CheckBox x:Name="RealtimeConsentCheckBox" Content="我另外同意使用 Realtime 語音回覆（獨立同意）" HorizontalAlignment="Center" Checked="RealtimeConsentChanged" Unchecked="RealtimeConsentChanged" />
             <Button x:Name="RecordButton" Content="開始錄音" IsEnabled="False" Click="RecordButton_Click" HorizontalAlignment="Center" Padding="28,10" />
             <Button x:Name="ProcessButton" Content="轉錄及回覆最近錄音" IsEnabled="False" Click="ProcessButton_Click" HorizontalAlignment="Center" Padding="20,8" />
+            <Button x:Name="RealtimeProcessButton" Content="用 Realtime 語音回覆最近錄音" IsEnabled="False" Click="RealtimeProcessButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <StackPanel x:Name="ClarificationPanel" Visibility="Collapsed" Spacing="8" MaxWidth="620" HorizontalAlignment="Center">
                 <TextBlock Text="想確認或更正最近轉錄？" FontSize="20" HorizontalAlignment="Center" />
                 <TextBlock x:Name="ClarificationTranscriptText" TextWrapping="Wrap" />
