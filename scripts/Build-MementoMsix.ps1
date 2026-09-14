@@ -73,6 +73,9 @@ try {
         /p:WindowsAppSDKSelfContained=true
 
     Copy-Item -Path (Join-Path $publish '*') -Destination $staging -Recurse -Force
+    # The publish directory is only an intermediate copy source. Leaving it
+    # under the package root would duplicate every payload file in the MSIX.
+    Remove-Item -LiteralPath $publish -Recurse -Force
     foreach ($name in 'StoreLogo.png', 'Square150x150Logo.png', 'Square44x44Logo.png', 'SplashScreen.png') {
         Write-PlaceholderPng -Path (Join-Path $assets $name)
     }
