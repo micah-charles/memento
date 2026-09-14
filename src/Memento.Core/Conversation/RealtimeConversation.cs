@@ -427,12 +427,7 @@ public sealed class RealtimeConversationOrchestrator
     {
         try
         {
-            if (File.Exists(asset.FilePath)) File.Delete(asset.FilePath);
-            using var connection = _repository.Archive.OpenConnection();
-            using var command = connection.CreateCommand();
-            command.CommandText = "DELETE FROM derived_speech_assets WHERE derived_speech_asset_id = $id";
-            command.Parameters.AddWithValue("$id", asset.DerivedSpeechAssetId);
-            command.ExecuteNonQuery();
+            _speechStore?.Remove(asset);
         }
         catch
         {

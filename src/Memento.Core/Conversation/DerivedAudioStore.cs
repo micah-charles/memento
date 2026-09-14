@@ -106,6 +106,27 @@ public sealed class DerivedAudioStore
         return bytes;
     }
 
+    /// <summary>
+    /// Removes a derived output after a policy race or failed completion. The
+    /// path is checked against this store's root before any filesystem delete,
+    /// so a tampered archive row cannot turn cleanup into an arbitrary-file
+    /// delete.
+    /// </summary>
+    public void Remove(DerivedSpeechAsset asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        if (!ArchivePathSafety.IsPathUnderRoot(asset.FilePath, _rootDirectory))
+            throw new InvalidDataException("Derived speech output is outside the derived audio directory.");
+        ArchivePathSafety.EnsureNoReparsePointInPath(asset.FilePath, "The derived audio path");
+        if (File.Exists(asset.FilePath)) File.Delete(asset.FilePath);
+
+        using var connection = _repository.Archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM derived_speech_assets WHERE derived_speech_asset_id = $id";
+        command.Parameters.AddWithValue("$id", asset.DerivedSpeechAssetId);
+        command.ExecuteNonQuery();
+    }
+
     private static string NormalizeFormat(string format)
     {
         var normalized = (format ?? string.Empty).Trim().TrimStart('.').ToLowerInvariant();

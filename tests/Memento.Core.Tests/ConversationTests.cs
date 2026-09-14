@@ -384,6 +384,40 @@ public sealed class ConversationTests
     }
 
     [Fact]
+    public void Derived_audio_store_removes_a_verified_asset_and_rejects_external_cleanup()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var storeRoot = Path.Combine(fixture.DirectoryPath, "derived", "audio");
+        var store = new DerivedAudioStore(repository, storeRoot);
+        var asset = store.Store(
+            session.SessionId,
+            null,
+            new SpeechOutputResult("test", "test-model", "test", "wav", "request", [1, 2, 3], DateTimeOffset.UtcNow));
+
+        store.Remove(asset);
+
+        Assert.False(File.Exists(asset.FilePath));
+        Assert.Empty(repository.ListDerivedSpeechAssets(session.SessionId));
+
+        var external = Path.Combine(Path.GetTempPath(), "memento-external-derived-remove-" + Guid.NewGuid().ToString("N") + ".wav");
+        File.WriteAllBytes(external, [7, 8, 9]);
+        try
+        {
+            var externalAsset = asset with { DerivedSpeechAssetId = "derived-external-remove", FilePath = external };
+            Assert.Throws<InvalidDataException>(() => store.Remove(externalAsset));
+            Assert.True(File.Exists(external));
+        }
+        finally
+        {
+            if (File.Exists(external)) File.Delete(external);
+        }
+    }
+
+    [Fact]
     public async Task Bounded_pipeline_does_not_persist_or_play_speech_after_withdrawal_during_synthesis()
     {
         using var fixture = new ConversationFixture();
