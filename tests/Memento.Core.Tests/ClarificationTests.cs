@@ -69,6 +69,29 @@ public sealed class ClarificationTests
     }
 
     [Fact]
+    public void Uncertain_outcome_rejects_corrected_text_without_writing_a_revision()
+    {
+        using var fixture = new ClarificationFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-uncertain-correction"));
+        var protocol = new ClarificationProtocol(repository);
+        var initial = protocol.AddInitialRevision(source.SourceId, null, "小三定小四", 0.5);
+
+        Assert.Throws<ArgumentException>(() => protocol.RecordOutcome(
+            session,
+            initial,
+            ClarificationEntityKind.Year,
+            "你記得係小三定小四？",
+            "唔肯定。",
+            ClarificationOutcome.TwoPossibilities,
+            "小三或者小四"));
+
+        Assert.Single(repository.ListTranscriptRevisions(source.SourceId));
+    }
+
+    [Fact]
     public void Correction_of_a_correction_is_a_new_revision_with_parent()
     {
         using var fixture = new ClarificationFixture();

@@ -71,8 +71,11 @@ public sealed class ClarificationProtocol
         DateTimeOffset? occurredAt = null)
     {
         if (string.IsNullOrWhiteSpace(questionText)) throw new ArgumentException("A clarification question is required.", nameof(questionText));
-        if (outcome is ClarificationOutcome.SpeakerConfirmed or ClarificationOutcome.CorrectedPreviousCorrection && string.IsNullOrWhiteSpace(correctedText))
+        var speakerConfirmedOutcome = outcome is ClarificationOutcome.SpeakerConfirmed or ClarificationOutcome.CorrectedPreviousCorrection;
+        if (speakerConfirmedOutcome && string.IsNullOrWhiteSpace(correctedText))
             throw new ArgumentException("A speaker-confirmed outcome requires corrected wording.", nameof(correctedText));
+        if (!speakerConfirmedOutcome && !string.IsNullOrWhiteSpace(correctedText))
+            throw new ArgumentException("Only a speaker-confirmed outcome may create corrected wording.", nameof(correctedText));
 
         var source = _repository.GetSource(initialRevision.SourceId)
             ?? throw new InvalidOperationException("The clarification Source was not found.");
