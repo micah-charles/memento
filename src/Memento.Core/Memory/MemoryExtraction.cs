@@ -76,7 +76,9 @@ public sealed class MemoryExtractionService
 
     private void EnsureSourceAvailable(SourceMetadata source)
     {
-        if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) || string.Equals(_repository.GetSource(source.SourceId)?.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
+        var current = _repository.GetSource(source.SourceId)
+            ?? throw new InvalidDataException("The extraction Source was removed before the provider was running.");
+        if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) || string.Equals(current.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
             throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
     }
 }
@@ -99,8 +101,7 @@ public sealed class AsyncMemoryExtractionService
         session = EnsurePersistedSession(session);
         if (CloudNotPermittedException.IsBlocked(session.PrivacyMode) || !_repository.HasGrantedConsent(session.SessionId, ConsentScope.CloudTranscription))
             throw new CloudNotPermittedException();
-        if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) || string.Equals(_repository.GetSource(source.SourceId)?.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
-            throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
+        EnsureSourceAvailable(source);
         var candidates = await _provider.ExtractAsync(revision, cancellationToken).ConfigureAwait(false);
         if (!_repository.HasGrantedConsent(session.SessionId, ConsentScope.CloudTranscription))
             throw new CloudNotPermittedException();
@@ -109,6 +110,14 @@ public sealed class AsyncMemoryExtractionService
         if (string.Equals(currentSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
             throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
         return MemoryExtractionPersistence.Persist(_repository, _provider.Provider, _provider.Model, session, currentSource, revision, candidates);
+    }
+
+    private void EnsureSourceAvailable(SourceMetadata source)
+    {
+        var current = _repository.GetSource(source.SourceId)
+            ?? throw new InvalidDataException("The extraction Source was removed before the provider was running.");
+        if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) || string.Equals(current.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
+            throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
     }
 
     private Session EnsurePersistedSession(Session supplied)
