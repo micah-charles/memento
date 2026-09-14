@@ -27,7 +27,9 @@ public sealed class ArchiveSearchService(SqliteArchive archive)
         rebuild.Transaction = transaction;
         rebuild.CommandText = """
             INSERT INTO memory_search(content, source_id, record_type, record_id, session_id)
-                SELECT text, source_id, 'transcript_revision', transcript_revision_id, NULL FROM transcript_revisions;
+                SELECT r.text, r.source_id, 'transcript_revision', r.transcript_revision_id, s.session_id
+                FROM transcript_revisions r
+                LEFT JOIN sources s ON s.source_id = r.source_id;
             INSERT INTO memory_search(content, source_id, record_type, record_id, session_id)
                 SELECT statement || ' ' || original_expression, source_id, 'evidence', evidence_id, session_id FROM evidence_records;
             INSERT INTO memory_search(content, source_id, record_type, record_id, session_id)
@@ -164,7 +166,7 @@ internal static class ArchiveSearchIndex
         Remove(connection, transaction, recordType, [recordId]);
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = "INSERT INTO memory_search(content, source_id, record_type, record_id, session_id) VALUES ($content, $source, $type, $id, $session)";
+        command.CommandText = "INSERT INTO memory_search(content, source_id, record_type, record_id, session_id) VALUES ($content, $source, $type, $id, COALESCE($session, (SELECT session_id FROM sources WHERE source_id = $source)))";
         command.Parameters.AddWithValue("$content", content);
         command.Parameters.AddWithValue("$source", (object?)sourceId ?? DBNull.Value);
         command.Parameters.AddWithValue("$type", recordType);

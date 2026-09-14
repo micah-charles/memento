@@ -407,7 +407,20 @@ internal static class Migrations
         ,new(16, (connection, transaction) => SqliteArchive.Execute(connection, transaction, """
             CREATE VIRTUAL TABLE memory_search USING fts5(content, source_id UNINDEXED, record_type UNINDEXED, record_id UNINDEXED, session_id UNINDEXED, tokenize = 'unicode61 remove_diacritics 2');
             INSERT INTO memory_search(content, source_id, record_type, record_id, session_id)
-                SELECT text, source_id, 'transcript_revision', transcript_revision_id, NULL FROM transcript_revisions;
+                SELECT r.text, r.source_id, 'transcript_revision', r.transcript_revision_id, s.session_id
+                FROM transcript_revisions r
+                LEFT JOIN sources s ON s.source_id = r.source_id;
+            INSERT INTO memory_search(content, source_id, record_type, record_id, session_id)
+                SELECT statement || ' ' || original_expression, source_id, 'evidence', evidence_id, session_id FROM evidence_records;
+            INSERT INTO memory_search(content, source_id, record_type, record_id, session_id)
+                SELECT statement || ' ' || predicate || ' ' || object, NULL, 'memory_claim', memory_claim_id, NULL FROM memory_claims;
+            """))
+        ,new(17, (connection, transaction) => SqliteArchive.Execute(connection, transaction, """
+            DELETE FROM memory_search;
+            INSERT INTO memory_search(content, source_id, record_type, record_id, session_id)
+                SELECT r.text, r.source_id, 'transcript_revision', r.transcript_revision_id, s.session_id
+                FROM transcript_revisions r
+                LEFT JOIN sources s ON s.source_id = r.source_id;
             INSERT INTO memory_search(content, source_id, record_type, record_id, session_id)
                 SELECT statement || ' ' || original_expression, source_id, 'evidence', evidence_id, session_id FROM evidence_records;
             INSERT INTO memory_search(content, source_id, record_type, record_id, session_id)
