@@ -12,7 +12,7 @@ This report records what is implemented and verified in the local worktree. It d
 - `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **171 passed, 0 failed**.
 - `dotnet build Memento.slnx --configuration Release --no-restore` — **0 warnings, 0 errors**.
 - M04 CLI — synthetic corpus `m04-synthetic-v1`, **14/14 PASS**, `correctionRequiredCount: 0`.
-- Published bundle — `artifacts/MEMENTO-win-x64.zip`, 106,521,164 bytes, SHA-256 `09ec9f3362e7a1c51659962c1a31461eb1f61600c8d82efc013fabdaf6ee93e1`.
+- Published bundle — `artifacts/MEMENTO-win-x64.zip`, 106,521,173 bytes, SHA-256 `e42ea878bf0d6866fe51075dc58996a5c2ae96345520f81aef1726e8fe282e5b`.
 - Refreshed installed app — the latest bundle was installed, `Start-Memento.ps1` launched `MEMENTO` with `Responding=True`, normal close exited cleanly, and required audio enumeration/archive-integrity preflight passed; native GUI and physical audio behaviour remain supervised.
 - Deployment preflight — **PASS** for bundle, sidecar, installed executable, Start Menu shortcut, archive paths, free disk, stopped-process state, one wave-in device, and one active WASAPI render device; no microphone was opened and no audio was played.
 - Deployment policy gates — `Setup-Memento.ps1 -SkipPublish -RequireAudioInput -RequireAudioOutput -RequireArchiveIntegrity` passed; the same switches can promote missing enumerated devices or a failed archive integrity check to blocking failures without claiming physical capture/playback.
@@ -74,3 +74,4 @@ This report records what is implemented and verified in the local worktree. It d
 ## Owner-gated next action
 
 Run the supervised target-machine checklist in [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md): start with native GUI and physical microphone verification, then use a disposable provider credential and redacted corpus, verify Family Admin and encrypted restore, and record incidents before any real participant pilot. Keep the milestone statuses above until those observations exist.
+
