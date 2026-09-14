@@ -29,7 +29,14 @@ public interface IAudioInput : IDisposable
     void Stop();
 }
 
-public sealed class AudioCaptureController
+/// <summary>Read-only PCM chunk surface for consumers such as Realtime transport.</summary>
+public interface IAudioChunkSource
+{
+    PcmWaveFormat Format { get; }
+    event EventHandler<AudioDataEventArgs>? DataAvailable;
+}
+
+public sealed class AudioCaptureController : IAudioChunkSource
 {
     private readonly ArchiveRepository _repository;
     private readonly string _audioRootDirectory;
@@ -37,6 +44,8 @@ public sealed class AudioCaptureController
     private IAudioInput? _input;
     private string? _sessionId;
     private string? _turnId;
+
+    public PcmWaveFormat Format { get; private set; } = new(48000, 1, 16);
 
     public AudioCaptureController(ArchiveRepository repository, string audioRootDirectory)
     {
@@ -47,6 +56,7 @@ public sealed class AudioCaptureController
     public AudioCaptureState State { get; private set; } = AudioCaptureState.Idle;
     public string? Failure { get; private set; }
     public event EventHandler<Exception>? CaptureFailed;
+    public event EventHandler<AudioDataEventArgs>? DataAvailable;
 
     public void Start(string sessionId, string? turnId, bool localCaptureConsent, Func<PcmWaveFormat, IAudioInput> inputFactory, DateTimeOffset? startedAt = null)
     {
@@ -59,6 +69,7 @@ public sealed class AudioCaptureController
         {
             input = inputFactory(new PcmWaveFormat(48000, 1, 16)) ?? throw new InvalidOperationException("Audio input factory returned no input.");
             _input = input;
+            Format = input.Format;
             _writer = PcmWaveWriter.Create(_audioRootDirectory, sessionId, startedAt ?? DateTimeOffset.UtcNow, input.Format, turnId: _turnId);
             input.DataAvailable += OnDataAvailable;
             input.CaptureError += OnCaptureError;
@@ -142,7 +153,11 @@ public sealed class AudioCaptureController
 
     private void OnDataAvailable(object? sender, AudioDataEventArgs e)
     {
-        try { _writer?.Append(e.Buffer.AsSpan(0, e.BytesRecorded)); }
+        try
+        {
+            _writer?.Append(e.Buffer.AsSpan(0, e.BytesRecorded));
+            DataAvailable?.Invoke(this, e);
+        }
         catch (Exception error) { OnCaptureError(sender, error); }
     }
 

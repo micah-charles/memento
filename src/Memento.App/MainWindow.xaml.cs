@@ -22,6 +22,7 @@ public sealed partial class MainWindow : Window
     private readonly string _dataRoot;
     private readonly BoundedVoiceConversationService? _voiceConversation;
     private readonly RealtimeConversationOrchestrator? _realtimeConversation;
+    private readonly RealtimeStreamingOrchestrator? _realtimeStreaming;
     private readonly ISpeechOutputPlayback? _speechPlayback;
     private readonly ISourceAudioPlayback? _sourceAudioPlayback;
     private readonly FamilyAdminReviewService? _adminReview;
@@ -46,8 +47,9 @@ public sealed partial class MainWindow : Window
     private Task? _retryTask;
     private CancellationTokenSource? _sourcePlaybackCancellation;
     private CancellationTokenSource? _currentInfoCancellation;
+    private RealtimeStreamingArchiveSession? _activeRealtimeStreaming;
 
-    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null, ConversationJobWorker? retryWorker = null, Func<bool>? credentialAvailable = null, string? dataRoot = null, ArchiveDeletionService? deletion = null, ArchiveWithdrawalService? withdrawal = null, ISourceAudioPlayback? sourceAudioPlayback = null, CurrentInformationService? currentInformation = null, IApplicationLock? applicationLock = null, RealtimeConversationOrchestrator? realtimeConversation = null)
+    public MainWindow(ArchiveRepository repository, string audioRoot, int recoverableAudioCount = 0, BoundedVoiceConversationService? voiceConversation = null, ISpeechOutputPlayback? speechPlayback = null, FamilyAdminReviewService? adminReview = null, string? adminActorId = null, ConversationJobWorker? retryWorker = null, Func<bool>? credentialAvailable = null, string? dataRoot = null, ArchiveDeletionService? deletion = null, ArchiveWithdrawalService? withdrawal = null, ISourceAudioPlayback? sourceAudioPlayback = null, CurrentInformationService? currentInformation = null, IApplicationLock? applicationLock = null, RealtimeConversationOrchestrator? realtimeConversation = null, RealtimeStreamingOrchestrator? realtimeStreaming = null)
     {
         _repository = repository;
         _audioRoot = audioRoot;
@@ -57,6 +59,7 @@ public sealed partial class MainWindow : Window
         _dataRoot = dataRoot is null ? Path.GetFullPath(Path.Combine(audioRoot, "..", "..")) : Path.GetFullPath(dataRoot);
         _voiceConversation = voiceConversation;
         _realtimeConversation = realtimeConversation;
+        _realtimeStreaming = realtimeStreaming;
         _speechPlayback = speechPlayback;
         _sourceAudioPlayback = sourceAudioPlayback;
         _adminReview = adminReview;
@@ -285,7 +288,7 @@ public sealed partial class MainWindow : Window
         UpdateRecordControl();
     }
 
-    private void RecordButton_Click(object sender, RoutedEventArgs e)
+    private async void RecordButton_Click(object sender, RoutedEventArgs e)
     {
         if (_capture?.State != AudioCaptureState.Capturing && !_recordingEnabled)
         {
@@ -303,6 +306,8 @@ public sealed partial class MainWindow : Window
 
         if (_capture?.State == AudioCaptureState.Capturing)
         {
+            var streaming = _activeRealtimeStreaming;
+            _activeRealtimeStreaming = null;
             try
             {
                 _lastSource = _capture.Stop();
@@ -311,6 +316,27 @@ public sealed partial class MainWindow : Window
                 if (_session is not null)
                     _session = _repository.EndSession(_session);
                 StatusText.Text = "已儲存本機錄音 · Local archive";
+                if (streaming is not null)
+                {
+                    _processing = true;
+                    UpdateRecordControl();
+                    try
+                    {
+                        var result = await streaming.CompleteAsync();
+                        _latestSpeechAsset = result.OutputSpeechAsset ?? _repository.GetLatestDerivedSpeechAsset();
+                        StatusText.Text = result.OutputSpeechAsset is null
+                            ? "已儲存本機錄音；Realtime 已完成文字回覆。"
+                            : "已儲存本機錄音及 Realtime 語音回覆。";
+                    }
+                    catch (Exception)
+                    {
+                        StatusText.Text = "已儲存本機錄音；Realtime 未能完成，錄音仍然保留。";
+                    }
+                    finally
+                    {
+                        _processing = false;
+                    }
+                }
             }
             catch (Exception)
             {
@@ -329,6 +355,10 @@ public sealed partial class MainWindow : Window
             }
             finally
             {
+                if (streaming is not null)
+                {
+                    try { await streaming.DisposeAsync(); } catch { }
+                }
                 RecordButton.Content = "開始錄音";
                 ConsentCheckBox.IsEnabled = true;
                 CloudConsentCheckBox.IsEnabled = true;
@@ -356,6 +386,20 @@ public sealed partial class MainWindow : Window
             _repository.AddConsent(_session.SessionId, ConsentScope.LiveCloudConversation, privacyMode, realtimeConsentGranted, "privacy-1");
             _capture = new AudioCaptureController(_repository, _audioRoot);
             _capture.CaptureFailed += CaptureFailed;
+            if (realtimeConsentGranted && _realtimeStreaming is not null)
+            {
+                try
+                {
+                    _activeRealtimeStreaming = await _realtimeStreaming.StartAsync(
+                        new RealtimeStreamingRequest(_session.SessionId, _turn.TurnId, privacyMode, true, startedAt),
+                        _capture);
+                }
+                catch (Exception)
+                {
+                    _activeRealtimeStreaming = null;
+                    StatusText.Text = "Realtime 未能連線；會繼續保留本機錄音。";
+                }
+            }
             _capture.Start(_session.SessionId, _turn.TurnId, ConsentCheckBox.IsChecked == true, format => new WaveInAudioInput(format), startedAt);
             StatusText.Text = CloudNotPermittedException.IsBlocked(privacyMode)
                 ? $"Listening… 本機錄音中（{PrivacyModeLabel(privacyMode)}）"
@@ -375,6 +419,11 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception)
         {
+            if (_activeRealtimeStreaming is not null)
+            {
+                try { await _activeRealtimeStreaming.DisposeAsync(); } catch { }
+                _activeRealtimeStreaming = null;
+            }
             StatusText.Text = "無法使用咪高風，請檢查 Windows 權限或接駁。";
             if (_session is not null && _session.EndedAt is null)
             {
@@ -1102,6 +1151,7 @@ public sealed partial class MainWindow : Window
         _retryCancellation?.Cancel();
         _sourcePlaybackCancellation?.Cancel();
         _currentInfoCancellation?.Cancel();
+        _ = DisposeActiveRealtimeStreamingAsync();
         if (_capture?.State == AudioCaptureState.Capturing)
         {
             _capture.AbortForRecovery();
@@ -1117,6 +1167,7 @@ public sealed partial class MainWindow : Window
     {
         _dispatcherQueue.TryEnqueue(() =>
         {
+            _ = DisposeActiveRealtimeStreamingAsync();
             if (_session is not null && _session.EndedAt is null)
             {
                 try { _session = _repository.EndSession(_session); } catch { }
@@ -1135,6 +1186,13 @@ public sealed partial class MainWindow : Window
             PrivacyModeBox.IsEnabled = true;
             UpdateRecordControl();
         });
+    }
+
+    private async Task DisposeActiveRealtimeStreamingAsync()
+    {
+        var streaming = Interlocked.Exchange(ref _activeRealtimeStreaming, null);
+        if (streaming is null) return;
+        try { await streaming.DisposeAsync(); } catch { }
     }
 
     private bool IsApplicationLockConfigured()

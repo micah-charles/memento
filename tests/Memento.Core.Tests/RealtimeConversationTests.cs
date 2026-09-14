@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Threading.Channels;
 using Memento.Core.Audio;
 using Memento.Core.Conversation;
 using Memento.Core.Domain;
@@ -96,6 +97,96 @@ public sealed class RealtimeConversationTests
         Assert.Single(append);
         using var document = JsonDocument.Parse(append[0]);
         Assert.Equal(Convert.ToBase64String([1, 0, 3, 0]), document.RootElement.GetProperty("audio").GetString());
+    }
+
+    [Fact]
+    public async Task Streaming_provider_sends_live_pcm_chunks_and_completes_a_response()
+    {
+        using var source = new FakeAudioChunkSource(new PcmWaveFormat(48000, 1, 16));
+        await using var transport = new StreamingFakeRealtimeTransport();
+        var provider = new OpenAiRealtimeStreamingProvider(
+            new DelegateApiCredentialProvider(() => "test-key"),
+            "gpt-test",
+            () => transport,
+            new Uri("wss://example.test/v1/realtime?model=gpt-test"));
+
+        await using var session = await provider.StartAsync(new RealtimeStreamingRequest(
+            "session", "turn", PrivacyMode.Normal, true, DateTimeOffset.UtcNow), source);
+        source.Emit([1, 0, 2, 0, 3, 0, 4, 0]);
+        var completion = session.CompleteAsync();
+        await transport.WaitForMessageAsync(message => message.Contains("input_audio_buffer.commit", StringComparison.Ordinal));
+        await transport.EmitAsync("{\"type\":\"response.output_audio_transcript.delta\",\"delta\":\"收到啦\"}");
+        await transport.EmitAsync("{\"type\":\"response.output_audio.delta\",\"delta\":\"AQID\"}");
+        await transport.EmitAsync("{\"type\":\"response.done\",\"response\":{\"id\":\"stream-response\",\"status\":\"completed\"}}");
+        var result = await completion;
+
+        Assert.Equal("收到啦", result.Response.Text);
+        Assert.Equal("stream-response", result.Response.RequestId);
+        Assert.Equal([1, 2, 3], result.OutputAudioPcm);
+        Assert.Contains(transport.Messages, message => message.Contains("session.update", StringComparison.Ordinal));
+        Assert.Contains("{\"type\":\"input_audio_buffer.commit\"}", transport.Messages);
+        Assert.Contains("{\"type\":\"response.create\"}", transport.Messages);
+        var append = transport.Messages.Single(message => message.Contains("input_audio_buffer.append", StringComparison.Ordinal));
+        using var appendDocument = JsonDocument.Parse(append);
+        Assert.Equal(Convert.ToBase64String([1, 0, 3, 0]), appendDocument.RootElement.GetProperty("audio").GetString());
+    }
+
+    [Fact]
+    public async Task Streaming_provider_requires_live_consent_before_connecting()
+    {
+        using var source = new FakeAudioChunkSource(new PcmWaveFormat(24000, 1, 16));
+        await using var transport = new StreamingFakeRealtimeTransport();
+        var provider = new OpenAiRealtimeStreamingProvider(
+            new DelegateApiCredentialProvider(() => "test-key"),
+            transportFactory: () => transport,
+            endpoint: new Uri("wss://example.test/v1/realtime"));
+
+        await Assert.ThrowsAsync<CloudConsentRequiredException>(() => provider.StartAsync(
+            new RealtimeStreamingRequest("session", null, PrivacyMode.Normal, false, DateTimeOffset.UtcNow), source));
+        Assert.False(transport.Connected);
+    }
+
+    [Fact]
+    public async Task Streaming_orchestrator_enforces_archive_consent_and_persists_derived_output()
+    {
+        using var fixture = new RealtimeFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.LiveCloudConversation, PrivacyMode.Normal, true, "privacy-1");
+        using var source = new FakeAudioChunkSource(new PcmWaveFormat(24000, 1, 16));
+        await using var transport = new StreamingFakeRealtimeTransport();
+        var provider = new OpenAiRealtimeStreamingProvider(
+            new DelegateApiCredentialProvider(() => "test-key"),
+            "gpt-test",
+            () => transport,
+            new Uri("wss://example.test/v1/realtime?model=gpt-test"));
+        var speechStore = new DerivedAudioStore(repository, Path.Combine(fixture.DirectoryPath, "derived", "audio"));
+        var orchestrator = new RealtimeStreamingOrchestrator(repository, provider, speechStore);
+
+        await using var live = await orchestrator.StartAsync(new RealtimeStreamingRequest(
+            session.SessionId, null, PrivacyMode.Normal, true, DateTimeOffset.UtcNow), source);
+        source.Emit([1, 0, 2, 0]);
+        var completion = live.CompleteAsync();
+        await transport.WaitForMessageAsync(message => message.Contains("input_audio_buffer.commit", StringComparison.Ordinal));
+        await transport.EmitAsync("{\"type\":\"response.output_audio_transcript.delta\",\"delta\":\"完成\"}");
+        await transport.EmitAsync("{\"type\":\"response.output_audio.delta\",\"delta\":\"AQI=\"}");
+        await transport.EmitAsync("{\"type\":\"response.done\",\"response\":{\"id\":\"archive-stream\",\"status\":\"completed\"}}");
+        var result = await completion;
+
+        Assert.Equal("完成", result.Response.Text);
+        Assert.NotNull(result.OutputSpeechAsset);
+        Assert.Equal("wav", result.OutputSpeechAsset!.Format);
+        Assert.Single(repository.ListDerivedSpeechAssets(session.SessionId));
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT capability, succeeded FROM provider_interactions WHERE session_id = $session";
+        command.Parameters.AddWithValue("$session", session.SessionId);
+        using var reader = command.ExecuteReader();
+        Assert.True(reader.Read());
+        Assert.Equal("realtime_conversation", reader.GetString(0));
+        Assert.Equal(1, reader.GetInt32(1));
     }
 
     [Fact]
@@ -202,6 +293,60 @@ public sealed class RealtimeConversationTests
             => Task.FromResult(_events.Count == 0 ? null : (string?)_events.Dequeue());
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class StreamingFakeRealtimeTransport : IRealtimeMessageTransport
+    {
+        private readonly System.Threading.Channels.Channel<string> _events = System.Threading.Channels.Channel.CreateUnbounded<string>();
+        public List<string> Messages { get; } = [];
+        public bool Connected { get; private set; }
+
+        public Task ConnectAsync(Uri endpoint, string apiKey, CancellationToken cancellationToken = default)
+        {
+            Connected = true;
+            return Task.CompletedTask;
+        }
+
+        public Task SendAsync(string message, CancellationToken cancellationToken = default)
+        {
+            Messages.Add(message);
+            return Task.CompletedTask;
+        }
+
+        public async Task<string?> ReceiveAsync(CancellationToken cancellationToken = default)
+        {
+            try { return await _events.Reader.ReadAsync(cancellationToken); }
+            catch (ChannelClosedException) { return null; }
+        }
+
+        public ValueTask EmitAsync(string message) => _events.Writer.WriteAsync(message);
+
+        public async Task WaitForMessageAsync(Func<string, bool> predicate)
+        {
+            for (var attempt = 0; attempt < 100; attempt++)
+            {
+                if (Messages.Any(predicate)) return;
+                await Task.Delay(1);
+            }
+            throw new TimeoutException("Expected realtime message was not sent.");
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            _events.Writer.TryComplete();
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class FakeAudioChunkSource(PcmWaveFormat format) : IAudioChunkSource, IDisposable
+    {
+        public PcmWaveFormat Format { get; } = format;
+        public event EventHandler<AudioDataEventArgs>? DataAvailable;
+
+        public void Emit(byte[] bytes)
+            => DataAvailable?.Invoke(this, new AudioDataEventArgs(bytes, bytes.Length));
+
+        public void Dispose() { }
     }
 
     private sealed class StubRealtimeProvider : IRealtimeConversationProvider
