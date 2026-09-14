@@ -54,14 +54,16 @@ $installedRecoveryHelper = Join-Path $InstallRoot 'Reset-MementoApplicationLock.
 $recoveryHelperExists = Test-Path -LiteralPath $installedRecoveryHelper -PathType Leaf
 Write-Check 'app-lock recovery helper' $recoveryHelperExists ($(if ($recoveryHelperExists) { $installedRecoveryHelper } else { "not found at $installedRecoveryHelper" }))
 
+$audioAssemblyRoot = Split-Path -Parent $installedExecutable
+$naudioCore = Join-Path $audioAssemblyRoot 'NAudio.Core.dll'
+$naudioWinMm = Join-Path $audioAssemblyRoot 'NAudio.WinMM.dll'
+$naudioWasapi = Join-Path $audioAssemblyRoot 'NAudio.Wasapi.dll'
+
 try {
-    # Loading the adapter and enumerating wave-in capabilities is read-only;
-    # this check never opens the microphone or starts a recording.
-    $audioAssemblyRoot = Split-Path -Parent $installedExecutable
-    $naudioCore = Join-Path $audioAssemblyRoot 'NAudio.Core.dll'
-    $naudioWinMm = Join-Path $audioAssemblyRoot 'NAudio.WinMM.dll'
+    # Loading the input adapter and enumerating wave-in capabilities is
+    # read-only; this check never opens the microphone or starts a recording.
     if (-not (Test-Path -LiteralPath $naudioCore -PathType Leaf) -or -not (Test-Path -LiteralPath $naudioWinMm -PathType Leaf)) {
-        throw 'installed NAudio WinMM adapter assemblies are missing'
+        throw 'installed NAudio input adapter assemblies are missing'
     }
     [System.Reflection.Assembly]::LoadFrom($naudioCore) | Out-Null
     [System.Reflection.Assembly]::LoadFrom($naudioWinMm) | Out-Null
@@ -70,6 +72,30 @@ try {
 }
 catch {
     Write-Check 'audio input devices' $false ('unable to enumerate Windows wave-in devices: ' + $_.Exception.GetType().Name) 'WARN'
+}
+
+try {
+    # WASAPI render enumeration is also read-only; this check never opens an
+    # output stream or plays audio.
+    if (-not (Test-Path -LiteralPath $naudioCore -PathType Leaf) -or -not (Test-Path -LiteralPath $naudioWasapi -PathType Leaf)) {
+        throw 'installed NAudio WASAPI adapter assemblies are missing'
+    }
+    [System.Reflection.Assembly]::LoadFrom($naudioCore) | Out-Null
+    [System.Reflection.Assembly]::LoadFrom($naudioWasapi) | Out-Null
+    $outputEnumerator = [NAudio.CoreAudioApi.MMDeviceEnumerator]::new()
+    try {
+        $outputDevices = $outputEnumerator.EnumerateAudioEndPoints(
+            [NAudio.CoreAudioApi.DataFlow]::Render,
+            [NAudio.CoreAudioApi.DeviceState]::Active)
+        $outputDeviceCount = $outputDevices.Count
+    }
+    finally {
+        $outputEnumerator.Dispose()
+    }
+    Write-Check 'audio output devices' ($outputDeviceCount -gt 0) ("{0} active Windows render device(s) detected; no audio was played" -f $outputDeviceCount) 'WARN'
+}
+catch {
+    Write-Check 'audio output devices' $false ('unable to enumerate Windows render devices: ' + $_.Exception.GetType().Name) 'WARN'
 }
 
 $shortcutPath = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs\MEMENTO\MEMENTO.lnk'
