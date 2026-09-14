@@ -2,14 +2,14 @@
 
 **Report date:** 2026-09-14
 **Starting reviewed checkpoint:** `82cbccc` (`main` on `origin`)
-**Current local checkpoint:** `bfc4b47` (`feat: verify archive integrity in deployment preflight`).
+**Current local checkpoint:** `WORKTREE` (MSIX artwork replacement is prepared; commit follows after verification).
 **Environment:** Windows, .NET 10 SDK, `win-x64`, repository worktree
 
 This report records what is implemented and verified in the local worktree. It does not turn simulated, automated, or process-only checks into native GUI, hardware, live-provider, or participant evidence.
 
 ## Verification run
 
-- `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **166 passed, 0 failed**.
+- `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **167 passed, 0 failed**.
 - `dotnet build Memento.slnx --configuration Release --no-restore` — **0 warnings, 0 errors**.
 - M04 CLI — synthetic corpus `m04-synthetic-v1`, **14/14 PASS**, `correctionRequiredCount: 0`.
 - Published bundle — `artifacts/MEMENTO-win-x64.zip`, 106,513,285 bytes, SHA-256 `2205d5fe70cf593ef8a23cfebca6fbf1141e02914a684ca532b590937b27af07`.
@@ -31,6 +31,7 @@ This report records what is implemented and verified in the local worktree. It d
 - Realtime device path — the capture flow now opens a bounded WebSocket session before microphone capture, forwards local PCM chunks, commits on stop, and records policy-gated success/failure metadata. The transport and archive boundaries, including post-provider Source deletion, are automated-tested; live credentials and physical microphone/output verification remain open.
 - MSIX deployment path — corrected the manifest schema, removed duplicate publish payloads from staging, and generated an unsigned package with portable Windows SDK BuildTools `makeappx.exe`; `makeappx unpack` verified one executable occurrence and the manifest. The signing path now accepts an explicit timestamp service or an offline development signature. A temporary development certificate produced a timestamped package that `signtool verify /pa` could verify, but current-user package deployment still requires a machine-trusted publisher certificate.
 - MSIX verification hardening — `Test-MementoMsix.ps1` now validates the package identity/version, expected MEMENTO application entry, visual asset references, and exact asset names before reporting the payload gate as passed; the latest unsigned package passed this stricter check.
+- MSIX artwork replacement — `Build-MementoMsix.ps1` now copies checked-in deterministic MEMENTO artwork from `packaging/assets` instead of generating 1x1 placeholders. The unsigned package is 108,721,821 bytes with SHA-256 `D83A0D31058215D62B9962DB96653811A3AFD07A50EBB6C9A393F710AC2540C3`; all four artwork dimensions were inspected and `Test-MementoMsix.ps1` passed. Publisher trust and target deployment remain open.
 
 ## Milestone status
 

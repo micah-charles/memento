@@ -78,7 +78,7 @@ To produce an MSIX package when a Windows SDK and an owner-selected publisher ce
 .\scripts\Build-MementoMsix.ps1 -Publisher 'CN=Your Publisher' -CertificatePath .\certs\memento.pfx
 ```
 
-The script also supports an unsigned output for package inspection, but an unsigned MSIX is not an ordinary installable release. The checked-in manifest uses placeholder artwork; replace it with reviewed product assets before distribution. The portable per-user installer above remains the supported path until publisher identity, certificate trust, package validation, and update policy are approved.
+The script also supports an unsigned output for package inspection, but an unsigned MSIX is not an ordinary installable release. The checked-in manifest now uses deterministic MEMENTO artwork from `packaging/assets`; publisher identity, certificate trust, package validation, and update policy still need approval before distribution. The portable per-user installer above remains the supported path until those gates are approved.
 
 To repeat the MSIX payload verification (manifest, single executable, assets, and optional signature):
 

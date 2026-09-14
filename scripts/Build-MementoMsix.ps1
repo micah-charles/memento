@@ -50,15 +50,13 @@ function Resolve-SdkTool {
     return $candidate.FullName
 }
 
-function Write-PlaceholderPng {
-    param([Parameter(Mandatory = $true)][string]$Path)
-    # The packaging script deliberately generates deterministic placeholders;
-    # replace these with reviewed product artwork before distribution.
-    $bytes = [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=')
-    [System.IO.File]::WriteAllBytes($Path, $bytes)
-}
-
 if (-not (Test-Path -LiteralPath $templatePath -PathType Leaf)) { throw "Package manifest template not found: $templatePath" }
+$assetSource = Join-Path $repoRoot 'packaging\assets'
+$expectedAssets = @('StoreLogo.png', 'Square150x150Logo.png', 'Square44x44Logo.png', 'SplashScreen.png')
+foreach ($assetName in $expectedAssets) {
+    $assetPath = Join-Path $assetSource $assetName
+    if (-not (Test-Path -LiteralPath $assetPath -PathType Leaf)) { throw "Package artwork asset not found: $assetPath" }
+}
 $makeappx = Resolve-SdkTool -ToolName 'makeappx.exe' -ExplicitPath $MakeAppxPath
 $signtool = $null
 if (-not [string]::IsNullOrWhiteSpace($CertificatePath)) {
@@ -102,8 +100,8 @@ try {
     if ($stagedExecutables.Count -ne 1 -or $stagedExecutables[0].FullName -ne (Join-Path $staging 'Memento.App.exe')) {
         throw "MSIX staging must contain exactly one root Memento.App.exe; found $($stagedExecutables.Count)."
     }
-    foreach ($name in 'StoreLogo.png', 'Square150x150Logo.png', 'Square44x44Logo.png', 'SplashScreen.png') {
-        Write-PlaceholderPng -Path (Join-Path $assets $name)
+    foreach ($name in $expectedAssets) {
+        Copy-Item -LiteralPath (Join-Path $assetSource $name) -Destination (Join-Path $assets $name) -Force
     }
     $manifestText = Get-Content -LiteralPath $templatePath -Raw
     $escapedPublisher = [System.Security.SecurityElement]::Escape($Publisher)
