@@ -389,13 +389,15 @@ public sealed partial class MainWindow : Window
             _repository.AddConsent(_session.SessionId, ConsentScope.LiveCloudConversation, privacyMode, realtimeConsentGranted, "privacy-1");
             _capture = new AudioCaptureController(_repository, _audioRoot);
             _capture.CaptureFailed += CaptureFailed;
+            var realtimeStreamingReady = false;
             if (realtimeConsentGranted && _realtimeStreaming is not null)
             {
                 try
                 {
-                    _activeRealtimeStreaming = await _realtimeStreaming.StartAsync(
+                        _activeRealtimeStreaming = await _realtimeStreaming.StartAsync(
                         new RealtimeStreamingRequest(_session.SessionId, _turn.TurnId, privacyMode, true, startedAt),
                         _capture);
+                    realtimeStreamingReady = true;
                 }
                 catch (Exception)
                 {
@@ -406,6 +408,10 @@ public sealed partial class MainWindow : Window
             _capture.Start(_session.SessionId, _turn.TurnId, ConsentCheckBox.IsChecked == true, format => new WaveInAudioInput(format), startedAt);
             StatusText.Text = CloudNotPermittedException.IsBlocked(privacyMode)
                 ? $"Listening… 本機錄音中（{PrivacyModeLabel(privacyMode)}）"
+                : realtimeStreamingReady
+                    ? "Listening… 本機錄音中（Realtime 語音串流已啟動）"
+                    : realtimeConsentGranted && _realtimeStreaming is not null
+                        ? "Listening… 本機錄音中（Realtime 未連線，但本機錄音仍然保留）"
                 : cloudConsentGranted
                     ? "Listening… 本機錄音中（已同意完成後雲端處理）"
                     : "Listening… 本機錄音中（未同意雲端處理）";
