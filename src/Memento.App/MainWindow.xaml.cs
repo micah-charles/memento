@@ -382,6 +382,8 @@ public sealed partial class MainWindow : Window
         {
             var privacyMode = GetSelectedPrivacyMode();
             var startedAt = DateTimeOffset.UtcNow;
+            _currentInfoCancellation?.Cancel();
+            CurrentInfoResultsText.Text = string.Empty;
             _pendingClarificationRevision = null;
             ClarificationPanel.Visibility = Visibility.Collapsed;
             _session = _repository.AddSession(startedAt, privacyMode);
