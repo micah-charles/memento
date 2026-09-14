@@ -8,6 +8,13 @@ namespace Memento.Core.Storage;
 
 public sealed record ArchiveExportResult(string ExportDirectory, string ManifestPath, IReadOnlyDictionary<string, string> FileHashes);
 
+public sealed record ScopedArchiveExportResult(
+    string ExportDirectory,
+    string ManifestPath,
+    IReadOnlyDictionary<string, string> FileHashes,
+    IReadOnlyList<string> ExportedClaimIds,
+    IReadOnlyList<string> ExportedEvidenceIds);
+
 public static class ArchiveExporter
 {
     private static readonly string[] Tables = ["sessions", "turns", "consent_events", "sources", "provider_interactions", "transcript_revisions", "clarification_events", "vocabulary_entries", "conversation_jobs", "evidence_records", "memory_claims", "evidence_claim_links", "person_entities", "entity_aliases", "evidence_entity_links", "review_annotations", "response_episodes", "derived_speech_assets", "deletion_tombstones"];
@@ -106,6 +113,216 @@ public static class ArchiveExporter
             throw;
         }
     }
+
+    /// <summary>
+    /// Writes a deliberately narrow, shareable export for selected Memory Claims.
+    /// The output never contains the SQLite archive, Source paths, audio, transcript
+    /// text, provider payloads, or search indexes. Evidence remains attributable by
+    /// opaque IDs and authority metadata, while its content and Source link are
+    /// explicitly labelled as withheld.
+    /// </summary>
+    public static ScopedArchiveExportResult ExportRedacted(
+        SqliteArchive archive,
+        string destinationDirectory,
+        IReadOnlyCollection<string> memoryClaimIds,
+        bool includeWithdrawn = false)
+    {
+        if (string.IsNullOrWhiteSpace(destinationDirectory)) throw new ArgumentException("An export directory is required.", nameof(destinationDirectory));
+        if (memoryClaimIds is null || memoryClaimIds.Count == 0) throw new ArgumentException("At least one Memory Claim ID is required.", nameof(memoryClaimIds));
+
+        var requestedClaimIds = memoryClaimIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (requestedClaimIds.Length != memoryClaimIds.Count)
+            throw new ArgumentException("Memory Claim IDs must be non-empty and unique.", nameof(memoryClaimIds));
+
+        Directory.CreateDirectory(destinationDirectory);
+        var exportDirectory = Path.Combine(destinationDirectory, "memento-scoped-export-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(exportDirectory);
+        var hashes = new Dictionary<string, string>(StringComparer.Ordinal);
+        var exportedClaimIds = new List<string>();
+        var exportedEvidenceIds = new List<string>();
+        var snapshotPath = Path.Combine(exportDirectory, ".snapshot.sqlite");
+        SqliteConnection? snapshot = null;
+        try
+        {
+            // Take a consistent snapshot, but never publish the snapshot itself.
+            using (var connection = archive.OpenConnection())
+            using (var backup = connection.CreateCommand())
+            {
+                backup.CommandText = "VACUUM INTO $path";
+                backup.Parameters.AddWithValue("$path", snapshotPath);
+                backup.ExecuteNonQuery();
+            }
+
+            snapshot = OpenSnapshotConnection(snapshotPath);
+            var withdrawnClaimFilter = includeWithdrawn
+                ? string.Empty
+                : " AND NOT EXISTS (SELECT 1 FROM evidence_claim_links wl JOIN evidence_records we ON we.evidence_id = wl.evidence_id JOIN sources ws ON ws.source_id = we.source_id WHERE wl.memory_claim_id = c.memory_claim_id AND ws.recovery_status = 'withdrawn')";
+
+            var claimsPath = Path.Combine(exportDirectory, "memory_claims.jsonl");
+            using (var command = snapshot.CreateCommand())
+            {
+                var claimParameters = AddIdParameters(command, requestedClaimIds);
+                var claimFilter = string.Join(", ", claimParameters.Select(parameter => parameter.ParameterName));
+                command.CommandText = $"SELECT c.memory_claim_id, c.statement, c.subject_person_id, c.predicate, c.object, c.status, c.created_at FROM memory_claims c WHERE c.memory_claim_id IN ({claimFilter}){withdrawnClaimFilter} ORDER BY c.created_at, c.memory_claim_id";
+                foreach (var parameter in claimParameters) command.Parameters.Add(parameter);
+                using var reader = command.ExecuteReader();
+                using var writer = new StreamWriter(claimsPath, false);
+                while (reader.Read())
+                {
+                    var claimId = reader.GetString(0);
+                    exportedClaimIds.Add(claimId);
+                    WriteJsonLine(writer, new
+                    {
+                        memory_claim_id = claimId,
+                        statement = reader.GetString(1),
+                        subject_person_id = reader.IsDBNull(2) ? null : reader.GetString(2),
+                        predicate = reader.GetString(3),
+                        @object = reader.GetString(4),
+                        status = reader.GetString(5),
+                        created_at = reader.GetString(6)
+                    });
+                }
+            }
+
+            if (exportedClaimIds.Count != requestedClaimIds.Length)
+                throw new InvalidDataException("One or more selected Memory Claims are missing or withdrawn.");
+            hashes["memory_claims.jsonl"] = Hash(claimsPath);
+
+            var evidencePath = Path.Combine(exportDirectory, "evidence.jsonl");
+            var linkPath = Path.Combine(exportDirectory, "claim_evidence_links.jsonl");
+            var annotationPath = Path.Combine(exportDirectory, "annotations.jsonl");
+            var exportedEvidence = new HashSet<string>(StringComparer.Ordinal);
+            using (var evidenceWriter = new StreamWriter(evidencePath, false))
+            using (var linkWriter = new StreamWriter(linkPath, false))
+            using (var annotationWriter = new StreamWriter(annotationPath, false))
+            using (var command = snapshot.CreateCommand())
+            {
+                var includedClaimParameters = AddIdParameters(command, exportedClaimIds);
+                var evidenceWithdrawnFilter = includeWithdrawn ? string.Empty : " AND s.recovery_status <> 'withdrawn'";
+                command.CommandText = $"SELECT e.evidence_id, e.kind, e.participant_certainty, e.speaker_confirmed, e.created_at, l.memory_claim_id, l.relationship, l.created_at FROM evidence_claim_links l JOIN evidence_records e ON e.evidence_id = l.evidence_id JOIN sources s ON s.source_id = e.source_id WHERE l.memory_claim_id IN ({string.Join(", ", includedClaimParameters.Select(parameter => parameter.ParameterName))}){evidenceWithdrawnFilter} ORDER BY e.created_at, e.evidence_id, l.memory_claim_id, l.relationship";
+                foreach (var parameter in includedClaimParameters) command.Parameters.Add(parameter);
+                using var reader = command.ExecuteReader();
+                while (reader.Read())
+                {
+                    var evidenceId = reader.GetString(0);
+                    if (exportedEvidence.Add(evidenceId))
+                    {
+                        exportedEvidenceIds.Add(evidenceId);
+                        WriteJsonLine(evidenceWriter, new
+                        {
+                            evidence_id = evidenceId,
+                            kind = reader.GetString(1),
+                            statement = "[REDACTED]",
+                            original_expression = "[REDACTED]",
+                            participant_certainty = reader.GetString(2),
+                            speaker_confirmed = reader.GetInt64(3) != 0,
+                            created_at = reader.GetString(4),
+                            source_withheld = true,
+                            transcript_withheld = true,
+                            audio_withheld = true
+                        });
+                    }
+
+                    WriteJsonLine(linkWriter, new
+                    {
+                        evidence_id = evidenceId,
+                        memory_claim_id = reader.GetString(5),
+                        relationship = reader.GetString(6),
+                        created_at = reader.GetString(7),
+                        source_reference = "withheld"
+                    });
+                }
+            }
+            hashes["evidence.jsonl"] = Hash(evidencePath);
+            hashes["claim_evidence_links.jsonl"] = Hash(linkPath);
+
+            using (var command = snapshot.CreateCommand())
+            {
+                var ids = exportedClaimIds.Concat(exportedEvidenceIds).Distinct(StringComparer.Ordinal).ToArray();
+                var parameters = AddIdParameters(command, ids);
+                command.CommandText = $"SELECT annotation_id, target_type, target_id, actor_id, annotation_type, assessment, created_at FROM review_annotations WHERE target_id IN ({string.Join(", ", parameters.Select(parameter => parameter.ParameterName))}) ORDER BY created_at, annotation_id";
+                foreach (var parameter in parameters) command.Parameters.Add(parameter);
+                using var reader = command.ExecuteReader();
+                using var writer = new StreamWriter(annotationPath, false);
+                while (reader.Read())
+                {
+                    WriteJsonLine(writer, new
+                    {
+                        annotation_id = reader.GetString(0),
+                        target_type = reader.GetString(1),
+                        target_id = reader.GetString(2),
+                        actor_id = reader.GetString(3),
+                        annotation_type = reader.GetString(4),
+                        body = "[REDACTED]",
+                        assessment = reader.IsDBNull(5) ? null : reader.GetString(5),
+                        created_at = reader.GetString(6),
+                        content_withheld = true
+                    });
+                }
+            }
+            hashes["annotations.jsonl"] = Hash(annotationPath);
+
+            // The temporary snapshot is deliberately never part of the export.
+            snapshot.Dispose();
+            snapshot = null;
+            File.Delete(snapshotPath);
+
+            var manifestPath = Path.Combine(exportDirectory, "manifest.json");
+            var manifest = new
+            {
+                schema_version = archive.CurrentSchemaVersion,
+                export_type = "scoped-redacted",
+                exported_at = DateTimeOffset.UtcNow,
+                scope = new
+                {
+                    memory_claim_ids = exportedClaimIds,
+                    source_audio_included = false,
+                    source_reference = "withheld",
+                    transcript_content_included = false,
+                    provider_interactions_included = false,
+                    redaction_notice = "Evidence content, transcript links, Source paths, audio, and provider payloads are withheld."
+                },
+                files = hashes.OrderBy(item => item.Key).Select(item => new { path = item.Key, sha256 = item.Value }).ToArray()
+            };
+            File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
+            hashes["manifest.json"] = Hash(manifestPath);
+            return new ScopedArchiveExportResult(exportDirectory, manifestPath, hashes, exportedClaimIds, exportedEvidenceIds);
+        }
+        catch
+        {
+            try
+            {
+                snapshot?.Dispose();
+                if (Directory.Exists(exportDirectory)) Directory.Delete(exportDirectory, recursive: true);
+            }
+            catch
+            {
+                // Preserve the original export error if cleanup itself fails.
+            }
+            throw;
+        }
+    }
+
+    private static List<SqliteParameter> AddIdParameters(SqliteCommand command, IReadOnlyCollection<string> ids)
+    {
+        var parameters = new List<SqliteParameter>(ids.Count);
+        var index = 0;
+        foreach (var id in ids)
+        {
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = "$id" + index++;
+            parameter.Value = id;
+            parameters.Add(parameter);
+        }
+        return parameters;
+    }
+
+    private static void WriteJsonLine(StreamWriter writer, object value)
+        => writer.WriteLine(JsonSerializer.Serialize(value));
 
     private static string RequireMediaPath(string recordId, string sourcePath)
     {

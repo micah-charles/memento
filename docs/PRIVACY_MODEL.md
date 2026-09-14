@@ -54,7 +54,7 @@ The client never embeds an API key in source, a public configuration file, a log
 
 ## Layered privacy and authority
 
-Separating Source, Evidence, Memory Claim, Response Episode, and Annotation also separates privacy decisions. Raw audio Sources can contain substantially more sensitive information than a normalized Claim. A scoped export may include a Claim and its redacted Evidence while withholding the audio Source, but it must label the missing link rather than imply that the Source was exported. Deletion and withdrawal workflows must identify affected Sources, transcript revisions, Evidence, Claims, Episodes, derived indexes, exports, and backups.
+Separating Source, Evidence, Memory Claim, Response Episode, and Annotation also separates privacy decisions. Raw audio Sources can contain substantially more sensitive information than a normalized Claim. A scoped export may include a Claim and its redacted Evidence while withholding the audio Source, but it must label the missing link rather than imply that the Source was exported. `ArchiveExporter.ExportRedacted` implements this boundary for an explicit set of Memory Claim IDs: it emits portable JSONL and a redaction manifest, while omitting raw SQLite, Source paths, transcript text, audio, and provider payloads. Deletion and withdrawal workflows must identify affected Sources, transcript revisions, Evidence, Claims, Episodes, derived indexes, exports, and backups.
 
 Authority is separate from privacy scope. A family administrator may be allowed to view or annotate a record without being allowed to make it `confirmed_by_speaker`. The export must preserve `speaker_confirmation`, `family_assessment`, `admin_annotation`, and any external assessment as separate attributed data.
 

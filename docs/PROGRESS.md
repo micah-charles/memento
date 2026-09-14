@@ -160,6 +160,7 @@
 - The Family Admin shell now exposes a confirmation-gated deletion of the latest finalized Source; it removes dependent content through the authenticated deletion service and preserves only a minimal audit tombstone.
 - The Family Admin shell also exposes a confirmation-gated withdrawal of the latest finalized Source; it retains local history and media but disables future cloud processing and ordinary search/export paths.
 - The cumulative suite now passes **167/167** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
+- Added `ArchiveExporter.ExportRedacted`, a claim-ID-scoped portable export that includes selected Memory Claims, authority metadata, and linked Evidence relationships while explicitly redacting Evidence content and withholding Source IDs, transcript links, audio, provider interactions, and raw SQLite. The export rejects empty or unknown selections, excludes withdrawn claims by default, writes a redaction manifest, and is covered by the Release suite (now **169/169** tests).
 
 ## M14 status
 

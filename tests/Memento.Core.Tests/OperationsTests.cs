@@ -266,6 +266,58 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void Scoped_redacted_export_withholds_source_audio_and_evidence_content()
+    {
+        using var fixture = new OperationsFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-scoped"));
+        var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-scoped", source.SourceId, null, 1, "initial", "private transcript phrase", 0.9, null, DateTimeOffset.UtcNow));
+        var evidence = repository.AddEvidence(new EvidenceRecord("evidence-scoped", EvidenceKind.DirectStatement, source.SourceId, session.SessionId, null, revision.TranscriptRevisionId, "private evidence statement", "private original expression", ParticipantCertainty.Stated, true, DateTimeOffset.UtcNow, 10, 20, "provider", "model"));
+        var claim = repository.AddMemoryClaim(new MemoryClaim("claim-scoped", "Participant likes fish balls", null, "likes", "fish balls", ClaimStatus.Reviewed, DateTimeOffset.UtcNow));
+        repository.AddEvidenceClaimLink(new EvidenceClaimLink(evidence.EvidenceId, claim.MemoryClaimId, "supports", DateTimeOffset.UtcNow));
+        repository.AddReviewAnnotation(new ReviewAnnotation("annotation-scoped", "memory_claim", claim.MemoryClaimId, "admin-1", "family_assessment", "private admin note", "supported", DateTimeOffset.UtcNow));
+
+        var result = ArchiveExporter.ExportRedacted(archive, fixture.ExportRoot, [claim.MemoryClaimId]);
+        Assert.Equal([claim.MemoryClaimId], result.ExportedClaimIds);
+        Assert.Equal([evidence.EvidenceId], result.ExportedEvidenceIds);
+        Assert.False(File.Exists(Path.Combine(result.ExportDirectory, "archive.sqlite")));
+        Assert.False(Directory.Exists(Path.Combine(result.ExportDirectory, "media")));
+        Assert.DoesNotContain(".snapshot.sqlite", Directory.EnumerateFiles(result.ExportDirectory).Select(Path.GetFileName));
+
+        var claimsJson = File.ReadAllText(Path.Combine(result.ExportDirectory, "memory_claims.jsonl"));
+        var evidenceJson = File.ReadAllText(Path.Combine(result.ExportDirectory, "evidence.jsonl"));
+        var linksJson = File.ReadAllText(Path.Combine(result.ExportDirectory, "claim_evidence_links.jsonl"));
+        var annotationsJson = File.ReadAllText(Path.Combine(result.ExportDirectory, "annotations.jsonl"));
+        var manifestJson = File.ReadAllText(result.ManifestPath);
+        Assert.Contains("Participant likes fish balls", claimsJson, StringComparison.Ordinal);
+        Assert.Contains("source_withheld", evidenceJson, StringComparison.Ordinal);
+        Assert.Contains("\"statement\":\"[REDACTED]\"", evidenceJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("private evidence statement", evidenceJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("private original expression", evidenceJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(source.SourceId, evidenceJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(revision.TranscriptRevisionId, evidenceJson, StringComparison.Ordinal);
+        Assert.Contains("source_reference", linksJson, StringComparison.Ordinal);
+        Assert.Contains("content_withheld", annotationsJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("private admin note", annotationsJson, StringComparison.Ordinal);
+        Assert.Contains("scoped-redacted", manifestJson, StringComparison.Ordinal);
+        Assert.Contains("source_audio_included", manifestJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(source.FilePath!, manifestJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Scoped_redacted_export_rejects_empty_or_unknown_claim_selection()
+    {
+        using var fixture = new OperationsFixture();
+        using var archive = fixture.CreateArchive();
+
+        Assert.Throws<ArgumentException>(() => ArchiveExporter.ExportRedacted(archive, fixture.ExportRoot, []));
+        Assert.Throws<InvalidDataException>(() => ArchiveExporter.ExportRedacted(archive, fixture.ExportRoot, ["missing-claim"]));
+        Assert.Empty(Directory.GetDirectories(fixture.ExportRoot, "memento-scoped-export-*"));
+    }
+
+    [Fact]
     public void Export_rejects_tampered_media_and_removes_incomplete_bundle()
     {
         using var fixture = new OperationsFixture();
