@@ -7,6 +7,7 @@ param(
     [switch]$SkipPreflight,
     [switch]$VerifyMsix,
     [switch]$RequireMsixSignature,
+    [string]$MsixPackagePath = '',
     [switch]$RequireCloudCredential,
     [switch]$RequireApplicationLock,
     [switch]$RequireAudioInput,
@@ -65,7 +66,12 @@ try {
     }
 
     if ($VerifyMsix) {
-        $msixPath = Join-Path $repoRoot 'artifacts\msix\MEMENTO-0.1.0.0-unsigned.msix'
+        $msixPath = if ([string]::IsNullOrWhiteSpace($MsixPackagePath)) {
+            Join-Path $repoRoot 'artifacts\msix\MEMENTO-0.1.0.0-unsigned.msix'
+        }
+        else {
+            [System.IO.Path]::GetFullPath($MsixPackagePath)
+        }
         if (-not (Test-Path -LiteralPath $msixPath -PathType Leaf)) {
             throw "MSIX package not found: $msixPath. Run scripts\Build-MementoMsix.ps1 first, or omit -VerifyMsix."
         }

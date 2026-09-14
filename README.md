@@ -86,7 +86,7 @@ To repeat the MSIX payload verification (manifest, single executable, assets, di
 .\scripts\Test-MementoMsix.ps1
 ```
 
-Add `-VerifyMsix` to `Verify-MementoAutomation.ps1` when the unsigned package has been built so the complete repository gate also checks the MSIX artifact; use `-RequireMsixSignature` when a signed package is mandatory.
+Add `-VerifyMsix` to `Verify-MementoAutomation.ps1` when a package has been built so the complete repository gate also checks the MSIX artifact. Use `-MsixPackagePath .\artifacts\msix\MEMENTO-0.1.0.0.msix -RequireMsixSignature` to verify a signed output.
 
 To start MEMENTO after installation, or start the repository's published executable when no install exists:
 
