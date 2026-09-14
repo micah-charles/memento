@@ -1,15 +1,15 @@
 # MEMENTO implementation report
 
-**Report date:** 2026-09-14  
-**Starting reviewed checkpoint:** `82cbccc` (`main` on `origin`)  
-**Final local checkpoint:** `dbecb75`  
+**Report date:** 2026-09-14
+**Starting reviewed checkpoint:** `82cbccc` (`main` on `origin`)
+**Final local checkpoint:** `d3b3151`
 **Environment:** Windows, .NET 10 SDK, `win-x64`, repository `C:\AI\memento`
 
 This report records what is implemented and verified in the local worktree. It does not turn simulated, automated, or process-only checks into native GUI, hardware, live-provider, or participant evidence.
 
 ## Verification run
 
-- `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **120 passed, 0 failed**.
+- `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **121 passed, 0 failed**.
 - `dotnet build Memento.slnx --configuration Release --no-restore` — **0 warnings, 0 errors**.
 - M04 CLI — synthetic corpus `m04-synthetic-v1`, **14/14 PASS**, `correctionRequiredCount: 0`.
 - Published bundle — `artifacts/MEMENTO-win-x64.zip`, 109,576,126 bytes, SHA-256 `1b94364b2568b48d5001a92eee3a76ec725596cdbd22dfe48791eca555d8b0f8`.

@@ -33,6 +33,8 @@ public sealed class CurrentInformationService
         bool cloudConsent,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(query))
+            throw new ArgumentException("A search query is required.", nameof(query));
         if (CloudNotPermittedException.IsBlocked(privacyMode))
             throw new CloudNotPermittedException();
         if (!cloudConsent)

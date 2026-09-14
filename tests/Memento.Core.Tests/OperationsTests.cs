@@ -47,6 +47,17 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public async Task Current_information_rejects_blank_query_before_provider_call()
+    {
+        var provider = new CountingSearchProvider();
+        var service = new CurrentInformationService(provider);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.SearchAsync("  ", PrivacyMode.Normal, true));
+
+        Assert.Equal(0, provider.CallCount);
+    }
+
+    [Fact]
     public void Family_admin_review_requires_authorization_and_keeps_annotation_attributed()
     {
         using var fixture = new OperationsFixture();
