@@ -30,6 +30,12 @@ Scripts must not read or upload personal data by default.
 
 These helpers do not provide MSIX package identity, signing, or enterprise uninstall registration. Cloud features additionally require a Windows Credential Manager generic credential named `MEMENTO/OpenAI`.
 
+The M04 validation CLI can regenerate the non-sensitive synthetic report without provider credentials:
+
+```powershell
+dotnet run --project .\tools\Memento.LanguageValidation\Memento.LanguageValidation.csproj --configuration Release -- --output .\artifacts\language-validation\synthetic-report.json
+```
+
 Before installing a copied bundle, verify its sidecar with:
 
 ```powershell

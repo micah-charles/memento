@@ -68,6 +68,12 @@ Pass `-RemoveData` only when the `%LOCALAPPDATA%\MEMENTO` archive has been backe
 
 The optional in-app application lock can be configured from the participant shell. It stores only a salted verifier in the current Windows user's Credential Manager, blocks the shell and launch-time retry worker while locked, and is disabled by default. Choose a recovery policy before enabling it for a family deployment.
 
+To generate the reproducible non-sensitive M04 synthetic validation report:
+
+```powershell
+dotnet run --project .\tools\Memento.LanguageValidation\Memento.LanguageValidation.csproj --configuration Release -- --output .\artifacts\language-validation\synthetic-report.json
+```
+
 ## Non-goals for M00/M00.1
 
 M00/M00.1 did not build a production application, start WinUI or SQLite runtime code, call an AI API, capture real audio, fine-tune a model, create a voice clone or avatar, require a local LLM/GPU, or create a cloud-hosted permanent family-memory database. Later milestones now implement local capture and archive foundations while live integrations remain gated.
@@ -81,6 +87,7 @@ M00/M00.1 did not build a production application, start WinUI or SQLite runtime 
 ├── src/        WinUI 3 shell and local archive implementation
 ├── tests/      Automated contract, persistence, privacy, and failure-path verification
 ├── scripts/    Publish, install, start, and uninstall helpers
+├── tools/      Reproducible validation and maintenance utilities
 └── samples/    Reserved for consented, synthetic, or redacted test fixtures
 ```
 
