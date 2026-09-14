@@ -660,6 +660,25 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return entity;
     }
 
+    public IReadOnlyList<PersonEntity> ListPersonEntities()
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT person_entity_id, display_name, relationship, created_at FROM person_entities ORDER BY created_at, person_entity_id";
+        using var reader = command.ExecuteReader();
+        var people = new List<PersonEntity>();
+        while (reader.Read())
+        {
+            people.Add(new PersonEntity(
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.IsDBNull(2) ? null : reader.GetString(2),
+                DateTimeOffset.Parse(reader.GetString(3), null, System.Globalization.DateTimeStyles.RoundtripKind)));
+        }
+
+        return people;
+    }
+
     public bool PersonEntityExists(string personEntityId)
     {
         if (string.IsNullOrWhiteSpace(personEntityId)) return false;
@@ -685,6 +704,27 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         command.Parameters.AddWithValue("$created", Format(alias.CreatedAt));
         command.ExecuteNonQuery();
         return alias;
+    }
+
+    public IReadOnlyList<EntityAlias> ListEntityAliases()
+    {
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT entity_alias_id, person_entity_id, alias, speaker_confirmed, source_clarification_event_id, created_at FROM entity_aliases ORDER BY created_at, entity_alias_id";
+        using var reader = command.ExecuteReader();
+        var aliases = new List<EntityAlias>();
+        while (reader.Read())
+        {
+            aliases.Add(new EntityAlias(
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetInt32(3) == 1,
+                reader.IsDBNull(4) ? null : reader.GetString(4),
+                DateTimeOffset.Parse(reader.GetString(5), null, System.Globalization.DateTimeStyles.RoundtripKind)));
+        }
+
+        return aliases;
     }
 
     public EvidenceEntityLink AddEvidenceEntityLink(EvidenceEntityLink link)

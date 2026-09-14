@@ -12,7 +12,7 @@ This report records what is implemented and verified in the local worktree. It d
 - `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **127 passed, 0 failed**.
 - `dotnet build Memento.slnx --configuration Release --no-restore` — **0 warnings, 0 errors**.
 - M04 CLI — synthetic corpus `m04-synthetic-v1`, **14/14 PASS**, `correctionRequiredCount: 0`.
-- Published bundle — `artifacts/MEMENTO-win-x64.zip`, 106,474,749 bytes, SHA-256 `2d4b3d7bc51b4d458c3857fc9cdfd85e1d435f434370a0ff25f78d29c908891c`.
+- Published bundle — `artifacts/MEMENTO-win-x64.zip`, 106,477,564 bytes, SHA-256 `980c71fac1d70ee07e2da1521e4761d40f36f1e573a726c21bf06bac9c242b5d`.
 - Deployment preflight — **PASS** for bundle, sidecar, installed executable, Start Menu shortcut, archive paths, free disk, and stopped-process state.
 - Deployment preflight — **PASS** for the current-user Installed apps registration and its stable per-user install path.
 - Credential setup check — default preflight emitted a **WARN** because `MEMENTO/OpenAI` is absent (local-only mode remains available); `-RequireCloudCredential` correctly returned one blocking failure without exposing a secret.
@@ -42,6 +42,7 @@ This report records what is implemented and verified in the local worktree. It d
 - Processing now locks privacy, recording, and cloud-consent controls until the bounded cloud turn finishes, preventing an in-flight policy race.
 - Active capture markers now update their WAV data length after each append, and recovery scanning can recover complete PCM frames left behind by a stale header after interruption.
 - Archive writes now require an exact Source-to-Turn match when a Source is already turn-linked; transcript revisions and queued jobs cannot silently drop that provenance by supplying a null TurnId.
+- Entity resolution now offers conservative review-only name/alias similarity suggestions; short names require exact matches and suggestions never create identity or Evidence links automatically.
 - Archive export now snapshots SQLite first and derives JSONL/media metadata from that same snapshot, preventing concurrent retry writes from producing a mixed-time bundle.
 - Media-inclusive archive export now requires snapshot-listed files to exist and match recorded byte length and valid SHA-256 metadata; changed or missing media aborts the run and removes the incomplete export directory.
 - The per-user installer now copies an app-local uninstall script and registers MEMENTO in Windows Installed apps; uninstall removes the app registration immediately and schedules app-tree cleanup after the script exits while preserving archive data by default.

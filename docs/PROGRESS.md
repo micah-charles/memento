@@ -97,6 +97,7 @@
 - Evidence, candidate claims, links, and their search-index rows are now persisted as one SQLite transaction; a late constraint or storage failure rolls back the complete extraction batch instead of leaving partial memory records.
 - M08 added `ProvenanceGraph.Validate`, which checks Source → transcript revision → Evidence → Claim links, allowed relationships, blocks an unconfirmed AI inference from silently becoming a reviewed claim, and validates observed Response Episodes from stimulus/response Evidence.
 - M09 added person entities, speaker-confirmed aliases, and Evidence-to-entity links. Alias history is additive and does not rewrite transcript or Source records.
+- M09 now exposes conservative review-only display-name/alias similarity suggestions. Short names require exact matches, and suggestions never auto-link identity or Evidence; participant/Family Admin confirmation remains authoritative.
 - Speaker-confirmed aliases and vocabulary now require a linked clarification event with a speaker-confirmed outcome; refusal, uncertainty, and missing-event inputs cannot create participant authority.
 - M06–M09 now include a rebuildable SQLite FTS5 lexical index and `ArchiveSearchService` for transcript, Evidence, and candidate Claim text; its public `Rebuild()` operation recreates the index from canonical tables, while Cantonese substring fallback keeps short CJK queries usable and withdrawn/deleted Source records stay out of results. A real Chinese corpus is still needed to measure ranking/tokenization quality.
 - The WinUI shell now exposes this local search through a small Cantonese-friendly query box; results are limited to the bounded local lexical service and inherit the withdrawn-Source privacy filter.
@@ -106,7 +107,7 @@
 - Current-information queries now enforce the same privacy mode and explicit cloud-consent boundary in `CurrentInformationService`, so non-UI callers cannot bypass the participant guard.
 - M04 now includes a complete non-sensitive synthetic corpus covering every required language-validation category; the corpus is wired through the report harness and remains clearly separate from real-provider quality evidence.
 - The shell also exposes a local index repair action, so a health-check parity finding can be fixed from the app without opening SQLite or a terminal.
-- The cumulative suite now passes **127/127** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while target-machine restart/power-loss observation, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
+- The cumulative suite now passes **128/128** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while target-machine restart/power-loss observation, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
 - Clarification provenance now rejects cross-session or unpersisted initial revisions before creating a correction chain.
 - Clarification ownership checks now reject sessionless or mismatched Source context before creating a corrected revision, avoiding orphaned correction records.
 - Clarification chain persistence now uses one SQLite transaction for corrected revision, event, vocabulary, and provenance search row.
@@ -137,15 +138,15 @@
 - The WinUI shell now exposes the M12/M13 health-check, media export, encrypted-backup, and disposable restore/verification operations with plain Cantonese status messages; these actions still require supervised native UI verification.
 - The Family Admin shell now exposes a confirmation-gated deletion of the latest finalized Source; it removes dependent content through the authenticated deletion service and preserves only a minimal audit tombstone.
 - The Family Admin shell also exposes a confirmation-gated withdrawal of the latest finalized Source; it retains local history and media but disables future cloud processing and ordinary search/export paths.
-- The cumulative suite now passes **127/127** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
+- The cumulative suite now passes **128/128** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
 
 ## M14 status
 
 - Real-user pilot work has not started. A supervised checklist is documented in [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md), and the deployment evidence is recorded in [M14 evidence](evidence/M14.md); the app still requires consent, microphone, provider, admin, export/restore, and incident/rollback review before pilot use.
 - A publish script now produces a self-contained `artifacts/MEMENTO-win-x64.zip` plus a SHA-256 sidecar; MSIX generation remains separate because it requires a publisher identity, certificate, and package manifest.
-- `scripts/Install-Memento.ps1` now installs the portable bundle per user under `%LOCALAPPDATA%\\MEMENTO\\App` and creates a Start Menu shortcut; it does not claim signed package identity.
+- `scripts/Install-Memento.ps1` now installs the portable bundle per user under `%LOCALAPPDATA%\\MEMENTO\\App`, creates a Start Menu shortcut, and registers a current-user Windows Installed apps entry; it does not claim signed package identity.
 - `scripts/Start-Memento.ps1` now resolves the installed executable first and otherwise starts the repository publish output, making the supported launch path explicit.
-- `scripts/Uninstall-Memento.ps1` removes that app install and Start Menu shortcut with a guarded per-user path; it preserves `%LOCALAPPDATA%\\MEMENTO` archive data unless `-RemoveData` is explicitly passed.
+- `scripts/Uninstall-Memento.ps1` removes that app registration and Start Menu shortcut, then schedules guarded app-tree cleanup after the script exits; it preserves `%LOCALAPPDATA%\\MEMENTO` archive data unless `-RemoveData` is explicitly passed.
 - Installer updates now stage a clean app tree beside the install directory and swap it into place, so removed files cannot survive an update; a failed swap restores the previous app tree while leaving archive data untouched.
 - Post-swap installer failures, including Start Menu shortcut creation errors, now move the failed tree aside and restore the previous app tree before cleanup; this rollback path was exercised against a disposable install root.
 - The published bundle has been installed and launch-smoke-tested from `%LOCALAPPDATA%\\MEMENTO\\App`; the Start Menu shortcut exists and the app remains installed for supervised GUI/microphone verification.

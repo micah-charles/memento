@@ -431,6 +431,33 @@ public sealed class PersistenceAndMemoryTests
     }
 
     [Fact]
+    public void Entity_resolution_suggests_review_only_matches_and_avoids_short_name_fuzziness()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var exactPerson = repository.AddPersonEntity(new PersonEntity("person-exact", "阿貞", "friend", DateTimeOffset.UtcNow));
+        var fuzzyPerson = repository.AddPersonEntity(new PersonEntity("person-fuzzy", "Micah Charles", "friend", DateTimeOffset.UtcNow));
+        var resolver = new EntityResolutionService(repository);
+
+        var exact = Assert.Single(resolver.SuggestMatches("阿貞"));
+        Assert.Equal(exactPerson.PersonEntityId, exact.Person.PersonEntityId);
+        Assert.True(exact.ExactMatch);
+        Assert.False(exact.SpeakerConfirmed);
+
+        var fuzzy = Assert.Single(resolver.SuggestMatches("Micah Charels"));
+        Assert.Equal(fuzzyPerson.PersonEntityId, fuzzy.Person.PersonEntityId);
+        Assert.False(fuzzy.ExactMatch);
+        Assert.InRange(fuzzy.Score, 0.72, 1);
+
+        Assert.Empty(resolver.SuggestMatches("阿珍"));
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM evidence_entity_links";
+        Assert.Equal(0L, Convert.ToInt64(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
     public void Response_episode_links_stimulus_response_and_optional_follow_up_evidence()
     {
         using var fixture = new PersistenceFixture();
