@@ -9,7 +9,7 @@ This report records what is implemented and verified in the local worktree. It d
 
 ## Verification run
 
-- `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **155 passed, 0 failed**.
+- `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **156 passed, 0 failed**.
 - `dotnet build Memento.slnx --configuration Release --no-restore` — **0 warnings, 0 errors**.
 - M04 CLI — synthetic corpus `m04-synthetic-v1`, **14/14 PASS**, `correctionRequiredCount: 0`.
 - Published bundle — `artifacts/MEMENTO-win-x64.zip`, 109,613,901 bytes, SHA-256 `5cf1bbb36bc1169f9caf2c7cc1f3e4ede6c5326f927e6f983d2f43375380d6f0`.
@@ -20,7 +20,7 @@ This report records what is implemented and verified in the local worktree. It d
 - Deployment workflow — `scripts/Setup-Memento.ps1 -SkipPublish` now composes install and preflight, with optional cloud/app-lock policy gates and `-Launch` support; the launch branch was smoke-tested and stopped cleanly.
 - Installed process smoke — launched via `scripts\\Start-Memento.ps1`; observed title `MEMENTO` and `Responding=True` after seven seconds, then stopped cleanly. This is process evidence only; no visual GUI claim is made.
 - Realtime shell output path — the separate live-conversation consent/action now persists provider PCM output as a verified derived WAV and routes it through the existing replay control. No live provider or physical output-device call was made.
-- Realtime device path — the capture flow now opens a bounded WebSocket session before microphone capture, forwards local PCM chunks, commits on stop, and records policy-gated success/failure metadata. The transport and archive boundaries are automated-tested; live credentials and physical microphone/output verification remain open.
+- Realtime device path — the capture flow now opens a bounded WebSocket session before microphone capture, forwards local PCM chunks, commits on stop, and records policy-gated success/failure metadata. The transport and archive boundaries, including post-provider Source deletion, are automated-tested; live credentials and physical microphone/output verification remain open.
 - MSIX deployment path — added a parameterized manifest/template and `Build-MementoMsix.ps1` that stages, packages, and optionally signs the self-contained output. PowerShell parsing passed; Windows SDK `makeappx`, a publisher identity, and a trusted certificate remain required for an installable package.
 
 ## Milestone status
