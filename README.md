@@ -80,11 +80,13 @@ To produce an MSIX package when a Windows SDK and an owner-selected publisher ce
 
 The script also supports an unsigned output for package inspection, but an unsigned MSIX is not an ordinary installable release. The checked-in manifest now uses deterministic MEMENTO artwork from `packaging/assets`; publisher identity, certificate trust, package validation, and update policy still need approval before distribution. The portable per-user installer above remains the supported path until those gates are approved.
 
-To repeat the MSIX payload verification (manifest, single executable, assets, and optional signature):
+To repeat the MSIX payload verification (manifest, single executable, assets, dimensions, and optional signature):
 
 ```powershell
 .\scripts\Test-MementoMsix.ps1
 ```
+
+Add `-VerifyMsix` to `Verify-MementoAutomation.ps1` when the unsigned package has been built so the complete repository gate also checks the MSIX artifact; use `-RequireMsixSignature` when a signed package is mandatory.
 
 To start MEMENTO after installation, or start the repository's published executable when no install exists:
 

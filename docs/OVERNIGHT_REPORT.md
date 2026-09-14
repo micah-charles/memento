@@ -33,6 +33,7 @@ This report records what is implemented and verified in the local worktree. It d
 - MSIX verification hardening — `Test-MementoMsix.ps1` now validates the package identity/version, expected MEMENTO application entry, visual asset references, exact asset names, and approved PNG dimensions before reporting the payload gate as passed; the latest unsigned package passed this stricter check.
 - MSIX artwork replacement — `Build-MementoMsix.ps1` now copies checked-in deterministic MEMENTO artwork from `packaging/assets` instead of generating 1x1 placeholders. The unsigned package is 108,721,821 bytes with SHA-256 `D83A0D31058215D62B9962DB96653811A3AFD07A50EBB6C9A393F710AC2540C3`; all four artwork dimensions were inspected and `Test-MementoMsix.ps1` passed. Publisher trust and target deployment remain open.
 - Final automation rerun after the MSIX dimension gate — PowerShell parser **12/12**, Release tests **167/167**, Release build **0 warnings / 0 errors**, synthetic language validation **14/14**, and deployment preflight with required audio enumeration and archive integrity all passed.
+- `Verify-MementoAutomation.ps1 -VerifyMsix` now delegates to the MSIX verifier; its unsigned inspection passed, while the negative `-RequireMsixSignature` run rejected the unsigned package as expected.
 
 ## Milestone status
 

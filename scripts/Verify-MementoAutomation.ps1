@@ -5,6 +5,8 @@ param(
     [switch]$SkipDotnet,
     [switch]$SkipLanguageValidation,
     [switch]$SkipPreflight,
+    [switch]$VerifyMsix,
+    [switch]$RequireMsixSignature,
     [switch]$RequireCloudCredential,
     [switch]$RequireApplicationLock,
     [switch]$RequireAudioInput,
@@ -60,6 +62,16 @@ try {
             throw "Synthetic language validation report failed its deterministic gate."
         }
         Write-Output ("Synthetic language validation: PASS ({0} case(s), 0 correction-required)" -f $report.TotalCases)
+    }
+
+    if ($VerifyMsix) {
+        $msixPath = Join-Path $repoRoot 'artifacts\msix\MEMENTO-0.1.0.0-unsigned.msix'
+        if (-not (Test-Path -LiteralPath $msixPath -PathType Leaf)) {
+            throw "MSIX package not found: $msixPath. Run scripts\Build-MementoMsix.ps1 first, or omit -VerifyMsix."
+        }
+        $msixArguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', '.\scripts\Test-MementoMsix.ps1', '-PackagePath', $msixPath)
+        if ($RequireMsixSignature) { $msixArguments += '-RequireSignature' }
+        Invoke-NativeStep 'powershell' $msixArguments
     }
 
     if (-not $SkipPreflight) {
