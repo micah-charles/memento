@@ -11,6 +11,7 @@ This report records what is implemented and verified in the local worktree. It d
 
 - `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **194 passed, 0 failed**.
 - `dotnet build Memento.slnx --configuration Release --no-restore` — **0 warnings, 0 errors**.
+- `dotnet format Memento.slnx --verify-no-changes --no-restore --severity warn` — **PASS** after correcting the remaining whitespace findings.
 - M04 CLI — synthetic corpus `m04-synthetic-v1`, **14/14 PASS**, `correctionRequiredCount: 0`.
 - M04 external-corpus path — redacted JSON input is validated for required observations, duplicate IDs, and non-negative latency; reports default to the anonymous `m04-external-redacted-v1` label and never copy the input filename.
 - Published bundle — `artifacts/MEMENTO-win-x64.zip`, 109,635,441 bytes, SHA-256 `6a1f6e1df8684b42390cda1f65180c28a655e510131627cdce5c8306f7ef60af`.
