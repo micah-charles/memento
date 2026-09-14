@@ -227,6 +227,35 @@ public sealed class RealtimeConversationTests
     }
 
     [Fact]
+    public async Task Streaming_orchestrator_rechecks_consent_after_transport_handshake()
+    {
+        using var fixture = new RealtimeFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.LiveCloudConversation, PrivacyMode.Normal, true, "privacy-1");
+        using var source = new FakeAudioChunkSource(new PcmWaveFormat(24000, 1, 16));
+        await using var transport = new StreamingFakeRealtimeTransport(() =>
+            repository.AddConsent(session.SessionId, ConsentScope.LiveCloudConversation, PrivacyMode.Normal, false, "privacy-1"));
+        var provider = new OpenAiRealtimeStreamingProvider(
+            new DelegateApiCredentialProvider(() => "test-key"),
+            transportFactory: () => transport,
+            endpoint: new Uri("wss://example.test/v1/realtime"));
+        var orchestrator = new RealtimeStreamingOrchestrator(repository, provider);
+
+        await Assert.ThrowsAsync<CloudNotPermittedException>(() => orchestrator.StartAsync(
+            new RealtimeStreamingRequest(session.SessionId, null, PrivacyMode.Normal, true, DateTimeOffset.UtcNow), source));
+
+        Assert.True(transport.Connected);
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT succeeded FROM provider_interactions WHERE session_id = $session ORDER BY created_at DESC LIMIT 1";
+        command.Parameters.AddWithValue("$session", session.SessionId);
+        Assert.Equal(0, Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
     public async Task Realtime_orchestrator_requires_live_scope_and_persists_success_metadata()
     {
         using var fixture = new RealtimeFixture();
@@ -332,7 +361,7 @@ public sealed class RealtimeConversationTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
-    private sealed class StreamingFakeRealtimeTransport : IRealtimeMessageTransport
+    private sealed class StreamingFakeRealtimeTransport(Action? onConnect = null) : IRealtimeMessageTransport
     {
         private readonly System.Threading.Channels.Channel<string> _events = System.Threading.Channels.Channel.CreateUnbounded<string>();
         public List<string> Messages { get; } = [];
@@ -341,6 +370,7 @@ public sealed class RealtimeConversationTests
         public Task ConnectAsync(Uri endpoint, string apiKey, CancellationToken cancellationToken = default)
         {
             Connected = true;
+            onConnect?.Invoke();
             return Task.CompletedTask;
         }
 

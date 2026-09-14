@@ -124,17 +124,32 @@ public sealed class RealtimeStreamingOrchestrator
     {
         var session = ValidateRequest(request);
         ArgumentNullException.ThrowIfNull(audioSource);
+        RealtimeStreamingSession? streaming = null;
         try
         {
-            var streaming = await _provider.StartAsync(request, audioSource, cancellationToken).ConfigureAwait(false);
+            streaming = await _provider.StartAsync(request, audioSource, cancellationToken).ConfigureAwait(false);
+            // Consent or Source withdrawal can change while a transport is
+            // handshaking. Do not return a live session unless the policy is
+            // still valid after the provider has accepted the connection.
+            if (!_repository.HasGrantedConsent(session.SessionId, ConsentScope.LiveCloudConversation))
+                throw new CloudNotPermittedException();
+            EnsureSource(request);
             return new RealtimeStreamingArchiveSession(_repository, _provider, _speechStore, request, streaming);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            if (streaming is not null)
+            {
+                try { await streaming.DisposeAsync().ConfigureAwait(false); } catch { }
+            }
             throw;
         }
         catch (Exception error)
         {
+            if (streaming is not null)
+            {
+                try { await streaming.DisposeAsync().ConfigureAwait(false); } catch { }
+            }
             AddFailure(request, error);
             throw;
         }
