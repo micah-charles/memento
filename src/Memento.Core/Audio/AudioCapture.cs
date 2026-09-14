@@ -59,7 +59,7 @@ public sealed class AudioCaptureController
         {
             input = inputFactory(new PcmWaveFormat(48000, 1, 16)) ?? throw new InvalidOperationException("Audio input factory returned no input.");
             _input = input;
-            _writer = PcmWaveWriter.Create(_audioRootDirectory, sessionId, startedAt ?? DateTimeOffset.UtcNow, input.Format);
+            _writer = PcmWaveWriter.Create(_audioRootDirectory, sessionId, startedAt ?? DateTimeOffset.UtcNow, input.Format, turnId: _turnId);
             input.DataAvailable += OnDataAvailable;
             input.CaptureError += OnCaptureError;
             State = AudioCaptureState.Capturing;

@@ -62,16 +62,17 @@ public sealed class PcmWaveWriter : IDisposable
     public string FinalPath => _finalPath;
     public long DataBytes => _dataBytes;
 
-    public static PcmWaveWriter Create(string audioRootDirectory, string sessionId, DateTimeOffset startedAt, PcmWaveFormat format, string? sourceId = null)
+    public static PcmWaveWriter Create(string audioRootDirectory, string sessionId, DateTimeOffset startedAt, PcmWaveFormat format, string? sourceId = null, string? turnId = null)
     {
         if (string.IsNullOrWhiteSpace(sessionId)) throw new ArgumentException("A session ID is required.", nameof(sessionId));
         ValidatePathComponent(sessionId, nameof(sessionId));
+        if (turnId is not null) ValidatePathComponent(turnId, nameof(turnId));
         format.Validate();
         var id = sourceId ?? Guid.NewGuid().ToString("N");
         ValidatePathComponent(id, nameof(sourceId));
         var dateDirectory = Path.Combine(audioRootDirectory, startedAt.ToUniversalTime().ToString("yyyy", System.Globalization.CultureInfo.InvariantCulture), startedAt.ToUniversalTime().ToString("MM", System.Globalization.CultureInfo.InvariantCulture), startedAt.ToUniversalTime().ToString("dd", System.Globalization.CultureInfo.InvariantCulture));
         Directory.CreateDirectory(dateDirectory);
-        var stem = $"{sessionId}-{id}";
+        var stem = turnId is null ? $"{sessionId}-{id}" : $"{sessionId}-{turnId}-{id}";
         var finalPath = Path.Combine(dateDirectory, stem + ".wav");
         var temporaryPath = finalPath + ".capture.tmp";
         return new PcmWaveWriter(temporaryPath, finalPath, id, format, startedAt);

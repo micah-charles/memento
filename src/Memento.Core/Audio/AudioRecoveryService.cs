@@ -28,16 +28,22 @@ public sealed class AudioRecoveryService
     /// </summary>
     public static bool TryInferSessionId(string temporaryPath, out string sessionId)
     {
+        return TryInferCaptureContext(temporaryPath, out sessionId, out _);
+    }
+
+    public static bool TryInferCaptureContext(string temporaryPath, out string sessionId, out string? turnId)
+    {
         sessionId = string.Empty;
+        turnId = null;
         var name = Path.GetFileName(temporaryPath);
         const string suffix = ".wav.capture.tmp";
         if (string.IsNullOrWhiteSpace(name) || !name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) return false;
         var stem = name[..^suffix.Length];
-        var separator = stem.LastIndexOf('-');
-        if (separator <= 0) return false;
-        var candidate = stem[..separator];
-        if (candidate.Length != 32 || !Guid.TryParseExact(candidate, "N", out _)) return false;
-        sessionId = candidate;
+        var parts = stem.Split('-');
+        if (parts.Length < 2 || parts[0].Length != 32 || !Guid.TryParseExact(parts[0], "N", out _)) return false;
+        sessionId = parts[0];
+        if (parts.Length >= 3 && parts[1].Length == 32 && Guid.TryParseExact(parts[1], "N", out _))
+            turnId = parts[1];
         return true;
     }
 
@@ -53,6 +59,13 @@ public sealed class AudioRecoveryService
         if (!File.Exists(fullTemporaryPath)) throw new FileNotFoundException("The recovery marker was not found.", fullTemporaryPath);
 
         var format = PcmWaveValidator.Validate(fullTemporaryPath, allowPartial: true);
+        var effectiveTurnId = turnId;
+        if (TryInferCaptureContext(fullTemporaryPath, out var inferredSessionId, out var inferredTurnId))
+        {
+            if (!string.Equals(inferredSessionId, sessionId, StringComparison.Ordinal))
+                throw new InvalidDataException("The recovery marker belongs to a different session.");
+            effectiveTurnId ??= inferredTurnId;
+        }
         var availableBytes = new FileInfo(fullTemporaryPath).Length - HeaderLength;
         if (availableBytes <= 0 || availableBytes % format.BlockAlign != 0)
             throw new InvalidDataException("The recovery marker does not contain complete PCM frames.");
@@ -87,7 +100,7 @@ public sealed class AudioRecoveryService
                 sourceId,
                 "audio",
                 sessionId,
-                turnId,
+                effectiveTurnId,
                 finalPath,
                 "PCM WAV",
                 format.SampleRate,

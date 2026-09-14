@@ -125,8 +125,9 @@ public sealed class AudioTests
         archive.Initialize();
         var repository = new ArchiveRepository(archive);
         var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.LocalCaptureOnly);
+        var turn = repository.AddTurn(session.SessionId, 0, "participant", DateTimeOffset.UtcNow);
         var format = new PcmWaveFormat(16000, 1, 16);
-        using var writer = PcmWaveWriter.Create(fixture.AudioRoot, session.SessionId, DateTimeOffset.UtcNow, format, "interrupted-source");
+        using var writer = PcmWaveWriter.Create(fixture.AudioRoot, session.SessionId, DateTimeOffset.UtcNow, format, "interrupted-source", turn.TurnId);
         writer.Append(new byte[format.BlockAlign * 160]);
         writer.Dispose();
         var marker = writer.TemporaryPath;
@@ -140,6 +141,7 @@ public sealed class AudioTests
         var recovered = new AudioRecoveryService(repository, fixture.AudioRoot).Recover(marker, session.SessionId);
 
         Assert.Equal("recovered", recovered.RecoveryStatus);
+        Assert.Equal(turn.TurnId, recovered.TurnId);
         Assert.False(File.Exists(marker));
         Assert.True(File.Exists(recovered.FilePath));
         Assert.Equal(format, PcmWaveValidator.Validate(recovered.FilePath!, allowPartial: false));
@@ -152,9 +154,13 @@ public sealed class AudioTests
     public void Recovery_service_only_infers_generated_session_ids()
     {
         var sessionId = Guid.NewGuid().ToString("N");
+        var turnId = Guid.NewGuid().ToString("N");
 
         Assert.True(AudioRecoveryService.TryInferSessionId($"{sessionId}-source.wav.capture.tmp", out var inferred));
         Assert.Equal(sessionId, inferred);
+        Assert.True(AudioRecoveryService.TryInferCaptureContext($"{sessionId}-{turnId}-source.wav.capture.tmp", out inferred, out var inferredTurn));
+        Assert.Equal(sessionId, inferred);
+        Assert.Equal(turnId, inferredTurn);
         Assert.False(AudioRecoveryService.TryInferSessionId("hand-created-source.wav.capture.tmp", out _));
     }
 
