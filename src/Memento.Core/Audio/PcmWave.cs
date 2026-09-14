@@ -93,6 +93,11 @@ public sealed class PcmWaveWriter : IDisposable
             // every byte that reached the recovery marker.
             _dataBytes = Math.Max(_dataBytes, Math.Max(0, _stream.Length - HeaderLength));
         }
+        // Keep the recovery marker self-describing while capture is active.
+        // A process interruption can therefore be scanned using the bytes
+        // already flushed instead of relying on Dispose() to repair the WAV
+        // header later.
+        WriteHeader(_dataBytes);
         Flush();
     }
 
@@ -235,7 +240,14 @@ public static class AudioRecoveryScanner
         try
         {
             var format = PcmWaveValidator.Validate(path, allowPartial: true);
-            var bytes = PcmWaveValidator.GetDataBytes(path);
+            var declaredBytes = PcmWaveValidator.GetDataBytes(path);
+            var availableBytes = Math.Max(0, new FileInfo(path).Length - 44);
+            // A hard interruption can leave flushed PCM behind a stale WAV
+            // data-length field. When the available bytes form complete PCM
+            // frames, recover that larger extent without rewriting the marker.
+            var bytes = availableBytes >= declaredBytes && availableBytes % format.BlockAlign == 0
+                ? availableBytes
+                : declaredBytes;
             return new RecoverableAudioAsset(path, new FileInfo(path).Length, bytes * 1000L / format.ByteRate, true, null);
         }
         catch (Exception error) when (error is InvalidDataException or IOException)

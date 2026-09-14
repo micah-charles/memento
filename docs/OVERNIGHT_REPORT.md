@@ -9,7 +9,7 @@ This report records what is implemented and verified in the local worktree. It d
 
 ## Verification run
 
-- `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **125 passed, 0 failed**.
+- `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **126 passed, 0 failed**.
 - `dotnet build Memento.slnx --configuration Release --no-restore` — **0 warnings, 0 errors**.
 - M04 CLI — synthetic corpus `m04-synthetic-v1`, **14/14 PASS**, `correctionRequiredCount: 0`.
 - Published bundle — `artifacts/MEMENTO-win-x64.zip`, 106,473,938 bytes, SHA-256 `35f0ff6d545bf21ee60498fe70b5ae61fa808bfcbaa05d80268c30b1eaa4b5d7`.
@@ -39,6 +39,7 @@ This report records what is implemented and verified in the local worktree. It d
 - Backup restore stages extraction beside the target, rejects traversal/duplicates/normalized aliases, and leaves no partial target tree on unsafe input.
 - Capture start now persists cloud consent from the participant checkbox and privacy mode; an unchecked cloud control can never be recorded as granted.
 - Processing now locks privacy, recording, and cloud-consent controls until the bounded cloud turn finishes, preventing an in-flight policy race.
+- Active capture markers now update their WAV data length after each append, and recovery scanning can recover complete PCM frames left behind by a stale header after interruption.
 - No credentials, recordings, transcripts, exports, backups, or provider responses were committed.
 
 ## Owner-gated next action

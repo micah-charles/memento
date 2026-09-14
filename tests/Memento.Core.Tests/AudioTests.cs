@@ -86,6 +86,38 @@ public sealed class AudioTests
     }
 
     [Fact]
+    public void Recovery_scanner_recovers_pcm_behind_a_stale_header()
+    {
+        using var fixture = new AudioFixture();
+        var format = new PcmWaveFormat(16000, 1, 16);
+        var pcm = new byte[format.BlockAlign * 160];
+        var directory = Path.Combine(fixture.AudioRoot, "2026", "09", "14");
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "session-stale-source.wav.capture.tmp");
+        var header = new byte[44];
+        "RIFF"u8.CopyTo(header);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(4, 4), checked((uint)(36 + pcm.Length)));
+        "WAVE"u8.CopyTo(header.AsSpan(8));
+        "fmt "u8.CopyTo(header.AsSpan(12));
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(16, 4), 16);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(20, 2), 1);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(22, 2), (ushort)format.Channels);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(24, 4), (uint)format.SampleRate);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(28, 4), (uint)format.ByteRate);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(32, 2), (ushort)format.BlockAlign);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(34, 2), (ushort)format.BitsPerSample);
+        "data"u8.CopyTo(header.AsSpan(36));
+        // Simulate a crash after PCM reached disk but before the data-length
+        // field was rewritten; the declared size remains zero.
+        File.WriteAllBytes(path, header.Concat(pcm).ToArray());
+
+        var recovered = Assert.Single(AudioRecoveryScanner.Scan(fixture.AudioRoot));
+        Assert.Equal(10, recovered.DurationMs);
+        Assert.Equal(44 + pcm.Length, recovered.ByteLength);
+        Assert.True(recovered.IsValidPcm);
+    }
+
+    [Fact]
     public void Corrupt_partial_is_reported_without_being_deleted()
     {
         using var fixture = new AudioFixture();
