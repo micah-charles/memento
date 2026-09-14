@@ -864,7 +864,7 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         var sourceTurnId = reader.IsDBNull(1) ? null : reader.GetString(1);
         if (sessionId is not null && !string.Equals(sourceSessionId, sessionId, StringComparison.Ordinal))
             throw new InvalidOperationException($"{context} does not belong to the supplied session.");
-        if (turnId is not null && !string.Equals(sourceTurnId, turnId, StringComparison.Ordinal))
+        if (!string.Equals(sourceTurnId, turnId, StringComparison.Ordinal))
             throw new InvalidOperationException($"{context} does not belong to the supplied turn.");
     }
 

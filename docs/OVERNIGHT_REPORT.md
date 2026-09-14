@@ -40,6 +40,7 @@ This report records what is implemented and verified in the local worktree. It d
 - Capture start now persists cloud consent from the participant checkbox and privacy mode; an unchecked cloud control can never be recorded as granted.
 - Processing now locks privacy, recording, and cloud-consent controls until the bounded cloud turn finishes, preventing an in-flight policy race.
 - Active capture markers now update their WAV data length after each append, and recovery scanning can recover complete PCM frames left behind by a stale header after interruption.
+- Archive writes now require an exact Source-to-Turn match when a Source is already turn-linked; transcript revisions and queued jobs cannot silently drop that provenance by supplying a null TurnId.
 - No credentials, recordings, transcripts, exports, backups, or provider responses were committed.
 
 ## Owner-gated next action
