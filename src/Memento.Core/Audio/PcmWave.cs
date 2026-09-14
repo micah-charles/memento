@@ -71,7 +71,9 @@ public sealed class PcmWaveWriter : IDisposable
         var id = sourceId ?? Guid.NewGuid().ToString("N");
         ValidatePathComponent(id, nameof(sourceId));
         var dateDirectory = Path.Combine(audioRootDirectory, startedAt.ToUniversalTime().ToString("yyyy", System.Globalization.CultureInfo.InvariantCulture), startedAt.ToUniversalTime().ToString("MM", System.Globalization.CultureInfo.InvariantCulture), startedAt.ToUniversalTime().ToString("dd", System.Globalization.CultureInfo.InvariantCulture));
+        EnsureNoReparsePointInPath(dateDirectory, "The audio capture path");
         Directory.CreateDirectory(dateDirectory);
+        EnsureNoReparsePointInPath(dateDirectory, "The audio capture path");
         var stem = turnId is null ? $"{sessionId}-{id}" : $"{sessionId}-{turnId}-{id}";
         var finalPath = Path.Combine(dateDirectory, stem + ".wav");
         var temporaryPath = finalPath + ".capture.tmp";
@@ -190,6 +192,31 @@ public sealed class PcmWaveWriter : IDisposable
     {
         if (string.IsNullOrWhiteSpace(value) || value is "." or ".." || value.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
             throw new ArgumentException("The identifier must be a single safe file-name component.", parameterName);
+    }
+
+    private static void EnsureNoReparsePointInPath(string path, string description)
+    {
+        var current = Path.GetFullPath(path);
+        while (!string.IsNullOrEmpty(current))
+        {
+            if (Directory.Exists(current) || File.Exists(current))
+            {
+                try
+                {
+                    if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                        throw new IOException($"{description} cannot contain a reparse point.");
+                }
+                catch (UnauthorizedAccessException error)
+                {
+                    throw new IOException($"{description} cannot be inspected safely.", error);
+                }
+            }
+
+            var parent = Path.GetDirectoryName(current);
+            if (string.IsNullOrEmpty(parent) || string.Equals(parent, current, StringComparison.OrdinalIgnoreCase))
+                break;
+            current = parent;
+        }
     }
 }
 

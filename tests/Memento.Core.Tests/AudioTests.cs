@@ -41,6 +41,27 @@ public sealed class AudioTests
     }
 
     [Fact]
+    public void Writer_rejects_reparse_point_audio_root_without_writing_through_it()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new AudioFixture();
+        var targetRoot = Path.Combine(fixture.DirectoryPath, "audio-target");
+        Directory.CreateDirectory(targetRoot);
+        var link = Path.Combine(fixture.DirectoryPath, "audio-link");
+        try
+        {
+            Directory.CreateSymbolicLink(link, targetRoot);
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        Assert.Throws<IOException>(() => PcmWaveWriter.Create(link, "session-safe", DateTimeOffset.UtcNow, new PcmWaveFormat(16000, 1, 16), "source-safe"));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(targetRoot));
+    }
+
+    [Fact]
     public void Controller_requires_explicit_consent_and_registers_source()
     {
         using var fixture = new AudioFixture();

@@ -304,6 +304,35 @@ public sealed class ConversationTests
     }
 
     [Fact]
+    public void Derived_audio_store_rejects_reparse_point_root_without_writing_through_it()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var targetRoot = Path.Combine(fixture.DirectoryPath, "derived-target");
+        Directory.CreateDirectory(targetRoot);
+        var link = Path.Combine(fixture.DirectoryPath, "derived-link");
+        try
+        {
+            Directory.CreateSymbolicLink(link, targetRoot);
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        var store = new DerivedAudioStore(repository, link);
+        Assert.Throws<IOException>(() => store.Store(
+            session.SessionId,
+            null,
+            new SpeechOutputResult("test", "test-model", "test", "wav", "request", [1, 2, 3], DateTimeOffset.UtcNow)));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(targetRoot));
+    }
+
+    [Fact]
     public async Task Bounded_pipeline_does_not_persist_or_play_speech_after_withdrawal_during_synthesis()
     {
         using var fixture = new ConversationFixture();

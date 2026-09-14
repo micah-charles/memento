@@ -29,7 +29,9 @@ public sealed class DerivedAudioStore
         if (id.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) throw new ArgumentException("The speech asset ID is not a valid file name.", nameof(assetId));
         var timestamp = createdAt ?? DateTimeOffset.UtcNow;
         var dateDirectory = Path.Combine(_rootDirectory, timestamp.ToUniversalTime().ToString("yyyy", System.Globalization.CultureInfo.InvariantCulture), timestamp.ToUniversalTime().ToString("MM", System.Globalization.CultureInfo.InvariantCulture), timestamp.ToUniversalTime().ToString("dd", System.Globalization.CultureInfo.InvariantCulture));
+        EnsureNoReparsePointInPath(dateDirectory, "The derived audio path");
         Directory.CreateDirectory(dateDirectory);
+        EnsureNoReparsePointInPath(dateDirectory, "The derived audio path");
         var finalPath = Path.Combine(dateDirectory, id + "." + format);
         var temporaryPath = finalPath + ".speech.tmp";
         var hash = Convert.ToHexString(SHA256.HashData(output.AudioBytes)).ToLowerInvariant();
@@ -118,6 +120,31 @@ public sealed class DerivedAudioStore
         catch
         {
             // Preserve the original storage error; cleanup can be retried by recovery tooling.
+        }
+    }
+
+    private static void EnsureNoReparsePointInPath(string path, string description)
+    {
+        var current = Path.GetFullPath(path);
+        while (!string.IsNullOrEmpty(current))
+        {
+            if (Directory.Exists(current) || File.Exists(current))
+            {
+                try
+                {
+                    if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                        throw new IOException($"{description} cannot contain a reparse point.");
+                }
+                catch (UnauthorizedAccessException error)
+                {
+                    throw new IOException($"{description} cannot be inspected safely.", error);
+                }
+            }
+
+            var parent = Path.GetDirectoryName(current);
+            if (string.IsNullOrEmpty(parent) || string.Equals(parent, current, StringComparison.OrdinalIgnoreCase))
+                break;
+            current = parent;
         }
     }
 }
