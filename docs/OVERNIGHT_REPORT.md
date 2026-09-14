@@ -1,8 +1,8 @@
 # MEMENTO implementation report
 
-**Report date:** 2026-09-14
+**Report date:** 2026-09-15
 **Starting reviewed checkpoint:** `86156fc039b0b26deb4fa7a6011e30e301e6d546`
-**Current local checkpoint:** `702f248` (`main`, clean worktree)
+**Current implementation checkpoint:** `f0814c7` (`main`; this report records the verified implementation)
 **Environment:** Windows, .NET 10 SDK, `win-x64`, repository worktree
 
 This report records what is implemented and verified in the local worktree. It does not turn simulated, automated, or process-only checks into native GUI, hardware, live-provider, or participant evidence.
@@ -15,7 +15,7 @@ This report records what is implemented and verified in the local worktree. It d
 | CX01 | **PASS (automated)** | Participant surface now defaults to greeting/state/start/stop/privacy; Family Admin and diagnostics are collapsed behind a separate surface. |
 | CX02 | **PASS** | `ParticipantConversationStateMachine` and 5 deterministic tests cover normal loop, end, clarification, recovery, and invalid transitions. |
 | CX03 | **PARTIAL** | Successful bounded/Realtime derived speech now auto-plays and updates state; a continuous next-turn microphone loop remains pending. |
-| CX04 | **BLOCKED/PENDING** | Official VAD/interruption capability researched; current adapter remains conservative push-to-talk until live model/device event sequencing and WebSocket playback accounting are verified. |
+| CX04 | **PARTIAL** | Optional `server_vad`/`semantic_vad` payloads and deterministic tests are implemented; the shipped adapter remains conservative push-to-talk until live model/device event sequencing and WebSocket playback accounting are verified. |
 | CX05 | **PARTIAL** | Existing append-only clarification protocol is preserved; spoken clarification and barge-in remain supervised work. |
 | CX06 | **PARTIAL** | Same-session bounded context uses latest revision per prior Source and excludes withdrawn/other-session data; claim-aware retrieval remains pending. |
 | CX07 | **PARTIAL** | Conservative spoken current-information detector and service route are implemented; live search and natural spoken answer composition remain pending. |
@@ -32,11 +32,13 @@ Starting from `86156fc`, the overnight checkpoints were committed as:
 9d4b227 feat: add bounded conversation context
 7cfef64 feat: detect spoken current-information intent
 702f248 feat: route spoken current information queries
+62040c7 fix: preserve valid conversation state transitions
+f0814c7 feat: add guarded realtime turn detection options
 ```
 
 ## Verification run
 
-- `dotnet test Memento.slnx --configuration Release --no-restore` — **214 passed, 0 failed**.
+- `dotnet test Memento.slnx --configuration Release --no-restore` — **217 passed, 0 failed**.
 - `dotnet build Memento.slnx --configuration Release --no-restore` — **0 warnings, 0 errors**.
 - `dotnet format Memento.slnx --verify-no-changes --no-restore --severity warn` — **PASS** after correcting the remaining whitespace findings.
 - M04 CLI — synthetic corpus `m04-synthetic-v1`, **14/14 PASS**, `correctionRequiredCount: 0`.
@@ -49,7 +51,7 @@ Starting from `86156fc`, the overnight checkpoints were committed as:
 - Credential revocation plumbing — the installed fixed-target removal helper removed a disposable `MEMENTO/OpenAI` target after MEMENTO was closed, and `cmdkey.exe /list:MEMENTO/OpenAI` confirmed `* NONE *`; archive data was unchanged.
 - Deployment preflight — **PASS** for the current-user Installed apps registration and its stable per-user install path.
 - Latest uninstall/reinstall smoke — the installed uninstaller removed the app tree, Start Menu shortcut, and per-user registration while preserving `memory.db` SHA-256 `a9717e3827f73a9df087c098dd77cd76a51afe96d33c8b3cf41f431d46e569b1`; the matching bundle restored the install and the required preflight passed afterward.
-- Repeatable automation gate — `scripts/Verify-MementoAutomation.ps1 -VerifyLaunch -VerifyMsix -RequireAudioInput -RequireAudioOutput -RequireArchiveIntegrity -RequireInstalledPayloadMatch` passed PowerShell parsing for 13 scripts, Release test **214/214**, Release build with **0 warnings/0 errors**, synthetic M04 validation (**14 cases, 0 correction-required**), launch/graceful-close smoke, unsigned MSIX structural verification, and read-only deployment preflight.
+- Repeatable automation gate — `scripts/Verify-MementoAutomation.ps1 -VerifyLaunch -VerifyMsix -RequireAudioInput -RequireAudioOutput -RequireArchiveIntegrity -RequireInstalledPayloadMatch` passed PowerShell parsing for 13 scripts, Release test **217/217**, Release build with **0 warnings/0 errors**, synthetic M04 validation (**14 cases, 0 correction-required**), launch/graceful-close smoke, unsigned MSIX structural verification, and read-only deployment preflight.
 - Scoped export privacy boundary — `ArchiveExporter.ExportRedacted` now emits a selected reviewed-Claim JSONL package with redacted Evidence and explicit withheld-Source labels; tests confirm no raw SQLite snapshot, media, transcript, provider payload, or annotation body is returned, and the Family Admin shell exposes a multi-select picker.
 - Archive maintenance responsiveness — search, health checks, interrupted-audio recovery, deletion, withdrawal, and Family Admin candidate listing/annotation now execute archive and audit work off the WinUI event thread behind a busy-state guard, preventing large local operations from freezing the shell or overlapping.
 - Archive-operation lifecycle — the shell tracks those background tasks and waits for them during window shutdown before disposing SQLite/runtime services, so close-during-export/restore cannot race disposal.

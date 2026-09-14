@@ -2,7 +2,7 @@
 
 **Current milestone:** M14 / CX — Portable deployment and Conversation Experience Reset
 **Status:** CX00–CX02 implemented and automated-tested; live provider, automatic turn detection, hardware, authenticated admin UX, target restore, and pilot gates remain pending
-**Last updated:** 2026-09-14
+**Last updated:** 2026-09-15
 
 ## Conversation Experience Reset — 2026-09-14
 
@@ -13,7 +13,7 @@
 - CX06 adds a bounded, same-session context window using the latest transcript revision per prior Source; it excludes the current Source, other sessions, and withdrawn Sources before provider transmission.
 - CX07 adds conservative spoken current-information intent detection for explicit weather, transport, news, recipe, and present-time questions. The detector is provider-independent and does not route personal or historical statements; participant-facing answer composition and live search remain pending.
 - CX04 adds an injectable Realtime turn-detection protocol option. Conservative `semantic_vad`/`server_vad` payloads are tested, while the shipped app keeps `Disabled` until live event ordering, playback truncation, and older-speaker behaviour are verified.
-- Automated validation after these changes: `dotnet test Memento.slnx --configuration Release --no-restore` passed **214/214**; `dotnet build Memento.slnx --configuration Release --no-restore` passed with **0 warnings, 0 errors**.
+- Automated validation after these changes: `dotnet test Memento.slnx --configuration Release --no-restore` passed **217/217**; `dotnet build Memento.slnx --configuration Release --no-restore` passed with **0 warnings, 0 errors**.
 
 ## Completed in M00
 
