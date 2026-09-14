@@ -1313,7 +1313,6 @@ public sealed partial class MainWindow : Window
         _retryCancellation?.Cancel();
         _sourcePlaybackCancellation?.Cancel();
         _currentInfoCancellation?.Cancel();
-        _ = DisposeActiveRealtimeStreamingAsync();
         if (_capture?.State == AudioCaptureState.Capturing)
         {
             _capture.AbortForRecovery();
@@ -1323,6 +1322,16 @@ public sealed partial class MainWindow : Window
                 try { _session = _repository.EndSession(_session); } catch { }
             }
         }
+
+        _ = ShutdownRuntimeAsync();
+    }
+
+    private async Task ShutdownRuntimeAsync()
+    {
+        try { await StopRetryWorkerAsync().ConfigureAwait(false); } catch { }
+        try { await DisposeActiveRealtimeStreamingAsync().ConfigureAwait(false); } catch { }
+        if (Application.Current is App app)
+            app.DisposeRuntimeServices();
     }
 
     private void CaptureFailed(object? sender, Exception error)

@@ -70,4 +70,14 @@ public partial class App : Application
         _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, voiceConversation, new WaveFileSpeechOutputPlayback(derivedAudioStore), adminReview, adminActorId, retryWorker, () => !string.IsNullOrWhiteSpace(credentials.GetApiKey()), dataDirectory, deletion, withdrawal, sourceAudioPlayback, currentInformation, applicationLock, realtimeConversation, realtimeStreaming);
         _window.Activate();
     }
+
+    internal void DisposeRuntimeServices()
+    {
+        _httpClient?.Dispose();
+        _httpClient = null;
+        Archive?.Dispose();
+        Archive = null;
+        Repository = null;
+        DataDirectory = null;
+    }
 }
