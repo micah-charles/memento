@@ -18,80 +18,135 @@ public static class ArchiveExporter
         var exportDirectory = Path.Combine(destinationDirectory, "memento-export-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(exportDirectory);
         var hashes = new Dictionary<string, string>(StringComparer.Ordinal);
-        var backupPath = Path.Combine(exportDirectory, "archive.sqlite");
-        // Take the canonical SQLite snapshot before reading any export rows.
-        // JSONL and the database must describe one archive state even when a
-        // retry worker is writing to the live archive concurrently.
-        using (var connection = archive.OpenConnection())
+        try
         {
-            using var backup = connection.CreateCommand();
-            backup.CommandText = "VACUUM INTO $path";
-            backup.Parameters.AddWithValue("$path", backupPath);
-            backup.ExecuteNonQuery();
-        }
-        if (!includeWithdrawn)
-            SanitizeWithdrawnRecords(backupPath);
-        hashes["archive.sqlite"] = Hash(backupPath);
-
-        using var snapshot = OpenSnapshotConnection(backupPath);
-        foreach (var table in Tables)
-        {
-            var relative = table + ".jsonl";
-            var path = Path.Combine(exportDirectory, relative);
-            WriteTable(snapshot, table, path, includeWithdrawn);
-            hashes[relative] = Hash(path);
-        }
-
-        if (includeMedia)
-        {
-            var mediaDirectory = Path.Combine(exportDirectory, "media");
-            Directory.CreateDirectory(mediaDirectory);
-            using (var sources = snapshot.CreateCommand())
+            var backupPath = Path.Combine(exportDirectory, "archive.sqlite");
+            // Take the canonical SQLite snapshot before reading any export rows.
+            // JSONL and the database must describe one archive state even when a
+            // retry worker is writing to the live archive concurrently.
+            using (var connection = archive.OpenConnection())
             {
-                sources.CommandText = includeWithdrawn
-                    ? "SELECT source_id, file_path FROM sources WHERE file_path IS NOT NULL"
-                    : "SELECT source_id, file_path FROM sources WHERE file_path IS NOT NULL AND recovery_status <> 'withdrawn'";
-                using var reader = sources.ExecuteReader();
-                while (reader.Read())
+                using var backup = connection.CreateCommand();
+                backup.CommandText = "VACUUM INTO $path";
+                backup.Parameters.AddWithValue("$path", backupPath);
+                backup.ExecuteNonQuery();
+            }
+            if (!includeWithdrawn)
+                SanitizeWithdrawnRecords(backupPath);
+            hashes["archive.sqlite"] = Hash(backupPath);
+
+            using var snapshot = OpenSnapshotConnection(backupPath);
+            foreach (var table in Tables)
+            {
+                var relative = table + ".jsonl";
+                var path = Path.Combine(exportDirectory, relative);
+                WriteTable(snapshot, table, path, includeWithdrawn);
+                hashes[relative] = Hash(path);
+            }
+
+            if (includeMedia)
+            {
+                var mediaDirectory = Path.Combine(exportDirectory, "media");
+                Directory.CreateDirectory(mediaDirectory);
+                using (var sources = snapshot.CreateCommand())
                 {
-                    var sourceId = reader.GetString(0);
-                    var sourcePath = reader.GetString(1);
-                    if (!File.Exists(sourcePath)) continue;
-                    var filename = Path.GetFileName(sourcePath);
-                    if (string.IsNullOrWhiteSpace(filename)) continue;
-                    var target = GetUniqueMediaPath(mediaDirectory, filename, "source-" + sourceId);
-                    File.Copy(sourcePath, target, overwrite: false);
-                    hashes[Path.Combine("media", Path.GetFileName(target)).Replace('\\', '/')] = Hash(target);
+                    sources.CommandText = includeWithdrawn
+                        ? "SELECT source_id, file_path, byte_length, sha256 FROM sources WHERE file_path IS NOT NULL"
+                        : "SELECT source_id, file_path, byte_length, sha256 FROM sources WHERE file_path IS NOT NULL AND recovery_status <> 'withdrawn'";
+                    using var reader = sources.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        var sourceId = reader.GetString(0);
+                        var sourcePath = reader.GetString(1);
+                        var expectedLength = reader.IsDBNull(2) ? (long?)null : reader.GetInt64(2);
+                        var expectedHash = reader.IsDBNull(3) ? null : reader.GetString(3);
+                        var target = GetUniqueMediaPath(mediaDirectory, RequireMediaPath(sourceId, sourcePath), "source-" + sourceId);
+                        var actualHash = CopyVerifiedMedia(sourceId, sourcePath, target, expectedLength, expectedHash);
+                        hashes[Path.Combine("media", Path.GetFileName(target)).Replace('\\', '/')] = actualHash;
+                    }
+                }
+
+                using (var derived = snapshot.CreateCommand())
+                {
+                    derived.CommandText = includeWithdrawn
+                        ? "SELECT derived_speech_asset_id, file_path, byte_length, sha256 FROM derived_speech_assets"
+                        : "SELECT d.derived_speech_asset_id, d.file_path, d.byte_length, d.sha256 FROM derived_speech_assets d WHERE NOT EXISTS (SELECT 1 FROM sources ws WHERE ws.recovery_status = 'withdrawn' AND ((ws.turn_id IS NOT NULL AND ws.turn_id = d.turn_id) OR (ws.turn_id IS NULL AND d.turn_id IS NULL AND ws.session_id = d.session_id)))";
+                    using var reader = derived.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        var assetId = reader.GetString(0);
+                        var sourcePath = reader.GetString(1);
+                        var expectedLength = reader.IsDBNull(2) ? (long?)null : reader.GetInt64(2);
+                        var expectedHash = reader.IsDBNull(3) ? null : reader.GetString(3);
+                        var filename = RequireMediaPath(assetId, sourcePath);
+                        var target = GetUniqueMediaPath(mediaDirectory, "derived-" + filename, "derived-" + assetId);
+                        var actualHash = CopyVerifiedMedia("derived asset " + assetId, sourcePath, target, expectedLength, expectedHash);
+                        hashes[Path.Combine("media", Path.GetFileName(target)).Replace('\\', '/')] = actualHash;
+                    }
                 }
             }
 
-            using (var derived = snapshot.CreateCommand())
-            {
-                derived.CommandText = includeWithdrawn
-                    ? "SELECT derived_speech_asset_id, file_path FROM derived_speech_assets"
-                    : "SELECT d.derived_speech_asset_id, d.file_path FROM derived_speech_assets d WHERE NOT EXISTS (SELECT 1 FROM sources ws WHERE ws.recovery_status = 'withdrawn' AND ((ws.turn_id IS NOT NULL AND ws.turn_id = d.turn_id) OR (ws.turn_id IS NULL AND d.turn_id IS NULL AND ws.session_id = d.session_id)))";
-                using var reader = derived.ExecuteReader();
-                while (reader.Read())
-                {
-                    var assetId = reader.GetString(0);
-                    var sourcePath = reader.GetString(1);
-                    if (!File.Exists(sourcePath)) continue;
-                    var filename = Path.GetFileName(sourcePath);
-                    if (string.IsNullOrWhiteSpace(filename)) continue;
-                    var exportName = "derived-" + filename;
-                    var target = GetUniqueMediaPath(mediaDirectory, exportName, "derived-" + assetId);
-                    File.Copy(sourcePath, target, overwrite: false);
-                    hashes[Path.Combine("media", Path.GetFileName(target)).Replace('\\', '/')] = Hash(target);
-                }
-            }
+            var manifestPath = Path.Combine(exportDirectory, "manifest.json");
+            var manifest = new { schema_version = archive.CurrentSchemaVersion, exported_at = DateTimeOffset.UtcNow, files = hashes.OrderBy(item => item.Key).Select(item => new { path = item.Key, sha256 = item.Value }).ToArray() };
+            File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
+            hashes["manifest.json"] = Hash(manifestPath);
+            return new ArchiveExportResult(exportDirectory, manifestPath, hashes);
         }
-
-        var manifestPath = Path.Combine(exportDirectory, "manifest.json");
-        var manifest = new { schema_version = archive.CurrentSchemaVersion, exported_at = DateTimeOffset.UtcNow, files = hashes.OrderBy(item => item.Key).Select(item => new { path = item.Key, sha256 = item.Value }).ToArray() };
-        File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
-        hashes["manifest.json"] = Hash(manifestPath);
-        return new ArchiveExportResult(exportDirectory, manifestPath, hashes);
+        catch
+        {
+            try
+            {
+                if (Directory.Exists(exportDirectory)) Directory.Delete(exportDirectory, recursive: true);
+            }
+            catch
+            {
+                // Preserve the original export error if cleanup itself fails.
+            }
+            throw;
+        }
     }
+
+    private static string RequireMediaPath(string recordId, string sourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePath))
+            throw new FileNotFoundException($"Media for {recordId} has no file path.", sourcePath);
+        if (!File.Exists(sourcePath))
+            throw new FileNotFoundException($"Media for {recordId} is missing.", sourcePath);
+        var filename = Path.GetFileName(sourcePath);
+        if (string.IsNullOrWhiteSpace(filename))
+            throw new InvalidDataException($"Media for {recordId} has no usable file name.");
+        return filename;
+    }
+
+    private static string CopyVerifiedMedia(string recordId, string sourcePath, string targetPath, long? expectedLength, string? expectedHash)
+    {
+        try
+        {
+            File.Copy(sourcePath, targetPath, overwrite: false);
+            var actualLength = new FileInfo(targetPath).Length;
+            if (expectedLength is long length && length >= 0 && actualLength != length)
+                throw new InvalidDataException($"Media for {recordId} changed length during export.");
+            var actualHash = Hash(targetPath);
+            if (IsSha256(expectedHash) && !string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException($"Media for {recordId} failed its recorded SHA-256 integrity check.");
+            return actualHash;
+        }
+        catch
+        {
+            try
+            {
+                if (File.Exists(targetPath)) File.Delete(targetPath);
+            }
+            catch
+            {
+                // Preserve the original media verification error.
+            }
+            throw;
+        }
+    }
+
+    private static bool IsSha256(string? value)
+        => value is not null && value.Length == 64 && value.All(character => Uri.IsHexDigit(character));
 
     private static SqliteConnection OpenSnapshotConnection(string path)
     {

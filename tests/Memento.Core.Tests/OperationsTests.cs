@@ -255,6 +255,28 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void Export_rejects_tampered_media_and_removes_incomplete_bundle()
+    {
+        using var fixture = new OperationsFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var audio = Path.Combine(fixture.DirectoryPath, "tampered.wav");
+        var original = new byte[] { 1, 2, 3, 4 };
+        File.WriteAllBytes(audio, original);
+        var expectedHash = Convert.ToHexString(SHA256.HashData(original)).ToLowerInvariant();
+        repository.AddSource(new SourceMetadata(
+            "source-tampered-export", "audio", session.SessionId, null, audio, "PCM WAV", 48000, 1, 16,
+            original.Length, 1, expectedHash, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+
+        File.WriteAllBytes(audio, [9, 8, 7, 6]);
+
+        Assert.Throws<InvalidDataException>(() => ArchiveExporter.Export(archive, fixture.ExportRoot, includeMedia: true));
+        Assert.Empty(Directory.GetDirectories(fixture.ExportRoot, "memento-export-*"));
+        Assert.Equal([9, 8, 7, 6], File.ReadAllBytes(audio));
+    }
+
+    [Fact]
     public void Backup_file_replacement_is_complete_before_destination_is_replaced()
     {
         using var fixture = new OperationsFixture();
