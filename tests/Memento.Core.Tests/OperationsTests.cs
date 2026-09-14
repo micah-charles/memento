@@ -614,6 +614,59 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void Directory_backup_rejects_nested_reparse_point_source_without_reading_through_it()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new OperationsFixture();
+        var sourceDirectory = Path.Combine(fixture.ExportRoot, "nested-reparse-source");
+        Directory.CreateDirectory(sourceDirectory);
+        File.WriteAllBytes(Path.Combine(sourceDirectory, "ordinary.bin"), [10, 11, 12]);
+        var targetDirectory = Path.Combine(fixture.ExportRoot, "nested-reparse-target");
+        Directory.CreateDirectory(targetDirectory);
+        File.WriteAllBytes(Path.Combine(targetDirectory, "outside.bin"), [13, 14, 15]);
+        var link = Path.Combine(sourceDirectory, "linked-directory");
+        try
+        {
+            Directory.CreateSymbolicLink(link, targetDirectory);
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        var destination = Path.Combine(fixture.ExportRoot, "nested-reparse-backup.memento");
+        Assert.Throws<IOException>(() => ArchiveBackupProtector.EncryptDirectory(sourceDirectory, destination, "test-password"));
+        Assert.False(File.Exists(destination));
+        Assert.Equal(new byte[] { 13, 14, 15 }, File.ReadAllBytes(Path.Combine(targetDirectory, "outside.bin")));
+    }
+
+    [Fact]
+    public void File_restore_rejects_reparse_point_source_without_reading_through_it()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new OperationsFixture();
+        Directory.CreateDirectory(fixture.ExportRoot);
+        var plaintext = Path.Combine(fixture.ExportRoot, "restore-source.bin");
+        File.WriteAllBytes(plaintext, [16, 17, 18]);
+        var backup = Path.Combine(fixture.ExportRoot, "restore-source.memento");
+        ArchiveBackupProtector.EncryptFile(plaintext, backup, "test-password");
+        var link = Path.Combine(fixture.ExportRoot, "restore-source-link.memento");
+        try
+        {
+            File.CreateSymbolicLink(link, backup);
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        var destination = Path.Combine(fixture.ExportRoot, "restored.bin");
+        Assert.Throws<IOException>(() => ArchiveBackupProtector.DecryptFile(link, destination, "test-password"));
+        Assert.False(File.Exists(destination));
+        Assert.Equal(new byte[] { 16, 17, 18 }, File.ReadAllBytes(plaintext));
+    }
+
+    [Fact]
     public void Backup_rejects_same_source_and_destination_path()
     {
         using var fixture = new OperationsFixture();

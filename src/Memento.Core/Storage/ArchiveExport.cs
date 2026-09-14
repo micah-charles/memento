@@ -658,7 +658,7 @@ public static class ArchiveBackupProtector
     public static void EncryptDirectory(string sourceDirectory, string destinationPath, string password)
     {
         if (string.IsNullOrWhiteSpace(sourceDirectory) || !Directory.Exists(sourceDirectory)) throw new DirectoryNotFoundException(sourceDirectory);
-        EnsureNoReparsePointInPath(sourceDirectory, "The backup source directory");
+        EnsureNoReparsePointInTree(sourceDirectory, "The backup source directory");
         var temporaryZip = Path.Combine(Path.GetTempPath(), "memento-backup-" + Guid.NewGuid().ToString("N") + ".zip");
         try
         {
@@ -753,6 +753,45 @@ public static class ArchiveBackupProtector
 
     private static void EnsureNoReparsePointInPath(string path, string description)
         => ArchivePathSafety.EnsureNoReparsePointInPath(path, description);
+
+    private static void EnsureNoReparsePointInTree(string root, string description)
+    {
+        var fullRoot = Path.GetFullPath(root);
+        EnsureNoReparsePointInPath(fullRoot, description);
+        var pending = new Stack<string>();
+        pending.Push(fullRoot);
+        while (pending.Count > 0)
+        {
+            var current = pending.Pop();
+            string[] entries;
+            try
+            {
+                entries = Directory.EnumerateFileSystemEntries(current).ToArray();
+            }
+            catch (Exception error) when (error is UnauthorizedAccessException or IOException or DirectoryNotFoundException)
+            {
+                throw new IOException($"{description} cannot be inspected safely.", error);
+            }
+
+            foreach (var entry in entries)
+            {
+                FileAttributes attributes;
+                try
+                {
+                    attributes = File.GetAttributes(entry);
+                }
+                catch (Exception error) when (error is UnauthorizedAccessException or IOException or FileNotFoundException or DirectoryNotFoundException)
+                {
+                    throw new IOException($"{description} cannot be inspected safely.", error);
+                }
+
+                if ((attributes & FileAttributes.ReparsePoint) != 0)
+                    throw new IOException($"{description} cannot contain a reparse point.");
+                if ((attributes & FileAttributes.Directory) != 0)
+                    pending.Push(entry);
+            }
+        }
+    }
 
     private static void EnsureDistinctPaths(string sourcePath, string destinationPath, string message)
     {
