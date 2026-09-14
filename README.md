@@ -56,7 +56,7 @@ For the normal publish, install, and deployment-check flow in one command:
 .\scripts\Setup-Memento.ps1 -Launch
 ```
 
-Add `-RequireCloudCredential` and/or `-RequireApplicationLock` when those pilot policies are mandatory. Add `-SkipPublish` only when reusing an existing bundle whose sidecar has already been verified.
+Add `-RequireCloudCredential`, `-RequireApplicationLock`, `-RequireAudioInput`, and/or `-RequireAudioOutput` when those pilot policies are mandatory. These device checks only enumerate capabilities; they do not replace physical capture/playback verification. Add `-SkipPublish` only when reusing an existing bundle whose sidecar has already been verified.
 
 The publish step also writes `artifacts\MEMENTO-win-x64.zip.sha256`; `Install-Memento.ps1` verifies that sidecar automatically when it is present.
 

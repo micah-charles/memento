@@ -5,6 +5,8 @@ param(
     [switch]$SkipPublish,
     [switch]$RequireCloudCredential,
     [switch]$RequireApplicationLock,
+    [switch]$RequireAudioInput,
+    [switch]$RequireAudioOutput,
     [switch]$Launch
 )
 
@@ -34,6 +36,8 @@ Invoke-MementoStep 'Install-Memento.ps1'
 $preflightParameters = @{}
 if ($RequireCloudCredential) { $preflightParameters.RequireCloudCredential = $true }
 if ($RequireApplicationLock) { $preflightParameters.RequireApplicationLock = $true }
+if ($RequireAudioInput) { $preflightParameters.RequireAudioInput = $true }
+if ($RequireAudioOutput) { $preflightParameters.RequireAudioOutput = $true }
 Invoke-MementoStep 'Test-MementoPreflight.ps1' $preflightParameters
 
 if ($Launch) {

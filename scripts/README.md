@@ -4,7 +4,7 @@ Scripts must not read or upload personal data by default.
 
 `Publish-Memento.ps1` creates a self-contained `win-x64` publish directory, a zip bundle, and a SHA-256 sidecar under `artifacts/`. It does not sign or install an MSIX package; a production installer still requires an owner-selected publisher identity and certificate.
 
-`Setup-Memento.ps1` is the supported one-command deployment path. It publishes, installs, and runs the read-only preflight; use `-SkipPublish` when reusing an existing verified bundle, `-RequireCloudCredential` or `-RequireApplicationLock` for pilot policy gates, and `-Launch` to start the app after the checks:
+`Setup-Memento.ps1` is the supported one-command deployment path. It publishes, installs, and runs the read-only preflight; use `-SkipPublish` when reusing an existing verified bundle, `-RequireCloudCredential`, `-RequireApplicationLock`, `-RequireAudioInput`, or `-RequireAudioOutput` for pilot policy gates, and `-Launch` to start the app after the checks:
 
 ```powershell
 .\scripts\Setup-Memento.ps1 -RequireCloudCredential -Launch
@@ -22,7 +22,7 @@ Scripts must not read or upload personal data by default.
 .\scripts\Start-Memento.ps1
 ```
 
-`Test-MementoPreflight.ps1` performs a read-only deployment check for the bundle checksum, installed executable, shortcut, archive paths, free disk space, running-process state, and the Windows wave-in and active render devices exposed by the installed NAudio adapters. The audio probe only enumerates capabilities; it never opens the microphone, starts a recording, or plays audio. It also checks whether the `MEMENTO/OpenAI` Windows Credential Manager target exists without reading its secret. The credential is a warning by default because local-only capture does not need it; make it blocking for a cloud-enabled pilot with `-RequireCloudCredential`. Native GUI, physical microphone capture, live exchange, and participant checks remain supervised gates:
+`Test-MementoPreflight.ps1` performs a read-only deployment check for the bundle checksum, installed executable, shortcut, archive paths, free disk space, running-process state, and the Windows wave-in and active render devices exposed by the installed NAudio adapters. The audio probe only enumerates capabilities; it never opens the microphone, starts a recording, or plays audio. The credential and device checks are warnings by default; make them blocking for a pilot with `-RequireCloudCredential`, `-RequireApplicationLock`, `-RequireAudioInput`, and/or `-RequireAudioOutput`. Native GUI, physical microphone capture, live exchange, and participant checks remain supervised gates:
 
 ```powershell
 .\scripts\Test-MementoPreflight.ps1
@@ -46,6 +46,12 @@ For a family deployment that requires the optional application lock, add `-Requi
 
 ```powershell
 .\scripts\Test-MementoPreflight.ps1 -RequireCloudCredential -RequireApplicationLock
+```
+
+For a cloud voice pilot that requires both enumerated devices before launch:
+
+```powershell
+.\scripts\Setup-Memento.ps1 -RequireCloudCredential -RequireApplicationLock -RequireAudioInput -RequireAudioOutput -Launch
 ```
 
 `Uninstall-Memento.ps1` removes the shortcut and current-user Installed apps registration immediately, then schedules deletion of the app files after the script exits; it preserves the `%LOCALAPPDATA%\MEMENTO` archive by default. Pass `-RemoveData` only after making and checking a backup:

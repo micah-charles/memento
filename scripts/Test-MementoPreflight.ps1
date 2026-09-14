@@ -5,7 +5,9 @@ param(
     [string]$DataRoot = '',
     [long]$MinimumFreeBytes = 1073741824,
     [switch]$RequireCloudCredential,
-    [switch]$RequireApplicationLock
+    [switch]$RequireApplicationLock,
+    [switch]$RequireAudioInput,
+    [switch]$RequireAudioOutput
 )
 
 $ErrorActionPreference = 'Stop'
@@ -72,10 +74,12 @@ try {
     [System.Reflection.Assembly]::LoadFrom($naudioCore) | Out-Null
     [System.Reflection.Assembly]::LoadFrom($naudioWinMm) | Out-Null
     $inputDeviceCount = [NAudio.Wave.WaveInEvent]::DeviceCount
-    Write-Check 'audio input devices' ($inputDeviceCount -gt 0) ("{0} Windows wave-in device(s) detected; no microphone was opened" -f $inputDeviceCount) 'WARN'
+    $inputSeverity = if ($RequireAudioInput) { 'FAIL' } else { 'WARN' }
+    Write-Check 'audio input devices' ($inputDeviceCount -gt 0) ("{0} Windows wave-in device(s) detected; no microphone was opened" -f $inputDeviceCount) $inputSeverity
 }
 catch {
-    Write-Check 'audio input devices' $false ('unable to enumerate Windows wave-in devices: ' + $_.Exception.GetType().Name) 'WARN'
+    $inputSeverity = if ($RequireAudioInput) { 'FAIL' } else { 'WARN' }
+    Write-Check 'audio input devices' $false ('unable to enumerate Windows wave-in devices: ' + $_.Exception.GetType().Name) $inputSeverity
 }
 
 try {
@@ -96,10 +100,12 @@ try {
     finally {
         $outputEnumerator.Dispose()
     }
-    Write-Check 'audio output devices' ($outputDeviceCount -gt 0) ("{0} active Windows render device(s) detected; no audio was played" -f $outputDeviceCount) 'WARN'
+    $outputSeverity = if ($RequireAudioOutput) { 'FAIL' } else { 'WARN' }
+    Write-Check 'audio output devices' ($outputDeviceCount -gt 0) ("{0} active Windows render device(s) detected; no audio was played" -f $outputDeviceCount) $outputSeverity
 }
 catch {
-    Write-Check 'audio output devices' $false ('unable to enumerate Windows render devices: ' + $_.Exception.GetType().Name) 'WARN'
+    $outputSeverity = if ($RequireAudioOutput) { 'FAIL' } else { 'WARN' }
+    Write-Check 'audio output devices' $false ('unable to enumerate Windows render devices: ' + $_.Exception.GetType().Name) $outputSeverity
 }
 
 $shortcutPath = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs\MEMENTO\MEMENTO.lnk'
