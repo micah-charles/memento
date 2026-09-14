@@ -11,17 +11,21 @@ internal static class ArchivePathSafety
         var current = Path.GetFullPath(path);
         while (!string.IsNullOrEmpty(current))
         {
-            if (File.Exists(current) || Directory.Exists(current))
+            try
             {
-                try
-                {
-                    if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
-                        throw new IOException($"{description} cannot contain a reparse point.");
-                }
-                catch (UnauthorizedAccessException error)
-                {
-                    throw new IOException($"{description} cannot be inspected safely.", error);
-                }
+                // GetAttributes can inspect a dangling link itself, unlike
+                // File.Exists/Directory.Exists which report the target state.
+                if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                    throw new IOException($"{description} cannot contain a reparse point.");
+            }
+            catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException)
+            {
+                // A missing path is safe to skip; its existing parents are
+                // still checked on the way to the filesystem root.
+            }
+            catch (UnauthorizedAccessException error)
+            {
+                throw new IOException($"{description} cannot be inspected safely.", error);
             }
 
             var parent = Path.GetDirectoryName(current);

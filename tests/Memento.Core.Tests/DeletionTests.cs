@@ -199,6 +199,53 @@ public sealed class DeletionTests
     }
 
     [Fact]
+    public void Source_deletion_reports_dangling_reparse_media_path()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new DeletionFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var fixtureDirectory = Path.GetDirectoryName(fixture.SourcePath)!;
+        var missingTarget = Path.Combine(fixtureDirectory, "missing-target.wav");
+        var link = Path.Combine(fixtureDirectory, "dangling-link.wav");
+        try
+        {
+            File.CreateSymbolicLink(link, missingTarget);
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        var source = repository.AddSource(new SourceMetadata(
+            "source-dangling-reparse-delete",
+            "audio",
+            session.SessionId,
+            null,
+            link,
+            "PCM WAV",
+            48000,
+            1,
+            16,
+            null,
+            null,
+            null,
+            DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow,
+            "finalized",
+            DateTimeOffset.UtcNow));
+
+        var result = new ArchiveDeletionService(repository, new FixedTestAdminAuthorizer("admin-1"))
+            .DeleteSource("admin-1", source.SourceId, "remove dangling media reference");
+
+        Assert.False(result.MediaRemoved);
+        Assert.Contains(result.Findings, finding => finding.Contains("unsafe path", StringComparison.Ordinal));
+        Assert.True(File.Exists(link));
+        Assert.Null(repository.GetSource(source.SourceId));
+    }
+
+    [Fact]
     public void Sessionless_placeholder_source_can_be_deleted_without_crashing()
     {
         using var fixture = new DeletionFixture();

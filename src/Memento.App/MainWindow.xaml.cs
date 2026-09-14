@@ -1187,6 +1187,9 @@ public sealed partial class MainWindow : Window
     private async void ExportButton_Click(object sender, RoutedEventArgs e)
     {
         if (!EnsureAdminForOperation()) return;
+        if (_processing) return;
+        _processing = true;
+        UpdateRecordControl();
         StatusText.Text = "正在匯出本機資料…";
         try
         {
@@ -1202,10 +1205,16 @@ public sealed partial class MainWindow : Window
         {
             StatusText.Text = "未能匯出本機資料；原有資料仍然保留。";
         }
+        finally
+        {
+            _processing = false;
+            UpdateRecordControl();
+        }
     }
 
     private async void ScopedExportButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_processing) return;
         if (!EnsureAdminForOperation()) return;
         IReadOnlyList<MemoryClaim> claims;
         try
@@ -1257,6 +1266,9 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (_processing) return;
+        _processing = true;
+        UpdateRecordControl();
         try
         {
             StatusText.Text = "正在匯出精簡記憶…";
@@ -1273,10 +1285,16 @@ public sealed partial class MainWindow : Window
         {
             StatusText.Text = "未能匯出精簡記憶；原有資料仍然保留。";
         }
+        finally
+        {
+            _processing = false;
+            UpdateRecordControl();
+        }
     }
 
     private async void BackupButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_processing) return;
         if (!EnsureAdminForOperation()) return;
         var passwordBox = new PasswordBox { PlaceholderText = "輸入備份密碼", MinWidth = 280 };
         var dialog = new ContentDialog
@@ -1296,6 +1314,9 @@ public sealed partial class MainWindow : Window
 
         var temporaryRoot = Path.Combine(Path.GetTempPath(), "memento-backup-" + Guid.NewGuid().ToString("N"));
         var password = passwordBox.Password;
+        if (_processing) return;
+        _processing = true;
+        UpdateRecordControl();
         StatusText.Text = "正在建立加密備份…";
         try
         {
@@ -1325,11 +1346,14 @@ public sealed partial class MainWindow : Window
                 // Cleanup failure must not escape an async UI event or replace
                 // the backup result; the temporary path is outside the archive.
             }
+            _processing = false;
+            UpdateRecordControl();
         }
     }
 
     private async void RestoreButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_processing) return;
         if (!EnsureAdminForOperation()) return;
         var backupPath = new TextBox { PlaceholderText = "輸入 .memento 備份檔案路徑", MinWidth = 360 };
         var passwordBox = new PasswordBox { PlaceholderText = "輸入備份密碼", MinWidth = 360 };
@@ -1362,6 +1386,9 @@ public sealed partial class MainWindow : Window
         var restoreRoot = Path.Combine(_dataRoot, "restores", "memento-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N"));
         var sourcePath = backupPath.Text.Trim();
         var password = passwordBox.Password;
+        if (_processing) return;
+        _processing = true;
+        UpdateRecordControl();
         StatusText.Text = "正在驗證及還原加密備份…";
         try
         {
@@ -1382,11 +1409,14 @@ public sealed partial class MainWindow : Window
         finally
         {
             passwordBox.Password = string.Empty;
+            _processing = false;
+            UpdateRecordControl();
         }
     }
 
     private async void RotateBackupButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_processing) return;
         if (!EnsureAdminForOperation()) return;
 
         var backupPath = new TextBox { PlaceholderText = "輸入現有 .memento 備份檔案路徑", MinWidth = 360 };
@@ -1437,6 +1467,9 @@ public sealed partial class MainWindow : Window
         var sourcePath = backupPath.Text.Trim();
         var previousPassword = oldPassword.Password;
         var replacementPassword = newPassword.Password;
+        if (_processing) return;
+        _processing = true;
+        UpdateRecordControl();
         StatusText.Text = "正在更新備份密碼…";
         try
         {
@@ -1465,6 +1498,8 @@ public sealed partial class MainWindow : Window
             oldPassword.Password = string.Empty;
             newPassword.Password = string.Empty;
             confirmPassword.Password = string.Empty;
+            _processing = false;
+            UpdateRecordControl();
         }
     }
 

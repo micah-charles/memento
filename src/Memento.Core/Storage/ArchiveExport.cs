@@ -745,23 +745,7 @@ public static class ArchiveBackupProtector
     }
 
     private static void EnsureNoReparsePointInPath(string path, string description)
-    {
-        var current = Path.GetFullPath(path);
-        while (!string.IsNullOrEmpty(current))
-        {
-            if (Directory.Exists(current) || File.Exists(current))
-            {
-                var attributes = File.GetAttributes(current);
-                if ((attributes & FileAttributes.ReparsePoint) != 0)
-                    throw new IOException($"{description} cannot contain a reparse point.");
-            }
-
-            var parent = Path.GetDirectoryName(current);
-            if (string.IsNullOrEmpty(parent) || string.Equals(parent, current, StringComparison.OrdinalIgnoreCase))
-                break;
-            current = parent;
-        }
-    }
+        => ArchivePathSafety.EnsureNoReparsePointInPath(path, description);
 
     private static void EnsureDistinctPaths(string sourcePath, string destinationPath, string message)
     {
