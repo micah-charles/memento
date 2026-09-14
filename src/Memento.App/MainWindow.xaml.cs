@@ -1092,13 +1092,18 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void ExportButton_Click(object sender, RoutedEventArgs e)
+    private async void ExportButton_Click(object sender, RoutedEventArgs e)
     {
         if (!EnsureAdminForOperation()) return;
+        StatusText.Text = "正在匯出本機資料…";
         try
         {
-            var result = ArchiveExporter.Export(_repository.Archive, Path.Combine(_dataRoot, "exports"), includeMedia: true);
-            _adminReview!.RecordAdminOperation(_adminActorId!, "export");
+            var result = await Task.Run(() =>
+            {
+                var export = ArchiveExporter.Export(_repository.Archive, Path.Combine(_dataRoot, "exports"), includeMedia: true);
+                _adminReview!.RecordAdminOperation(_adminActorId!, "export");
+                return export;
+            });
             StatusText.Text = $"已匯出本機資料：{result.ExportDirectory}";
         }
         catch (Exception)
@@ -1162,8 +1167,14 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            var result = ArchiveExporter.ExportRedacted(_repository.Archive, Path.Combine(_dataRoot, "exports"), selectedClaims.Select(claim => claim.MemoryClaimId).ToArray());
-            _adminReview.RecordAdminOperation(_adminActorId!, "export_redacted");
+            StatusText.Text = "正在匯出精簡記憶…";
+            var selectedClaimIds = selectedClaims.Select(claim => claim.MemoryClaimId).ToArray();
+            var result = await Task.Run(() =>
+            {
+                var export = ArchiveExporter.ExportRedacted(_repository.Archive, Path.Combine(_dataRoot, "exports"), selectedClaimIds);
+                _adminReview.RecordAdminOperation(_adminActorId!, "export_redacted");
+                return export;
+            });
             StatusText.Text = $"已匯出 {result.ExportedClaimIds.Count} 項精簡記憶（錄音已遮蔽）：{result.ExportDirectory}";
         }
         catch (Exception)
@@ -1192,12 +1203,17 @@ public sealed partial class MainWindow : Window
         }
 
         var temporaryRoot = Path.Combine(Path.GetTempPath(), "memento-backup-" + Guid.NewGuid().ToString("N"));
+        var password = passwordBox.Password;
+        StatusText.Text = "正在建立加密備份…";
         try
         {
-            var export = ArchiveExporter.Export(_repository.Archive, temporaryRoot, includeMedia: true);
             var destination = Path.Combine(_dataRoot, "backups", "memento-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N") + ".memento");
-            ArchiveBackupProtector.EncryptDirectory(export.ExportDirectory, destination, passwordBox.Password);
-            _adminReview!.RecordAdminOperation(_adminActorId!, "encrypted_backup");
+            await Task.Run(() =>
+            {
+                var export = ArchiveExporter.Export(_repository.Archive, temporaryRoot, includeMedia: true);
+                ArchiveBackupProtector.EncryptDirectory(export.ExportDirectory, destination, password);
+                _adminReview!.RecordAdminOperation(_adminActorId!, "encrypted_backup");
+            });
             StatusText.Text = $"已建立加密備份：{destination}";
         }
         catch (Exception)
@@ -1252,10 +1268,17 @@ public sealed partial class MainWindow : Window
         }
 
         var restoreRoot = Path.Combine(_dataRoot, "restores", "memento-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N"));
+        var sourcePath = backupPath.Text.Trim();
+        var password = passwordBox.Password;
+        StatusText.Text = "正在驗證及還原加密備份…";
         try
         {
-            var result = ArchiveBackupProtector.DecryptDirectory(backupPath.Text.Trim(), restoreRoot, passwordBox.Password);
-            _adminReview!.RecordAdminOperation(_adminActorId!, "restore_verification");
+            var result = await Task.Run(() =>
+            {
+                var report = ArchiveBackupProtector.DecryptDirectory(sourcePath, restoreRoot, password);
+                _adminReview!.RecordAdminOperation(_adminActorId!, "restore_verification");
+                return report;
+            });
             StatusText.Text = result.IntegrityOk
                 ? $"備份已還原並通過完整性驗證：{restoreRoot}"
                 : $"備份已還原，但完整性驗證發現問題：{string.Join("；", result.Findings)}";
@@ -1319,10 +1342,14 @@ public sealed partial class MainWindow : Window
             _dataRoot,
             "backups",
             "memento-rekey-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N") + ".memento");
+        var sourcePath = backupPath.Text.Trim();
+        var previousPassword = oldPassword.Password;
+        var replacementPassword = newPassword.Password;
+        StatusText.Text = "正在更新備份密碼…";
         try
         {
-            var report = ArchiveBackupProtector.ReencryptDirectory(
-                backupPath.Text.Trim(), destination, oldPassword.Password, newPassword.Password);
+            var report = await Task.Run(() => ArchiveBackupProtector.ReencryptDirectory(
+                sourcePath, destination, previousPassword, replacementPassword));
             if (!report.IntegrityOk)
             {
                 if (File.Exists(destination)) File.Delete(destination);
