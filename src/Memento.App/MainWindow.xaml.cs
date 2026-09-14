@@ -33,6 +33,7 @@ public sealed partial class MainWindow : Window
     private readonly ConversationJobWorker? _retryWorker;
     private readonly Func<bool>? _credentialAvailable;
     private readonly IApplicationLock? _applicationLock;
+    private readonly ParticipantConversationStateMachine _conversationState = new();
     private AudioCaptureController? _capture;
     private Session? _session;
     private Turn? _turn;
@@ -101,6 +102,9 @@ public sealed partial class MainWindow : Window
             _latestSpeechAsset = _repository.GetLatestDerivedSpeechAsset();
             RefreshClarificationRevision();
             _locked = IsApplicationLockConfigured();
+            ParticipantSettingsPanel.Visibility = _lastSource is null ? Visibility.Visible : Visibility.Collapsed;
+            SetConversationState(ParticipantConversationState.Idle, _lastSource is null ? "完成首次設定後，就可以開始對話。" : "撳一下開始對話。", allowReset: true);
+            UpdatePrivacyIndicator(_lastSource?.SessionId is null ? GetSelectedPrivacyMode() : _session?.PrivacyMode ?? GetSelectedPrivacyMode());
             ApplyLockState();
             PlaySpeechButton.IsEnabled = _latestSpeechAsset is not null && _speechPlayback is not null;
             UpdateRecordControl();
@@ -113,6 +117,24 @@ public sealed partial class MainWindow : Window
         }
         StartRetryWorkerIfAvailable();
     }
+
+    private void ParticipantSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        ParticipantSettingsPanel.Visibility = ParticipantSettingsPanel.Visibility == Visibility.Visible
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+    }
+
+    private void FamilyAdminButton_Click(object sender, RoutedEventArgs e)
+    {
+        FamilyAdminPanel.Visibility = FamilyAdminPanel.Visibility == Visibility.Visible
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        UpdateRecordControl();
+    }
+
+    private void EndConversationButton_Click(object sender, RoutedEventArgs e)
+        => RecordButton_Click(sender, e);
 
     private void ConsentChanged(object sender, RoutedEventArgs e)
     {
@@ -305,6 +327,7 @@ public sealed partial class MainWindow : Window
             RealtimeConsentCheckBox.IsEnabled = true;
             StatusText.Text = "已選擇一般模式：完成錄音後可使用雲端功能。";
         }
+        UpdatePrivacyIndicator(privacyMode);
         UpdateRecordControl();
     }
 
@@ -319,6 +342,8 @@ public sealed partial class MainWindow : Window
 
         if (_capture?.State != AudioCaptureState.Capturing && ConsentCheckBox.IsChecked != true)
         {
+            ParticipantSettingsPanel.Visibility = Visibility.Visible;
+            SetConversationState(ParticipantConversationState.Idle, "請先完成首次設定，同意本機錄音。", allowReset: true);
             StatusText.Text = "請先同意本機錄音。";
             UpdateRecordControl();
             return;
@@ -335,6 +360,7 @@ public sealed partial class MainWindow : Window
                     _turn = _repository.EndTurn(_turn, _lastSource.FinalizedAt ?? DateTimeOffset.UtcNow);
                 if (_session is not null)
                     _session = _repository.EndSession(_session);
+                SetConversationState(ParticipantConversationState.Thinking, "我整理緊頭先嘅內容…");
                 StatusText.Text = "已儲存本機錄音 · Local archive";
                 if (streaming is not null)
                 {
@@ -347,6 +373,22 @@ public sealed partial class MainWindow : Window
                         StatusText.Text = result.OutputSpeechAsset is null
                             ? "已儲存本機錄音；Realtime 已完成文字回覆。"
                             : "已儲存本機錄音及 Realtime 語音回覆。";
+                        if (_latestSpeechAsset is not null && _speechPlayback is not null)
+                        {
+                            SetConversationState(ParticipantConversationState.Speaking, result.Response.Text ?? "我有回覆你。 ");
+                            try
+                            {
+                                await _speechPlayback.PlayAsync(_latestSpeechAsset);
+                            }
+                            catch (Exception)
+                            {
+                                SetConversationState(ParticipantConversationState.ErrorRecoverable, "我已經準備好文字回覆，但喇叭未能播放。你可以喺家庭管理／診斷重播。", allowReset: true);
+                            }
+                        }
+                        if (_conversationState.Current == ParticipantConversationState.Speaking)
+                            SetConversationState(ParticipantConversationState.ConversationEnded, "今次對話已保存。你想再傾時可以再次按開始對話。", allowReset: true);
+                        else if (_conversationState.Current == ParticipantConversationState.Thinking)
+                            SetConversationState(ParticipantConversationState.ConversationEnded, "今次對話已保存。你想再傾時可以再次按開始對話。", allowReset: true);
                     }
                     catch (Exception)
                     {
@@ -354,11 +396,16 @@ public sealed partial class MainWindow : Window
                         StatusText.Text = queuedFallback
                             ? "已儲存本機錄音；Realtime 未能完成，已安排稍後轉錄重試。"
                             : "已儲存本機錄音；Realtime 未能完成，錄音仍然保留。";
+                        SetConversationState(ParticipantConversationState.ErrorRecoverable, "我已經保留頭先嘅錄音，但暫時未能回覆。之後可以再試。", allowReset: true);
                     }
                     finally
                     {
                         _processing = false;
                     }
+                }
+                else
+                {
+                    SetConversationState(ParticipantConversationState.ConversationEnded, "今次對話已保存。你想再傾時可以再次按開始對話。", allowReset: true);
                 }
             }
             catch (Exception)
@@ -383,6 +430,7 @@ public sealed partial class MainWindow : Window
                     try { await streaming.DisposeAsync(); } catch { }
                 }
                 RecordButton.Content = "開始錄音";
+                EndConversationButton.Visibility = Visibility.Collapsed;
                 ConsentCheckBox.IsEnabled = true;
                 CloudConsentCheckBox.IsEnabled = true;
                 RealtimeConsentCheckBox.IsEnabled = true;
@@ -428,6 +476,8 @@ public sealed partial class MainWindow : Window
                 }
             }
             _capture.Start(_session.SessionId, _turn.TurnId, ConsentCheckBox.IsChecked == true, format => new WaveInAudioInput(format), startedAt);
+            SetConversationState(ParticipantConversationState.Listening, "我聽緊，你可以開始講。", allowReset: true);
+            UpdatePrivacyIndicator(privacyMode);
             StatusText.Text = CloudNotPermittedException.IsBlocked(privacyMode)
                 ? $"Listening… 本機錄音中（{PrivacyModeLabel(privacyMode)}）"
                 : realtimeStreamingReady
@@ -437,7 +487,8 @@ public sealed partial class MainWindow : Window
                 : cloudConsentGranted
                     ? "Listening… 本機錄音中（已同意完成後雲端處理）"
                     : "Listening… 本機錄音中（未同意雲端處理）";
-            RecordButton.Content = "停止錄音";
+            RecordButton.Content = "停止對話";
+            EndConversationButton.Visibility = Visibility.Visible;
             ConsentCheckBox.IsEnabled = false;
             CloudConsentCheckBox.IsEnabled = false;
             RealtimeConsentCheckBox.IsEnabled = false;
@@ -466,6 +517,7 @@ public sealed partial class MainWindow : Window
             _pendingClarificationRevision = null;
             ClarificationPanel.Visibility = Visibility.Collapsed;
             RecordButton.Content = "開始錄音";
+            EndConversationButton.Visibility = Visibility.Collapsed;
             ConsentCheckBox.IsEnabled = true;
             CloudConsentCheckBox.IsEnabled = true;
             RealtimeConsentCheckBox.IsEnabled = true;
@@ -493,10 +545,25 @@ public sealed partial class MainWindow : Window
             {
                 StartRetryWorkerIfAvailable();
                 StatusText.Text = "錄音已保留；雲端暫時未能回覆，已安排稍後重試。";
+                SetConversationState(ParticipantConversationState.ErrorRecoverable, "錄音已保留，但暫時未能回覆。之後可以再試。", allowReset: true);
             }
             else
             {
                 StatusText.Text = "已完成轉錄及回覆。";
+                if (_latestSpeechAsset is not null && _speechPlayback is not null)
+                {
+                    SetConversationState(ParticipantConversationState.Speaking, result.Conversation.Response.Text ?? "我有回覆你。 ");
+                    try
+                    {
+                        await _speechPlayback.PlayAsync(_latestSpeechAsset);
+                    }
+                    catch (Exception)
+                    {
+                        SetConversationState(ParticipantConversationState.ErrorRecoverable, "文字回覆已準備好，但喇叭未能播放。你可以喺家庭管理／診斷重播。", allowReset: true);
+                    }
+                    if (_conversationState.Current == ParticipantConversationState.Speaking)
+                        SetConversationState(ParticipantConversationState.ConversationEnded, "今次對話已保存。你想再傾時可以再次按開始對話。", allowReset: true);
+                }
             }
         }
         catch (OperationCanceledException)
@@ -507,6 +574,7 @@ public sealed partial class MainWindow : Window
         {
             StartRetryWorkerIfAvailable();
             StatusText.Text = "雲端處理未能完成；本機錄音仍然保留。";
+            SetConversationState(ParticipantConversationState.ErrorRecoverable, "我已經保留頭先嘅錄音，但暫時未能回覆。", allowReset: true);
         }
         finally
         {
@@ -532,6 +600,20 @@ public sealed partial class MainWindow : Window
             StatusText.Text = result.OutputSpeechAsset is null
                 ? "Realtime 已完成文字回覆；沒有可播放嘅語音輸出。"
                 : "Realtime 已完成語音回覆，可以播放最近回覆。";
+            if (_latestSpeechAsset is not null && _speechPlayback is not null)
+            {
+                SetConversationState(ParticipantConversationState.Speaking, result.Response.Text ?? "我有回覆你。 ");
+                try
+                {
+                    await _speechPlayback.PlayAsync(_latestSpeechAsset);
+                }
+                catch (Exception)
+                {
+                    SetConversationState(ParticipantConversationState.ErrorRecoverable, "文字回覆已準備好，但喇叭未能播放。你可以喺家庭管理／診斷重播。", allowReset: true);
+                }
+                if (_conversationState.Current == ParticipantConversationState.Speaking)
+                    SetConversationState(ParticipantConversationState.ConversationEnded, "今次對話已保存。你想再傾時可以再次按開始對話。", allowReset: true);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -540,6 +622,7 @@ public sealed partial class MainWindow : Window
         catch (Exception)
         {
             StatusText.Text = "Realtime 處理未能完成；本機錄音仍然保留。請檢查 credential 或網絡。";
+            SetConversationState(ParticipantConversationState.ErrorRecoverable, "我已經保留頭先嘅錄音，但 Realtime 暫時未能回覆。", allowReset: true);
         }
         finally
         {
@@ -571,14 +654,17 @@ public sealed partial class MainWindow : Window
         if (_speechPlayback is null || _latestSpeechAsset is null) return;
         PlaySpeechButton.IsEnabled = false;
         StatusText.Text = "播放中…";
+        SetConversationState(ParticipantConversationState.Speaking, "播放最近一段 AI 回覆…");
         try
         {
             await _speechPlayback.PlayAsync(_latestSpeechAsset);
             StatusText.Text = "已播放最近回覆。";
+            SetConversationState(ParticipantConversationState.ConversationEnded, "回覆已播放。你可以再次開始對話。", allowReset: true);
         }
         catch (Exception)
         {
             StatusText.Text = "未能播放回覆，請檢查喇叭或輸出裝置。";
+            SetConversationState(ParticipantConversationState.ErrorRecoverable, "回覆文字仍然保留，但喇叭未能播放。", allowReset: true);
         }
         finally
         {
@@ -1707,7 +1793,9 @@ public sealed partial class MainWindow : Window
         PrivacyModeBox.IsEnabled = !capturing && !_processing && _sourcePlaybackCancellation is null;
         RecordButton.IsEnabled = capturing
             ? !_processing && _sourcePlaybackCancellation is null
-            : _recordingEnabled && ConsentCheckBox.IsChecked == true && ConsentCheckBox.IsEnabled && _sourcePlaybackCancellation is null;
+            : _recordingEnabled && !_processing && _sourcePlaybackCancellation is null;
+        RecordButton.Content = capturing ? "停止對話" : "開始對話";
+        EndConversationButton.Visibility = capturing ? Visibility.Visible : Visibility.Collapsed;
         ProcessButton.IsEnabled = !_processing && _sourcePlaybackCancellation is null && _voiceConversation is not null && _capture?.State != AudioCaptureState.Capturing && _lastSource?.FilePath is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) && _session?.EndedAt is not null && _session is not null && !CloudNotPermittedException.IsBlocked(_session.PrivacyMode) && CloudConsentCheckBox.IsChecked == true;
         RealtimeProcessButton.IsEnabled = !_processing && _sourcePlaybackCancellation is null && _realtimeConversation is not null && _capture?.State != AudioCaptureState.Capturing && _lastSource?.FilePath is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase) && _session?.EndedAt is not null && _session is not null && !CloudNotPermittedException.IsBlocked(_session.PrivacyMode) && HasGrantedRealtimeConsent();
         PlaySpeechButton.IsEnabled = !_processing && _sourcePlaybackCancellation is null && _latestSpeechAsset is not null && _speechPlayback is not null;
@@ -1725,6 +1813,41 @@ public sealed partial class MainWindow : Window
         RestoreButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
         RecoverAudioButton.IsEnabled = adminIdle && _adminReview is not null && _adminActorId is not null;
         LockNowButton.IsEnabled = _applicationLock?.IsConfigured == true && adminIdle;
+    }
+
+    private void SetConversationState(ParticipantConversationState next, string message, bool allowReset = false)
+    {
+        if (!_conversationState.TryTransition(next))
+        {
+            if (!allowReset) return;
+            _conversationState.Reset();
+            if (!_conversationState.TryTransition(next)) return;
+        }
+
+        ConversationStateText.Text = next switch
+        {
+            ParticipantConversationState.Idle => "準備好開始傾偈",
+            ParticipantConversationState.Greeting => "早晨 👋",
+            ParticipantConversationState.Listening => "正在聆聽…",
+            ParticipantConversationState.Thinking => "諗緊點樣回覆…",
+            ParticipantConversationState.Speaking => "MEMENTO 正在講嘢…",
+            ParticipantConversationState.Clarifying => "想再確認一點…",
+            ParticipantConversationState.Offline => "目前離線",
+            ParticipantConversationState.ErrorRecoverable => "頭先未完成，但內容已保留",
+            ParticipantConversationState.ConversationEnded => "對話已完成",
+            _ => "準備好開始傾偈"
+        };
+        ConversationResponseText.Text = message;
+    }
+
+    private void UpdatePrivacyIndicator(PrivacyMode mode)
+    {
+        PrivacyIndicatorText.Text = mode switch
+        {
+            PrivacyMode.PrivateConversation => "🔒 私密對話 · 只保留本機",
+            PrivacyMode.LocalCaptureOnly => "🔒 只本機保存",
+            _ => "🔒 一般模式"
+        };
     }
 
     private bool HasGrantedCloudConsent()

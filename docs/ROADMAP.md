@@ -1,6 +1,6 @@
 # MEMENTO roadmap
 
-**Status:** M00–M13 implementation is present; live and target-machine evidence gates remain explicit; M14 pilot preparation only
+**Status:** M00–M13 implementation is present; M14 pilot preparation and the CX conversation-experience reset are in progress; live and target-machine evidence gates remain explicit
 **Last reviewed:** 2026-09-14
 
 Every milestone requires implementation, automated tests, manual verification, evidence, documentation, and a Git checkpoint. Passing compilation is not a gate. No milestone may weaken the evidence rules or privacy modes.
@@ -24,6 +24,23 @@ Every milestone requires implementation, automated tests, manual verification, e
 | M12 | Export and backup | Self-contained JSONL/media export and encrypted, integrity-checked backup/restore work without proprietary software. |
 | M13 | Reliability and security testing | Threat model, crash recovery, secret handling, prompt-injection, backup, update, and privacy tests pass. |
 | M14 | Real-user pilot | One real participant uses the system safely with a documented support, consent, incident, and rollback plan. |
+
+## Conversation Experience Reset (CX)
+
+This is a product-facing track layered over the existing M01–M14 archive and security work. It must not weaken local-first Source finalization, consent, privacy modes, provenance, or Family Admin authorization.
+
+| Checkpoint | Outcome | Current status |
+|---|---|---|
+| CX00 | Current-state audit of capture, Realtime, playback, persistence, and UI/admin coupling | PASS — see [CX00–CX02 evidence](evidence/CX00-CX02.md) |
+| CX01 | Participant shell separated from Family Admin / diagnostics | PASS (automated) |
+| CX02 | WinUI-independent participant conversation state machine | PASS — 5 deterministic tests |
+| CX03 | Live voice loop with automatic derived-speech playback and safe return state | PARTIAL — auto-play wired; continuous microphone loop pending |
+| CX04 | Verified turn detection / conservative VAD and interruption handling | BLOCKED pending official provider/device validation |
+| CX05 | Conversational clarification | PARTIAL — durable protocol exists; spoken UX pending |
+| CX06 | Bounded conversational memory continuity | PARTIAL — archive extraction exists; context layer pending |
+| CX07 | Spoken current-information routing | PARTIAL — service exists; voice intent routing pending |
+| CX08 | Offline and provider-failure participant recovery | PARTIAL — local preservation and retry exist; visual supervised gate pending |
+| CX09 | Windows UX validation | PENDING — native visual observation and physical I/O remain supervised gates |
 
 Response Episode support is introduced incrementally: M07 may emit candidate episode links, M08 verifies stimulus/response provenance, M11 reviews episode labels and authority, and M12 exports episodes and supporting records. Derived behavioural patterns remain a later, rebuildable feature and must never be confused with observed episodes.
 

@@ -1,8 +1,16 @@
 # MEMENTO progress
 
-**Current milestone:** M14 — Portable deployment and supervised pilot readiness
-**Status:** PARTIAL / AUTOMATED TESTED; live provider, hardware, authenticated admin UX, target restore, and pilot gates remain pending
+**Current milestone:** M14 / CX — Portable deployment and Conversation Experience Reset
+**Status:** CX00–CX02 implemented and automated-tested; live provider, automatic turn detection, hardware, authenticated admin UX, target restore, and pilot gates remain pending
 **Last updated:** 2026-09-14
+
+## Conversation Experience Reset — 2026-09-14
+
+- CX00 audited the existing flow: local capture is authoritative, Realtime starts before capture when separately consented, manual stop closes the session/turn, and `turn_detection = null` means automatic turn-taking is not yet implemented.
+- CX01 simplified the default participant shell. The landing surface now shows a greeting, one obvious `開始對話` control, conversational state/response text, a privacy indicator, a separate stop action, and collapsed setup/admin surfaces. Existing diagnostic and Family Admin operations remain available without being part of the normal conversation flow.
+- CX02 added the WinUI-independent `ParticipantConversationStateMachine` with deterministic tests for normal listening → thinking → speaking → listening flow, clarification, recoverable failure, conversation end, and invalid transitions.
+- CX03 initial slice automatically plays a verified derived speech asset after a successful bounded or Realtime response. If playback fails, the response remains available as text and the state is marked recoverable; local Source and provenance rules are unchanged. A continuous next-turn microphone loop is still pending.
+- Automated validation after these changes: `dotnet test Memento.slnx --configuration Release --no-restore` passed **199/199**; `dotnet build Memento.slnx --configuration Release --no-restore` passed with **0 warnings, 0 errors**.
 
 ## Completed in M00
 
