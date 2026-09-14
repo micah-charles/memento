@@ -36,16 +36,19 @@ public sealed class OpenAiRealtimeStreamingProvider : IRealtimeStreamingProvider
     private readonly Func<IRealtimeMessageTransport> _transportFactory;
     private readonly Uri _endpoint;
     private readonly TimeSpan _completionTimeout;
+    private readonly string _transcriptionModel;
 
     public OpenAiRealtimeStreamingProvider(
         IApiCredentialProvider credentials,
         string model = "gpt-realtime-2.1-mini",
         Func<IRealtimeMessageTransport>? transportFactory = null,
         Uri? endpoint = null,
-        TimeSpan? completionTimeout = null)
+        TimeSpan? completionTimeout = null,
+        string transcriptionModel = "gpt-transcribe")
     {
         _credentials = credentials ?? throw new ArgumentNullException(nameof(credentials));
         Model = string.IsNullOrWhiteSpace(model) ? throw new ArgumentException("A model is required.", nameof(model)) : model;
+        _transcriptionModel = string.IsNullOrWhiteSpace(transcriptionModel) ? throw new ArgumentException("A realtime transcription model is required.", nameof(transcriptionModel)) : transcriptionModel;
         _transportFactory = transportFactory ?? (() => new ClientWebSocketRealtimeTransport());
         _endpoint = endpoint ?? new Uri("wss://api.openai.com/v1/realtime?model=" + Uri.EscapeDataString(Model), UriKind.Absolute);
         if (_endpoint.Scheme is not ("wss" or "ws")) throw new ArgumentException("The realtime endpoint must use ws or wss.", nameof(endpoint));
@@ -55,6 +58,7 @@ public sealed class OpenAiRealtimeStreamingProvider : IRealtimeStreamingProvider
 
     public string Provider => "openai";
     public string Model { get; }
+    public string TranscriptionModel => _transcriptionModel;
 
     public async Task<RealtimeStreamingSession> StartAsync(
         RealtimeStreamingRequest request,
@@ -83,7 +87,7 @@ public sealed class OpenAiRealtimeStreamingProvider : IRealtimeStreamingProvider
                         {
                             format = new { type = "audio/pcm", rate = 24000 },
                             turn_detection = (object?)null,
-                            transcription = new { model = "gpt-transcribe" }
+                            transcription = new { model = _transcriptionModel }
                         },
                         output = new { format = new { type = "audio/pcm", rate = 24000 } }
                     }

@@ -56,6 +56,31 @@ public sealed class RealtimeConversationTests
     }
 
     [Fact]
+    public async Task Realtime_transcription_model_can_be_configured_without_changing_voice_model()
+    {
+        using var fixture = new RealtimeFixture();
+        var transport = new FakeRealtimeTransport(
+            "{\"type\":\"response.output_text.delta\",\"delta\":\"ok\"}",
+            "{\"type\":\"response.done\",\"response\":{\"id\":\"resp-configured\",\"status\":\"completed\"}}");
+        var provider = new OpenAiRealtimeWebSocketProvider(
+            new DelegateApiCredentialProvider(() => "test-key"),
+            model: "gpt-realtime-2.1-mini",
+            transportFactory: () => transport,
+            endpoint: new Uri("wss://example.test/v1/realtime"),
+            transcriptionModel: "gpt-4o-transcribe");
+
+        await provider.SendAsync(new RealtimeConversationRequest(
+            "session-configured", null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow));
+
+        var sessionUpdate = transport.Messages.Single(message => message.Contains("session.update", StringComparison.Ordinal));
+        using var sessionDocument = JsonDocument.Parse(sessionUpdate);
+        var session = sessionDocument.RootElement.GetProperty("session");
+        Assert.Equal("gpt-realtime-2.1-mini", session.GetProperty("model").GetString());
+        Assert.Equal("gpt-4o-transcribe", session.GetProperty("audio").GetProperty("input").GetProperty("transcription").GetProperty("model").GetString());
+        Assert.Equal("gpt-4o-transcribe", provider.TranscriptionModel);
+    }
+
+    [Fact]
     public async Task Websocket_provider_requires_live_consent_before_connecting()
     {
         using var fixture = new RealtimeFixture();
@@ -108,7 +133,8 @@ public sealed class RealtimeConversationTests
             new DelegateApiCredentialProvider(() => "test-key"),
             "gpt-test",
             () => transport,
-            new Uri("wss://example.test/v1/realtime?model=gpt-test"));
+            new Uri("wss://example.test/v1/realtime?model=gpt-test"),
+            transcriptionModel: "gpt-4o-transcribe");
 
         await using var session = await provider.StartAsync(new RealtimeStreamingRequest(
             "session", "turn", PrivacyMode.Normal, true, DateTimeOffset.UtcNow), source);
@@ -126,6 +152,9 @@ public sealed class RealtimeConversationTests
         Assert.Contains(transport.Messages, message => message.Contains("session.update", StringComparison.Ordinal));
         Assert.Contains("{\"type\":\"input_audio_buffer.commit\"}", transport.Messages);
         Assert.Contains("{\"type\":\"response.create\"}", transport.Messages);
+        var sessionUpdate = transport.Messages.Single(message => message.Contains("session.update", StringComparison.Ordinal));
+        using var sessionDocument = JsonDocument.Parse(sessionUpdate);
+        Assert.Equal("gpt-4o-transcribe", sessionDocument.RootElement.GetProperty("session").GetProperty("audio").GetProperty("input").GetProperty("transcription").GetProperty("model").GetString());
         var append = transport.Messages.Single(message => message.Contains("input_audio_buffer.append", StringComparison.Ordinal));
         using var appendDocument = JsonDocument.Parse(append);
         Assert.Equal(Convert.ToBase64String([1, 0, 3, 0]), appendDocument.RootElement.GetProperty("audio").GetString());
