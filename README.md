@@ -124,6 +124,21 @@ To generate the reproducible non-sensitive M04 synthetic validation report:
 dotnet run --project .\tools\Memento.LanguageValidation\Memento.LanguageValidation.csproj --configuration Release -- --output .\artifacts\language-validation\synthetic-report.json
 ```
 
+To evaluate a consented and redacted provider result set, keep the JSON outside
+the repository and pass it as an input dataset. Each case contains `caseId`,
+`category`, `expectedTranscript`, optional expected entities and code-switch
+requirements, plus an `observation` with `observedTranscript`, observed
+entities, `latencyMs`, and an optional `uncertaintyPreserved` flag:
+
+```powershell
+dotnet run --project .\tools\Memento.LanguageValidation\Memento.LanguageValidation.csproj --configuration Release -- --input C:\path\to\redacted-m04.json --output .\artifacts\language-validation\provider-report.json
+```
+
+The input reader rejects empty datasets, missing observations, duplicate case
+IDs, and negative latency. Synthetic output remains clearly labelled as
+`m04-synthetic-v1`; an external report uses the input filename as its corpus
+label and does not copy audio or credentials into the report.
+
 ## Non-goals for M00/M00.1
 
 M00/M00.1 did not build a production application, start WinUI or SQLite runtime code, call an AI API, capture real audio, fine-tune a model, create a voice clone or avatar, require a local LLM/GPU, or create a cloud-hosted permanent family-memory database. Later milestones now implement local capture and archive foundations while live integrations remain gated.

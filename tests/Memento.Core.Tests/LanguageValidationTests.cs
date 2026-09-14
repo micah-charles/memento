@@ -90,4 +90,66 @@ public sealed class LanguageValidationTests
         Assert.Equal(ValidationDisposition.AcceptableWithClarification, result.Disposition);
         Assert.True(result.CorrectionRequired);
     }
+
+    [Fact]
+    public void External_dataset_reader_loads_redacted_provider_observations()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "memento-language-dataset-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            File.WriteAllText(path, """
+            {
+              "cases": [
+                {
+                  "caseId": "name-live-001",
+                  "category": "name",
+                  "expectedTranscript": "我朋友叫阿貞",
+                  "expectedEntities": ["阿貞"],
+                  "observation": {
+                    "observedTranscript": "我朋友叫阿珍",
+                    "observedEntities": ["阿珍"],
+                    "latencyMs": 812
+                  }
+                }
+              ]
+            }
+            """);
+
+            var samples = LanguageValidationDataset.Read(path);
+
+            var sample = Assert.Single(samples);
+            Assert.Equal("name-live-001", sample.Case.CaseId);
+            Assert.Equal(LanguageValidationCategory.Name, sample.Case.Category);
+            Assert.Equal(812, sample.Observation.LatencyMs);
+            Assert.Equal(ValidationDisposition.Weak, LanguageValidationHarness.Evaluate(sample.Case, sample.Observation).Disposition);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void External_dataset_reader_rejects_duplicate_case_ids()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "memento-language-dataset-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            File.WriteAllText(path, """
+            {
+              "cases": [
+                { "caseId": "duplicate", "category": "name", "expectedTranscript": "甲", "observation": { "observedTranscript": "甲", "latencyMs": 1 } },
+                { "caseId": "duplicate", "category": "name", "expectedTranscript": "乙", "observation": { "observedTranscript": "乙", "latencyMs": 1 } }
+              ]
+            }
+            """);
+
+            var error = Assert.Throws<InvalidDataException>(() => LanguageValidationDataset.Read(path));
+            Assert.Contains("Duplicate", error.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
 }
