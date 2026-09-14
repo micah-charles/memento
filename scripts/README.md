@@ -28,6 +28,12 @@ For a cloud-enabled pilot, require the credential target explicitly:
 .\scripts\Test-MementoPreflight.ps1 -RequireCloudCredential
 ```
 
+For a family deployment that requires the optional application lock, add `-RequireApplicationLock`; otherwise its Credential Manager target is reported as an optional warning:
+
+```powershell
+.\scripts\Test-MementoPreflight.ps1 -RequireCloudCredential -RequireApplicationLock
+```
+
 `Uninstall-Memento.ps1` removes the shortcut and current-user Installed apps registration immediately, then schedules deletion of the app files after the script exits; it preserves the `%LOCALAPPDATA%\MEMENTO` archive by default. Pass `-RemoveData` only after making and checking a backup:
 
 ```powershell

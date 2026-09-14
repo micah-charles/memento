@@ -64,6 +64,8 @@ Before a cloud-enabled pilot, verify the credential target without exposing its 
 .\scripts\Test-MementoPreflight.ps1 -RequireCloudCredential
 ```
 
+If a family deployment requires the optional application lock, add `-RequireApplicationLock` to make its Credential Manager verifier a blocking preflight check.
+
 To remove the installed app, shortcut, and per-user Installed apps entry while preserving the local archive by default:
 
 ```powershell

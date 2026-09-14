@@ -4,7 +4,8 @@ param(
     [string]$InstallRoot = '',
     [string]$DataRoot = '',
     [long]$MinimumFreeBytes = 1073741824,
-    [switch]$RequireCloudCredential
+    [switch]$RequireCloudCredential,
+    [switch]$RequireApplicationLock
 )
 
 $ErrorActionPreference = 'Stop'
@@ -78,6 +79,20 @@ try {
 catch {
     $credentialSeverity = if ($RequireCloudCredential) { 'FAIL' } else { 'WARN' }
     Write-Check 'OpenAI credential target' $false ('unable to inspect Windows Credential Manager: ' + $_.Exception.GetType().Name) $credentialSeverity
+}
+
+try {
+    # The application-lock verifier is stored as a generic credential, but its
+    # secret is never read or printed by this deployment check.
+    $lockListing = (& cmdkey.exe /list:MEMENTO/AppLock 2>$null | Out-String)
+    $lockConfigured = -not [string]::IsNullOrWhiteSpace($lockListing) -and $lockListing -notmatch '\*\s*NONE\s*\*'
+    $lockDetail = if ($lockConfigured) { 'MEMENTO/AppLock target is present' } else { 'MEMENTO/AppLock target is absent; application lock remains optional' }
+    $lockSeverity = if ($RequireApplicationLock) { 'FAIL' } else { 'WARN' }
+    Write-Check 'Application lock credential' $lockConfigured $lockDetail $lockSeverity
+}
+catch {
+    $lockSeverity = if ($RequireApplicationLock) { 'FAIL' } else { 'WARN' }
+    Write-Check 'Application lock credential' $false ('unable to inspect Windows Credential Manager: ' + $_.Exception.GetType().Name) $lockSeverity
 }
 
 try {
