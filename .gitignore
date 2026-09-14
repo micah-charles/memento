@@ -23,6 +23,7 @@
 *.jpg
 *.jpeg
 *.png
+!packaging/assets/*.png
 
 # Credentials, local settings, and generated build output.
 .env

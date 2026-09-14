@@ -38,6 +38,23 @@ function Resolve-SdkTool {
     return $candidate.FullName
 }
 
+function Read-PngDimensions {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $signature = [byte[]](137, 80, 78, 71, 13, 10, 26, 10)
+    $validSignature = $bytes.Length -ge 24
+    for ($index = 0; $validSignature -and $index -lt $signature.Length; $index++) {
+        if ($bytes[$index] -ne $signature[$index]) { $validSignature = $false }
+    }
+    if (-not $validSignature) {
+        throw "PNG asset is invalid or truncated: $Path"
+    }
+    $width = ([uint32]$bytes[16] -shl 24) -bor ([uint32]$bytes[17] -shl 16) -bor ([uint32]$bytes[18] -shl 8) -bor [uint32]$bytes[19]
+    $height = ([uint32]$bytes[20] -shl 24) -bor ([uint32]$bytes[21] -shl 16) -bor ([uint32]$bytes[22] -shl 8) -bor [uint32]$bytes[23]
+    if ($width -eq 0 -or $height -eq 0) { throw "PNG asset has an empty dimension: $Path" }
+    return [pscustomobject]@{ Width = $width; Height = $height }
+}
+
 if (-not (Test-Path -LiteralPath $PackagePath -PathType Leaf)) {
     throw "MSIX package not found: $PackagePath"
 }
@@ -96,11 +113,25 @@ try {
     $assetsDirectory = Join-Path $staging 'Assets'
     $assets = @(Get-ChildItem -LiteralPath $assetsDirectory -File -ErrorAction SilentlyContinue)
     $expectedAssetNames = @('StoreLogo.png', 'Square150x150Logo.png', 'Square44x44Logo.png', 'SplashScreen.png')
+    $expectedAssetDimensions = @{
+        'StoreLogo.png' = '256x256'
+        'Square150x150Logo.png' = '150x150'
+        'Square44x44Logo.png' = '44x44'
+        'SplashScreen.png' = '620x300'
+    }
     $actualAssetNames = @($assets | ForEach-Object { $_.Name })
     $missingAssets = @($expectedAssetNames | Where-Object { $_ -notin $actualAssetNames })
     $unexpectedAssets = @($actualAssetNames | Where-Object { $_ -notin $expectedAssetNames })
     if ($missingAssets.Count -gt 0 -or $unexpectedAssets.Count -gt 0) {
         throw "MSIX package assets do not match the expected set. Missing: $($missingAssets -join ', '); unexpected: $($unexpectedAssets -join ', ')"
+    }
+    foreach ($assetName in $expectedAssetNames) {
+        $assetPath = Join-Path $assetsDirectory $assetName
+        $dimensions = Read-PngDimensions -Path $assetPath
+        $actualDimensions = "{0}x{1}" -f $dimensions.Width, $dimensions.Height
+        if ($actualDimensions -ne $expectedAssetDimensions[$assetName]) {
+            throw "MSIX asset $assetName has dimensions $actualDimensions; expected $($expectedAssetDimensions[$assetName])."
+        }
     }
 
     if ($null -ne $signtool) {
@@ -111,7 +142,7 @@ try {
     Write-Output "PASS  package: $PackagePath"
     Write-Output "PASS  manifest: identity $($identity.Name), version $($identity.Version), expected MEMENTO application entry"
     Write-Output 'PASS  payload: one root Memento.App.exe; no nested publish directory'
-    Write-Output 'PASS  assets: expected StoreLogo, Square150x150Logo, Square44x44Logo, and SplashScreen files'
+    Write-Output 'PASS  assets: expected files present with approved PNG dimensions'
     if ($null -ne $signtool) { Write-Output 'PASS  signature: signtool /pa verification' }
     else { Write-Output 'WARN  signature: package was not signature-verified' }
     Write-Output "MSIX verification passed: $PackagePath"
