@@ -9,10 +9,10 @@ This report records what is implemented and verified in the local worktree. It d
 
 ## Verification run
 
-- `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **121 passed, 0 failed**.
+- `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **125 passed, 0 failed**.
 - `dotnet build Memento.slnx --configuration Release --no-restore` — **0 warnings, 0 errors**.
 - M04 CLI — synthetic corpus `m04-synthetic-v1`, **14/14 PASS**, `correctionRequiredCount: 0`.
-- Published bundle — `artifacts/MEMENTO-win-x64.zip`, 109,576,126 bytes, SHA-256 `1b94364b2568b48d5001a92eee3a76ec725596cdbd22dfe48791eca555d8b0f8`.
+- Published bundle — `artifacts/MEMENTO-win-x64.zip`, 109,576,407 bytes, SHA-256 `381f5f39877fdc4a177309c6e311f510720cea6e398f93e3530435c48bdc6481`.
 - Deployment preflight — **PASS** for bundle, sidecar, installed executable, Start Menu shortcut, archive paths, free disk, and stopped-process state.
 - Credential setup check — default preflight emitted a **WARN** because `MEMENTO/OpenAI` is absent (local-only mode remains available); `-RequireCloudCredential` correctly returned one blocking failure without exposing a secret.
 - Installed process smoke — launched via `scripts\\Start-Memento.ps1`; observed title `MEMENTO` and `Responding=True` after seven seconds, then stopped cleanly. This is process evidence only; no visual GUI claim is made.
@@ -37,6 +37,7 @@ This report records what is implemented and verified in the local worktree. It d
 - Private and local-only modes block cloud work at service boundaries and do not queue impossible extraction work.
 - Provider adapters use `store=false`, preserve local audio before cloud work, redact operational error bodies, and treat transcript text as untrusted data.
 - Backup restore stages extraction beside the target, rejects traversal/duplicates/normalized aliases, and leaves no partial target tree on unsafe input.
+- Capture start now persists cloud consent from the participant checkbox and privacy mode; an unchecked cloud control can never be recorded as granted.
 - No credentials, recordings, transcripts, exports, backups, or provider responses were committed.
 
 ## Owner-gated next action
