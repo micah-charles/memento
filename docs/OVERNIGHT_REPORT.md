@@ -74,4 +74,3 @@ This report records what is implemented and verified in the local worktree. It d
 ## Owner-gated next action
 
 Run the supervised target-machine checklist in [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md): start with native GUI and physical microphone verification, then use a disposable provider credential and redacted corpus, verify Family Admin and encrypted restore, and record incidents before any real participant pilot. Keep the milestone statuses above until those observations exist.
-
