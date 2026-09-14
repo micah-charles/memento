@@ -18,18 +18,13 @@ public static class ArchiveExporter
         var exportDirectory = Path.Combine(destinationDirectory, "memento-export-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(exportDirectory);
         var hashes = new Dictionary<string, string>(StringComparer.Ordinal);
-        using var connection = archive.OpenConnection();
-        foreach (var table in Tables)
-        {
-            var relative = table + ".jsonl";
-            var path = Path.Combine(exportDirectory, relative);
-            WriteTable(connection, table, path, includeWithdrawn);
-            hashes[relative] = Hash(path);
-        }
-
         var backupPath = Path.Combine(exportDirectory, "archive.sqlite");
-        using (var backup = connection.CreateCommand())
+        // Take the canonical SQLite snapshot before reading any export rows.
+        // JSONL and the database must describe one archive state even when a
+        // retry worker is writing to the live archive concurrently.
+        using (var connection = archive.OpenConnection())
         {
+            using var backup = connection.CreateCommand();
             backup.CommandText = "VACUUM INTO $path";
             backup.Parameters.AddWithValue("$path", backupPath);
             backup.ExecuteNonQuery();
@@ -38,11 +33,20 @@ public static class ArchiveExporter
             SanitizeWithdrawnRecords(backupPath);
         hashes["archive.sqlite"] = Hash(backupPath);
 
+        using var snapshot = OpenSnapshotConnection(backupPath);
+        foreach (var table in Tables)
+        {
+            var relative = table + ".jsonl";
+            var path = Path.Combine(exportDirectory, relative);
+            WriteTable(snapshot, table, path, includeWithdrawn);
+            hashes[relative] = Hash(path);
+        }
+
         if (includeMedia)
         {
             var mediaDirectory = Path.Combine(exportDirectory, "media");
             Directory.CreateDirectory(mediaDirectory);
-            using (var sources = connection.CreateCommand())
+            using (var sources = snapshot.CreateCommand())
             {
                 sources.CommandText = includeWithdrawn
                     ? "SELECT source_id, file_path FROM sources WHERE file_path IS NOT NULL"
@@ -61,7 +65,7 @@ public static class ArchiveExporter
                 }
             }
 
-            using (var derived = connection.CreateCommand())
+            using (var derived = snapshot.CreateCommand())
             {
                 derived.CommandText = includeWithdrawn
                     ? "SELECT derived_speech_asset_id, file_path FROM derived_speech_assets"
@@ -87,6 +91,19 @@ public static class ArchiveExporter
         File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
         hashes["manifest.json"] = Hash(manifestPath);
         return new ArchiveExportResult(exportDirectory, manifestPath, hashes);
+    }
+
+    private static SqliteConnection OpenSnapshotConnection(string path)
+    {
+        var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = path,
+            Mode = SqliteOpenMode.ReadOnly,
+            Cache = SqliteCacheMode.Private,
+            Pooling = false
+        }.ToString());
+        connection.Open();
+        return connection;
     }
 
     private static string GetUniqueMediaPath(string mediaDirectory, string preferredName, string idPrefix)

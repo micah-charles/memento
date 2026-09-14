@@ -41,6 +41,7 @@ This report records what is implemented and verified in the local worktree. It d
 - Processing now locks privacy, recording, and cloud-consent controls until the bounded cloud turn finishes, preventing an in-flight policy race.
 - Active capture markers now update their WAV data length after each append, and recovery scanning can recover complete PCM frames left behind by a stale header after interruption.
 - Archive writes now require an exact Source-to-Turn match when a Source is already turn-linked; transcript revisions and queued jobs cannot silently drop that provenance by supplying a null TurnId.
+- Archive export now snapshots SQLite first and derives JSONL/media metadata from that same snapshot, preventing concurrent retry writes from producing a mixed-time bundle.
 - No credentials, recordings, transcripts, exports, backups, or provider responses were committed.
 
 ## Owner-gated next action

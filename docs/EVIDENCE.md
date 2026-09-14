@@ -184,6 +184,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - Clarification chain persistence now uses one SQLite transaction for corrected revision, event, vocabulary, and provenance search row; duplicate-event regression confirms rollback when the later event insert fails.
 - Archive repository writes now enforce matching Source, Turn, Session, and transcript-revision context when those records already exist; regression coverage exercises mismatched and sessionless Source contexts.
 - Archive writes now require an exact Source-to-Turn match when a Source is already turn-linked; transcript revisions and queued jobs cannot silently drop that provenance by supplying a null TurnId.
+- Archive export now snapshots SQLite first and derives JSONL/media metadata from that same snapshot, preventing concurrent retry writes from producing a mixed-time bundle.
 - Entity aliases and vocabulary entries marked speaker-confirmed now require a persisted `SpeakerConfirmed` or `CorrectedPreviousCorrection` clarification event; deterministic coverage rejects missing authority and links a valid correction event.
 - Async memory extraction now requires cloud consent before provider execution and re-checks consent and Source withdrawal after the provider returns, preventing post-revocation candidate persistence.
 - Memory extraction persistence rejects the external-information Evidence kind, with deterministic coverage proving an `ExternalFact` candidate creates no Evidence, Claim, or link.
