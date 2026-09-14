@@ -165,6 +165,33 @@ public sealed class MemoryExtractionProviderTests
         }
     }
 
+    [Fact]
+    public async Task Async_extraction_does_not_persist_after_source_is_deleted_during_provider_call()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "memento-extraction-deletion-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            using var archive = new SqliteArchive(Path.Combine(directory, "data", "memory.db"));
+            archive.Initialize();
+            var repository = new ArchiveRepository(archive);
+            var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+            repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+            var source = repository.AddSource(new SourceMetadata("source-deleted-after-provider", "audio", session.SessionId, null, "audio.wav", "PCM WAV", 48000, 1, 16, 4, 1, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+            var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-deleted-after-provider", source.SourceId, null, 1, "initial", "我鍾意食魚蛋", 0.9, null, DateTimeOffset.UtcNow));
+            var provider = new SourceDeletingExtractionProvider(repository, source.SourceId);
+
+            await Assert.ThrowsAsync<InvalidDataException>(() => new AsyncMemoryExtractionService(repository, provider).ExtractAndPersistAsync(session, source, revision));
+
+            Assert.Null(repository.GetSource(source.SourceId));
+            Assert.Empty(repository.ListCandidateClaims());
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
     private sealed class FixedCredentialProvider : IApiCredentialProvider
     {
         public string? GetApiKey() => "test-key";
@@ -185,6 +212,19 @@ public sealed class MemoryExtractionProviderTests
         public Task<IReadOnlyList<ExtractionCandidate>> ExtractAsync(TranscriptRevision revision, CancellationToken cancellationToken = default)
         {
             repository.AddConsent(sessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, false, "privacy-1");
+            return Task.FromResult<IReadOnlyList<ExtractionCandidate>>([new ExtractionCandidate(revision.Text, "said", revision.Text, ParticipantCertainty.Stated)]);
+        }
+    }
+
+    private sealed class SourceDeletingExtractionProvider(ArchiveRepository repository, string sourceId) : IAsyncMemoryExtractionProvider
+    {
+        public string Provider => "source-deleting-extraction";
+        public string Model => "source-deleting-extraction-v1";
+
+        public Task<IReadOnlyList<ExtractionCandidate>> ExtractAsync(TranscriptRevision revision, CancellationToken cancellationToken = default)
+        {
+            new Memento.Core.Admin.ArchiveDeletionService(repository, new Memento.Core.Admin.FixedTestAdminAuthorizer("admin"))
+                .DeleteSource("admin", sourceId, "test source deletion during extraction");
             return Task.FromResult<IReadOnlyList<ExtractionCandidate>>([new ExtractionCandidate(revision.Text, "said", revision.Text, ParticipantCertainty.Stated)]);
         }
     }

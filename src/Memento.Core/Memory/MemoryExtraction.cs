@@ -104,9 +104,11 @@ public sealed class AsyncMemoryExtractionService
         var candidates = await _provider.ExtractAsync(revision, cancellationToken).ConfigureAwait(false);
         if (!_repository.HasGrantedConsent(session.SessionId, ConsentScope.CloudTranscription))
             throw new CloudNotPermittedException();
-        if (string.Equals(_repository.GetSource(source.SourceId)?.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
+        var currentSource = _repository.GetSource(source.SourceId)
+            ?? throw new InvalidDataException("The extraction Source was removed while the provider was running.");
+        if (string.Equals(currentSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
             throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
-        return MemoryExtractionPersistence.Persist(_repository, _provider.Provider, _provider.Model, session, source, revision, candidates);
+        return MemoryExtractionPersistence.Persist(_repository, _provider.Provider, _provider.Model, session, currentSource, revision, candidates);
     }
 
     private Session EnsurePersistedSession(Session supplied)
