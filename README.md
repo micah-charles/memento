@@ -96,6 +96,13 @@ To start MEMENTO after installation, or start the repository's published executa
 .\scripts\Start-Memento.ps1
 ```
 
+To run the repeatable process-level launch and graceful-close smoke (without
+claiming native visual inspection):
+
+```powershell
+.\scripts\Test-MementoLaunch.ps1
+```
+
 Before a cloud-enabled pilot, verify the credential target without exposing its value:
 
 ```powershell

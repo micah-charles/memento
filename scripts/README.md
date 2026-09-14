@@ -30,6 +30,16 @@ Before extraction it also rejects rooted or traversal ZIP entries, duplicate ent
 .\scripts\Start-Memento.ps1
 ```
 
+`Test-MementoLaunch.ps1` performs a repeatable process-level launch smoke. It
+starts MEMENTO only when no existing instance is running, waits for the
+`MEMENTO` window title and a responsive process, requests a graceful close, and
+reports the exit code. This is process evidence only; it does not claim native
+visual inspection, microphone capture, or Computer Use access:
+
+```powershell
+.\scripts\Test-MementoLaunch.ps1
+```
+
 `Test-MementoPreflight.ps1` performs a read-only deployment check for the bundle checksum, installed executable, shortcut, archive paths, free-space, running-process state, SQLite integrity/schema version through the bundled native SQLite library, and the Windows wave-in and active render devices exposed by the installed NAudio adapters. The audio probe only enumerates capabilities; it never opens the microphone, starts a recording, or plays audio. The credential, archive, and device checks are warnings by default; make them blocking for a pilot with `-RequireCloudCredential`, `-RequireApplicationLock`, `-RequireAudioInput`, `-RequireAudioOutput`, and/or `-RequireArchiveIntegrity`. Native GUI, physical microphone capture, live exchange, and participant checks remain supervised gates:
 
 ```powershell

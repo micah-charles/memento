@@ -190,6 +190,7 @@
 - Added `.github/workflows/windows-quality.yml` so a clean Windows checkout runs the parser gate, Release tests/build, and deterministic M04 validation without depending on local installed-app, archive, or audio-device state.
 - `scripts/Install-Memento.ps1` now installs the portable bundle per user under `%LOCALAPPDATA%\\MEMENTO\\App`, creates a Start Menu shortcut, and registers a current-user Windows Installed apps entry; it does not claim signed package identity.
 - `scripts/Start-Memento.ps1` now resolves the installed executable first and otherwise starts the repository publish output, making the supported launch path explicit.
+- Added `scripts/Test-MementoLaunch.ps1` as a repeatable process-level launch smoke: it starts only when no MEMENTO instance is running, waits for the `MEMENTO` title and a responsive process, requests graceful close, and reports the exit code without claiming native visual verification.
 - `scripts/Uninstall-Memento.ps1` removes that app registration and Start Menu shortcut, then schedules guarded app-tree cleanup after the script exits; it preserves `%LOCALAPPDATA%\\MEMENTO` archive data unless `-RemoveData` is explicitly passed.
 - Installer updates now stage a clean app tree beside the install directory and swap it into place, so removed files cannot survive an update; a failed swap restores the previous app tree while leaving archive data untouched.
 - Post-swap installer failures, including Start Menu shortcut creation errors, now move the failed tree aside and restore the previous app tree before cleanup; this rollback path was exercised against a disposable install root.
@@ -212,7 +213,7 @@
 - Realtime providers now accept a separately configured input-transcription model while retaining the existing voice-model default; protocol tests verify changing transcription aliases does not change the Realtime voice model.
 - Realtime completion now has a bounded two-minute timeout by default (configurable in the provider for tests); a provider that never sends a terminal response becomes a content-free HTTP 504 failure instead of leaving the stop flow waiting forever.
 - A targeted official OpenAI model, audio, Responses web-search, and pricing recheck on 2026-09-14 found no provider code change justified before a credentialed live exchange; the research and known-issues records now carry that date.
-- Deployment preflight now enumerates both Windows wave-in input devices and active WASAPI render devices without opening a microphone or playing audio; real capture/playback and interruption checks remain supervised gates.
+- Deployment preflight now enumerates Windows wave-in input and active WASAPI render devices without opening a microphone or playing audio; the latest check found one of each, while real capture/playback and interruption checks remain supervised gates.
 - The installer now copies a hidden-input `Set-MementoOpenAiCredential.ps1` helper that writes `MEMENTO/OpenAI` directly through Credential Manager without placing the API key in command-line arguments or logs; a credentialed live exchange remains unrun.
 - The installer also copies a fixed-target `Remove-MementoOpenAiCredential.ps1` helper that requires MEMENTO to be closed before revoking the cloud credential, giving cloud setup a reversible disable path without touching archive data.
 - Window shutdown now cancels and awaits the durable retry worker and active Realtime transport before disposing the runtime HTTP client and SQLite archive, while capture recovery still runs first if the window closes during recording.
@@ -224,7 +225,7 @@
 - Retry job insertion now uses an atomic SQLite `INSERT ... WHERE NOT EXISTS` guard, closing the concurrent enqueue race as well as the sequential duplicate path.
 - Revision-scoped durable extraction enqueueing now uses the same atomic guard, so corrected transcript revisions cannot accumulate duplicate extraction work under concurrent completion.
 - Realtime transcription fallback now uses an atomic `QueueTranscriptionIfNeeded` API; an already queued Source is reported as no-op instead of creating a second retry job.
-- Added `scripts/Verify-MementoAutomation.ps1` as a repeatable repository gate: it parser-checks all PowerShell helpers, runs the Release test/build, regenerates the deterministic M04 report, and invokes the read-only deployment preflight with optional blocking policy switches.
+- Added `scripts/Verify-MementoAutomation.ps1` as a repeatable repository gate: it parser-checks all PowerShell helpers, runs the Release test/build, regenerates the deterministic M04 report, and invokes the read-only deployment preflight with optional blocking policy switches. The latest run includes 13 PowerShell scripts and the launch-smoke helper has passed against the installed bundle.
 - Deployment preflight now verifies the installed archive through the bundled native SQLite library (`PRAGMA integrity_check` and schema version) without loading the app's .NET assemblies into PowerShell; `-RequireArchiveIntegrity` promotes a failed check to a blocking deployment policy.
 
 ## Next action
