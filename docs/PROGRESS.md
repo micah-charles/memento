@@ -192,6 +192,7 @@
 - Durable transcription retries now re-check for a transcript revision after provider completion, preventing a concurrent worker from creating duplicate initial provenance; a regression test covers the race.
 - Bounded transcription and response retry enqueueing now checks for an existing active job, so repeated provider failures do not accumulate duplicate durable work; regression tests cover both job types.
 - Retry job insertion now uses an atomic SQLite `INSERT ... WHERE NOT EXISTS` guard, closing the concurrent enqueue race as well as the sequential duplicate path.
+- Revision-scoped durable extraction enqueueing now uses the same atomic guard, so corrected transcript revisions cannot accumulate duplicate extraction work under concurrent completion.
 
 ## Next action
 

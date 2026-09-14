@@ -30,9 +30,9 @@ public sealed class ConversationSessionWriter
         var session = _repository.GetSession(sessionId) ?? throw new InvalidDataException("The extraction session was not found.");
         if (CloudNotPermittedException.IsBlocked(session.PrivacyMode)) return null;
         if (string.Equals(_repository.GetSource(sourceId)?.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase)) return null;
-        if (_repository.HasActiveConversationJob(sessionId, sourceId, "durable_extraction", transcriptRevisionId)) return null;
         var timestamp = now ?? DateTimeOffset.UtcNow;
-        return _repository.AddConversationJob(new ConversationJob(Guid.NewGuid().ToString("N"), sessionId, turnId, sourceId, "durable_extraction", ConversationJobStatus.Pending, 0, timestamp, null, timestamp, timestamp, transcriptRevisionId));
+        var job = new ConversationJob(Guid.NewGuid().ToString("N"), sessionId, turnId, sourceId, "durable_extraction", ConversationJobStatus.Pending, 0, timestamp, null, timestamp, timestamp, transcriptRevisionId);
+        return _repository.TryAddConversationJobIfMissing(job) ? job : null;
     }
 
     public ConversationJob BeginAttempt(ConversationJob job, DateTimeOffset? now = null)
