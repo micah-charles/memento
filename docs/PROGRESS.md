@@ -12,7 +12,7 @@
 - CX03 initial slice automatically plays a verified derived speech asset after a successful bounded or Realtime response. If playback fails, the response remains available as text and the state is marked recoverable; local Source and provenance rules are unchanged. A continuous next-turn microphone loop is still pending.
 - CX06 adds a bounded, same-session context window using the latest transcript revision per prior Source; it excludes the current Source, other sessions, and withdrawn Sources before provider transmission.
 - CX07 adds conservative spoken current-information intent detection for explicit weather, transport, news, recipe, and present-time questions. The detector is provider-independent and does not route personal or historical statements; participant-facing answer composition and live search remain pending.
-- Automated validation after these changes: `dotnet test Memento.slnx --configuration Release --no-restore` passed **199/199**; `dotnet build Memento.slnx --configuration Release --no-restore` passed with **0 warnings, 0 errors**.
+- Automated validation after these changes: `dotnet test Memento.slnx --configuration Release --no-restore` passed **214/214**; `dotnet build Memento.slnx --configuration Release --no-restore` passed with **0 warnings, 0 errors**.
 
 ## Completed in M00
 

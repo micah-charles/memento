@@ -1,15 +1,42 @@
 # MEMENTO implementation report
 
 **Report date:** 2026-09-14
-**Starting reviewed checkpoint:** `82cbccc` (`main` on `origin`)
-**Current local checkpoint:** the latest committed state on the local `main` branch.
+**Starting reviewed checkpoint:** `86156fc039b0b26deb4fa7a6011e30e301e6d546`
+**Current local checkpoint:** `702f248` (`main`, clean worktree)
 **Environment:** Windows, .NET 10 SDK, `win-x64`, repository worktree
 
 This report records what is implemented and verified in the local worktree. It does not turn simulated, automated, or process-only checks into native GUI, hardware, live-provider, or participant evidence.
 
+## Conversation Experience Reset overnight checkpoints
+
+| Checkpoint | Status | Evidence |
+|---|---|---|
+| CX00 | **PASS** | Current capture, Realtime, playback, persistence, and UI coupling audited in [CX00–CX02 evidence](evidence/CX00-CX02.md). |
+| CX01 | **PASS (automated)** | Participant surface now defaults to greeting/state/start/stop/privacy; Family Admin and diagnostics are collapsed behind a separate surface. |
+| CX02 | **PASS** | `ParticipantConversationStateMachine` and 5 deterministic tests cover normal loop, end, clarification, recovery, and invalid transitions. |
+| CX03 | **PARTIAL** | Successful bounded/Realtime derived speech now auto-plays and updates state; a continuous next-turn microphone loop remains pending. |
+| CX04 | **BLOCKED/PENDING** | Official VAD/interruption capability researched; current adapter remains conservative push-to-talk until live model/device event sequencing and WebSocket playback accounting are verified. |
+| CX05 | **PARTIAL** | Existing append-only clarification protocol is preserved; spoken clarification and barge-in remain supervised work. |
+| CX06 | **PARTIAL** | Same-session bounded context uses latest revision per prior Source and excludes withdrawn/other-session data; claim-aware retrieval remains pending. |
+| CX07 | **PARTIAL** | Conservative spoken current-information detector and service route are implemented; live search and natural spoken answer composition remain pending. |
+| CX08 | **PARTIAL** | Local-first failure/retry behaviour is preserved and participant messages are recoverable; hardware/network outage observation remains pending. |
+| CX09 | **PENDING** | Process launch smoke and deterministic build gates pass; native visual observation and physical I/O remain supervised. |
+
+## CX implementation commits
+
+Starting from `86156fc`, the overnight checkpoints were committed as:
+
+```text
+4414d30 feat: reset participant conversation shell
+324fc35 feat: auto-play participant voice responses
+9d4b227 feat: add bounded conversation context
+7cfef64 feat: detect spoken current-information intent
+702f248 feat: route spoken current information queries
+```
+
 ## Verification run
 
-- `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **194 passed, 0 failed**.
+- `dotnet test Memento.slnx --configuration Release --no-restore` — **214 passed, 0 failed**.
 - `dotnet build Memento.slnx --configuration Release --no-restore` — **0 warnings, 0 errors**.
 - `dotnet format Memento.slnx --verify-no-changes --no-restore --severity warn` — **PASS** after correcting the remaining whitespace findings.
 - M04 CLI — synthetic corpus `m04-synthetic-v1`, **14/14 PASS**, `correctionRequiredCount: 0`.
@@ -22,7 +49,7 @@ This report records what is implemented and verified in the local worktree. It d
 - Credential revocation plumbing — the installed fixed-target removal helper removed a disposable `MEMENTO/OpenAI` target after MEMENTO was closed, and `cmdkey.exe /list:MEMENTO/OpenAI` confirmed `* NONE *`; archive data was unchanged.
 - Deployment preflight — **PASS** for the current-user Installed apps registration and its stable per-user install path.
 - Latest uninstall/reinstall smoke — the installed uninstaller removed the app tree, Start Menu shortcut, and per-user registration while preserving `memory.db` SHA-256 `a9717e3827f73a9df087c098dd77cd76a51afe96d33c8b3cf41f431d46e569b1`; the matching bundle restored the install and the required preflight passed afterward.
-- Repeatable automation gate — `scripts/Verify-MementoAutomation.ps1 -RequireAudioInput -RequireAudioOutput -RequireArchiveIntegrity` passed PowerShell parsing for 13 scripts, Release test **194/194**, Release build with **0 warnings/0 errors**, synthetic M04 validation (**14 cases, 0 correction-required**), and read-only deployment preflight.
+- Repeatable automation gate — `scripts/Verify-MementoAutomation.ps1 -VerifyLaunch -VerifyMsix -RequireAudioInput -RequireAudioOutput -RequireArchiveIntegrity -RequireInstalledPayloadMatch` passed PowerShell parsing for 13 scripts, Release test **214/214**, Release build with **0 warnings/0 errors**, synthetic M04 validation (**14 cases, 0 correction-required**), launch/graceful-close smoke, unsigned MSIX structural verification, and read-only deployment preflight.
 - Scoped export privacy boundary — `ArchiveExporter.ExportRedacted` now emits a selected reviewed-Claim JSONL package with redacted Evidence and explicit withheld-Source labels; tests confirm no raw SQLite snapshot, media, transcript, provider payload, or annotation body is returned, and the Family Admin shell exposes a multi-select picker.
 - Archive maintenance responsiveness — search, health checks, interrupted-audio recovery, deletion, withdrawal, and Family Admin candidate listing/annotation now execute archive and audit work off the WinUI event thread behind a busy-state guard, preventing large local operations from freezing the shell or overlapping.
 - Archive-operation lifecycle — the shell tracks those background tasks and waits for them during window shutdown before disposing SQLite/runtime services, so close-during-export/restore cannot race disposal.
@@ -85,3 +112,9 @@ This report records what is implemented and verified in the local worktree. It d
 ## Owner-gated next action
 
 Run the supervised target-machine checklist in [PILOT_RUNBOOK.md](PILOT_RUNBOOK.md): start with native GUI and physical microphone verification, then use a disposable provider credential and redacted corpus, verify Family Admin and encrypted restore, and record incidents before any real participant pilot. Keep the milestone statuses above until those observations exist.
+
+## Morning deliverable
+
+The normal participant shell no longer opens as a recorder/admin console. It now opens with a greeting, one obvious conversation control, a visible state/response card, a privacy indicator, and a separate end action; setup and Family Admin/diagnostics are collapsed. Successful derived speech is automatically sent to the existing playback boundary. Bounded same-session context and explicit spoken current-information routing are available behind the existing privacy and consent checks.
+
+The honest final answer to the product question is **PARTIALLY**: a participant now sees and starts a conversation-shaped flow, but the app still requires a manual stop for each captured turn, does not yet implement verified automatic VAD/barge-in, and has no live-provider or physical microphone/speaker evidence in this environment. Those are the remaining gates required before claiming a fully continuous AI companion.
