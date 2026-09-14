@@ -46,6 +46,14 @@ $installedExecutable = Join-Path $InstallRoot 'Memento.App.exe'
 $installedExists = Test-Path -LiteralPath $installedExecutable -PathType Leaf
 Write-Check 'installed executable' $installedExists ($(if ($installedExists) { $installedExecutable } else { "not found at $installedExecutable" }))
 
+$installedUninstaller = Join-Path $InstallRoot 'Uninstall-Memento.ps1'
+$uninstallerExists = Test-Path -LiteralPath $installedUninstaller -PathType Leaf
+Write-Check 'app-local uninstaller' $uninstallerExists ($(if ($uninstallerExists) { $installedUninstaller } else { "not found at $installedUninstaller" }))
+
+$installedRecoveryHelper = Join-Path $InstallRoot 'Reset-MementoApplicationLock.ps1'
+$recoveryHelperExists = Test-Path -LiteralPath $installedRecoveryHelper -PathType Leaf
+Write-Check 'app-lock recovery helper' $recoveryHelperExists ($(if ($recoveryHelperExists) { $installedRecoveryHelper } else { "not found at $installedRecoveryHelper" }))
+
 $shortcutPath = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs\MEMENTO\MEMENTO.lnk'
 Write-Check 'Start Menu shortcut' (Test-Path -LiteralPath $shortcutPath -PathType Leaf) $shortcutPath 'WARN'
 
