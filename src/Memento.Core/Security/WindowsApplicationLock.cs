@@ -20,6 +20,7 @@ public static class ApplicationLockSecret
     private const int SaltLength = 16;
     private const int HashLength = 32;
     private const int Iterations = 100_000;
+    private const int MaxEncodedLength = 1024;
     private const string Version = "v1";
 
     public static string Create(string passcode)
@@ -32,7 +33,7 @@ public static class ApplicationLockSecret
 
     public static bool Verify(string? encoded, string passcode)
     {
-        if (string.IsNullOrEmpty(encoded) || string.IsNullOrEmpty(passcode)) return false;
+        if (string.IsNullOrEmpty(encoded) || encoded.Length > MaxEncodedLength || string.IsNullOrEmpty(passcode)) return false;
         var parts = encoded.Split('|');
         if (parts.Length != 3 || !string.Equals(parts[0], Version, StringComparison.Ordinal)) return false;
         byte[] salt;
@@ -69,6 +70,7 @@ public sealed class WindowsApplicationLock : IApplicationLock
     private const int GenericCredentialType = 1;
     private const int LocalMachinePersistence = 2;
     private const int ErrorNotFound = 1168;
+    private const uint MaxCredentialBlobBytes = 64 * 1024;
 
     public WindowsApplicationLock(string targetName = "MEMENTO/AppLock")
         => TargetName = string.IsNullOrWhiteSpace(targetName) ? throw new ArgumentException("A credential target is required.", nameof(targetName)) : targetName;
@@ -103,7 +105,10 @@ public sealed class WindowsApplicationLock : IApplicationLock
         try
         {
             var credential = Marshal.PtrToStructure<Credential>(credentialPointer);
-            if (credential.CredentialBlob == IntPtr.Zero || credential.CredentialBlobSize == 0 || credential.CredentialBlobSize % 2 != 0)
+            if (credential.CredentialBlob == IntPtr.Zero
+                || credential.CredentialBlobSize == 0
+                || credential.CredentialBlobSize % 2 != 0
+                || credential.CredentialBlobSize > MaxCredentialBlobBytes)
                 return null;
             return Marshal.PtrToStringUni(credential.CredentialBlob, checked((int)credential.CredentialBlobSize / 2))?.TrimEnd('\0');
         }

@@ -30,6 +30,7 @@ public sealed class SecurityTests
         Assert.True(ApplicationLockSecret.Verify(encoded, "correct horse battery"));
         Assert.False(ApplicationLockSecret.Verify(encoded, "wrong passcode"));
         Assert.False(ApplicationLockSecret.Verify("v1|bad|secret", "correct horse battery"));
+        Assert.False(ApplicationLockSecret.Verify(new string('x', 1025), "correct horse battery"));
         Assert.Throws<ArgumentException>(() => ApplicationLockSecret.Create("short"));
     }
 

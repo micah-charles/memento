@@ -11,6 +11,7 @@ public sealed class WindowsCredentialProvider : IApiCredentialProvider
 {
     private const int GenericCredentialType = 1;
     private const int ErrorNotFound = 1168;
+    private const uint MaxCredentialBlobBytes = 64 * 1024;
 
     public WindowsCredentialProvider(string targetName = "MEMENTO/OpenAI")
         => TargetName = string.IsNullOrWhiteSpace(targetName) ? throw new ArgumentException("A credential target is required.", nameof(targetName)) : targetName;
@@ -29,7 +30,11 @@ public sealed class WindowsCredentialProvider : IApiCredentialProvider
         try
         {
             var credential = Marshal.PtrToStructure<Credential>(credentialPointer);
-            if (credential.CredentialBlob == IntPtr.Zero || credential.CredentialBlobSize == 0) return null;
+            if (credential.CredentialBlob == IntPtr.Zero
+                || credential.CredentialBlobSize == 0
+                || credential.CredentialBlobSize % 2 != 0
+                || credential.CredentialBlobSize > MaxCredentialBlobBytes)
+                return null;
             return Marshal.PtrToStringUni(credential.CredentialBlob, checked((int)credential.CredentialBlobSize / 2))?.TrimEnd('\0');
         }
         finally
