@@ -39,6 +39,8 @@ $failedRoot = Join-Path $installParent ('.App-failed-' + [Guid]::NewGuid().ToStr
 $swapped = $false
 $shortcutDirectory = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs\MEMENTO'
 $shortcutPath = Join-Path $shortcutDirectory 'MEMENTO.lnk'
+$uninstallScriptSource = Join-Path $repoRoot 'scripts\Uninstall-Memento.ps1'
+$uninstallRegistryPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\MEMENTO'
 try {
     New-Item -ItemType Directory -Force -Path $installParent | Out-Null
     Expand-Archive -LiteralPath $BundlePath -DestinationPath $temporaryRoot -Force
@@ -51,6 +53,10 @@ try {
     # is deliberately outside this tree.
     New-Item -ItemType Directory -Force -Path $stagingRoot | Out-Null
     Copy-Item -Path (Join-Path $temporaryRoot '*') -Destination $stagingRoot -Recurse -Force
+    if (-not (Test-Path -LiteralPath $uninstallScriptSource -PathType Leaf)) {
+        throw "Uninstall script not found: $uninstallScriptSource"
+    }
+    Copy-Item -LiteralPath $uninstallScriptSource -Destination (Join-Path $stagingRoot 'Uninstall-Memento.ps1') -Force
     if (Test-Path -LiteralPath $InstallRoot) {
         Move-Item -LiteralPath $InstallRoot -Destination $previousRoot
     }
@@ -65,8 +71,26 @@ try {
     $shortcut.Description = 'MEMENTO local family archive'
     $shortcut.Save()
 
+    # Register the per-user installation so Windows Settings can offer an
+    # ordinary uninstall entry without requiring elevation. The registered
+    # script preserves the archive unless the user explicitly requests data
+    # removal.
+    $uninstallScript = Join-Path $InstallRoot 'Uninstall-Memento.ps1'
+    $uninstallCommand = 'powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + $uninstallScript + '"'
+    New-Item -Path $uninstallRegistryPath -Force | Out-Null
+    New-ItemProperty -Path $uninstallRegistryPath -Name 'DisplayName' -Value 'MEMENTO' -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $uninstallRegistryPath -Name 'DisplayVersion' -Value '0.1.0' -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $uninstallRegistryPath -Name 'Publisher' -Value 'MEMENTO' -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $uninstallRegistryPath -Name 'InstallLocation' -Value $InstallRoot -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $uninstallRegistryPath -Name 'DisplayIcon' -Value ((Join-Path $InstallRoot 'Memento.App.exe') + ',0') -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $uninstallRegistryPath -Name 'UninstallString' -Value $uninstallCommand -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $uninstallRegistryPath -Name 'QuietUninstallString' -Value $uninstallCommand -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $uninstallRegistryPath -Name 'NoModify' -Value 1 -PropertyType DWord -Force | Out-Null
+    New-ItemProperty -Path $uninstallRegistryPath -Name 'NoRepair' -Value 1 -PropertyType DWord -Force | Out-Null
+
     Write-Output "Installed MEMENTO to $InstallRoot"
     Write-Output "Start Menu shortcut: $shortcutPath"
+    Write-Output 'Windows Installed apps registration: MEMENTO (per-user)'
 }
 catch {
     $failure = $_

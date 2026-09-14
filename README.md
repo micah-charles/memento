@@ -46,7 +46,7 @@ To create a portable self-contained bundle:
 
 The publish step also writes `artifacts\MEMENTO-win-x64.zip.sha256`; `Install-Memento.ps1` verifies that sidecar automatically when it is present.
 
-To install that bundle for the current Windows user and create a Start Menu shortcut:
+To install that bundle for the current Windows user, create a Start Menu shortcut, and register MEMENTO in Windows Installed apps:
 
 ```powershell
 .\scripts\Install-Memento.ps1
@@ -64,7 +64,7 @@ Before a cloud-enabled pilot, verify the credential target without exposing its 
 .\scripts\Test-MementoPreflight.ps1 -RequireCloudCredential
 ```
 
-To remove the installed app while preserving the local archive by default:
+To remove the installed app, shortcut, and per-user Installed apps entry while preserving the local archive by default:
 
 ```powershell
 .\scripts\Uninstall-Memento.ps1

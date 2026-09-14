@@ -4,7 +4,7 @@ Scripts must not read or upload personal data by default.
 
 `Publish-Memento.ps1` creates a self-contained `win-x64` publish directory, a zip bundle, and a SHA-256 sidecar under `artifacts/`. It does not sign or install an MSIX package; a production installer still requires an owner-selected publisher identity and certificate.
 
-`Install-Memento.ps1` installs that bundle under `%LOCALAPPDATA%\MEMENTO\App` and creates a per-user Start Menu shortcut without administrator access. Updates are staged as a clean tree and swapped into place, so files removed from a newer bundle cannot remain from an older install; any failure after the swap also moves the failed tree aside and restores the previous app. The archive data directory is outside the app tree and is preserved. When a matching `.zip.sha256` sidecar is present, it verifies the bundle before copying files:
+`Install-Memento.ps1` installs that bundle under `%LOCALAPPDATA%\MEMENTO\App`, creates a per-user Start Menu shortcut, and registers MEMENTO in the current user's Windows Installed apps list without administrator access. The app-local `Uninstall-Memento.ps1` is copied into the install tree so that registration remains usable after the repository is moved. Updates are staged as a clean tree and swapped into place, so files removed from a newer bundle cannot remain from an older install; any failure after the swap also moves the failed tree aside and restores the previous app. The archive data directory is outside the app tree and is preserved. When a matching `.zip.sha256` sidecar is present, it verifies the bundle before copying files:
 
 ```powershell
 .\scripts\Install-Memento.ps1
@@ -28,13 +28,13 @@ For a cloud-enabled pilot, require the credential target explicitly:
 .\scripts\Test-MementoPreflight.ps1 -RequireCloudCredential
 ```
 
-`Uninstall-Memento.ps1` removes the app files and shortcut while preserving the `%LOCALAPPDATA%\MEMENTO` archive by default. Pass `-RemoveData` only after making and checking a backup:
+`Uninstall-Memento.ps1` removes the app files, shortcut, and current-user Installed apps registration while preserving the `%LOCALAPPDATA%\MEMENTO` archive by default. Pass `-RemoveData` only after making and checking a backup:
 
 ```powershell
 .\scripts\Uninstall-Memento.ps1
 ```
 
-These helpers do not provide MSIX package identity, signing, or enterprise uninstall registration. Cloud features additionally require a Windows Credential Manager generic credential named `MEMENTO/OpenAI`.
+These helpers do not provide MSIX package identity, signing, or enterprise installer registration. The Installed apps entry is a per-user registry registration and is intentionally not an MSIX package identity. Cloud features additionally require a Windows Credential Manager generic credential named `MEMENTO/OpenAI`.
 
 The M04 validation CLI can regenerate the non-sensitive synthetic report without provider credentials:
 

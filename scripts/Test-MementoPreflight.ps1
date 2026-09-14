@@ -48,6 +48,18 @@ Write-Check 'installed executable' $installedExists ($(if ($installedExists) { $
 $shortcutPath = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs\MEMENTO\MEMENTO.lnk'
 Write-Check 'Start Menu shortcut' (Test-Path -LiteralPath $shortcutPath -PathType Leaf) $shortcutPath 'WARN'
 
+$uninstallRegistryPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\MEMENTO'
+$registeredInstall = $false
+if (Test-Path -LiteralPath $uninstallRegistryPath) {
+    try {
+        $registeredInstall = [string]::Equals((Get-ItemProperty -LiteralPath $uninstallRegistryPath -Name InstallLocation -ErrorAction Stop).InstallLocation, $InstallRoot, [StringComparison]::OrdinalIgnoreCase)
+    }
+    catch {
+        $registeredInstall = $false
+    }
+}
+Write-Check 'Installed apps registration' $registeredInstall 'MEMENTO per-user uninstall registration' 'WARN'
+
 $dataRootExists = Test-Path -LiteralPath $DataRoot -PathType Container
 Write-Check 'archive directory' $dataRootExists ($(if ($dataRootExists) { $DataRoot } else { "not initialized at $DataRoot" })) 'WARN'
 $databasePath = Join-Path $DataRoot 'data\memory.db'

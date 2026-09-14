@@ -16,6 +16,7 @@ if (-not [string]::Equals($InstallRoot, $defaultInstallRoot, [StringComparison]:
 
 $dataRoot = [System.IO.Path]::GetFullPath((Join-Path $localAppData 'MEMENTO'))
 $shortcutPath = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs\MEMENTO\MEMENTO.lnk'
+$uninstallRegistryPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\MEMENTO'
 $running = Get-Process -Name 'Memento.App' -ErrorAction SilentlyContinue
 if ($null -ne $running) {
     throw 'MEMENTO is still running. Close it before uninstalling.'
@@ -30,6 +31,9 @@ if (Test-Path -LiteralPath $shortcutDirectory -PathType Container -and -not (Get
 }
 if (Test-Path -LiteralPath $InstallRoot) {
     Remove-Item -LiteralPath $InstallRoot -Recurse -Force
+}
+if (Test-Path -LiteralPath $uninstallRegistryPath) {
+    Remove-Item -LiteralPath $uninstallRegistryPath -Recurse -Force
 }
 
 if ($RemoveData) {

@@ -14,6 +14,7 @@ This report records what is implemented and verified in the local worktree. It d
 - M04 CLI — synthetic corpus `m04-synthetic-v1`, **14/14 PASS**, `correctionRequiredCount: 0`.
 - Published bundle — `artifacts/MEMENTO-win-x64.zip`, 106,474,749 bytes, SHA-256 `2d4b3d7bc51b4d458c3857fc9cdfd85e1d435f434370a0ff25f78d29c908891c`.
 - Deployment preflight — **PASS** for bundle, sidecar, installed executable, Start Menu shortcut, archive paths, free disk, and stopped-process state.
+- Deployment preflight — **PASS** for the current-user Installed apps registration and its stable per-user install path.
 - Credential setup check — default preflight emitted a **WARN** because `MEMENTO/OpenAI` is absent (local-only mode remains available); `-RequireCloudCredential` correctly returned one blocking failure without exposing a secret.
 - Installed process smoke — launched via `scripts\\Start-Memento.ps1`; observed title `MEMENTO` and `Responding=True` after seven seconds, then stopped cleanly. This is process evidence only; no visual GUI claim is made.
 
@@ -43,6 +44,7 @@ This report records what is implemented and verified in the local worktree. It d
 - Archive writes now require an exact Source-to-Turn match when a Source is already turn-linked; transcript revisions and queued jobs cannot silently drop that provenance by supplying a null TurnId.
 - Archive export now snapshots SQLite first and derives JSONL/media metadata from that same snapshot, preventing concurrent retry writes from producing a mixed-time bundle.
 - Media-inclusive archive export now requires snapshot-listed files to exist and match recorded byte length and valid SHA-256 metadata; changed or missing media aborts the run and removes the incomplete export directory.
+- The per-user installer now copies an app-local uninstall script and registers MEMENTO in Windows Installed apps; uninstall removes the app registration while preserving archive data by default.
 - WAV playback now marks cancellation before stopping the Windows output device, avoiding a stop-event race that could report an interrupted playback as successful.
 - No credentials, recordings, transcripts, exports, backups, or provider responses were committed.
 
