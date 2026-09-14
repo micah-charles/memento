@@ -246,6 +246,50 @@ public sealed class DeletionTests
     }
 
     [Fact]
+    public void Source_deletion_retains_media_outside_archive_root()
+    {
+        using var fixture = new DeletionFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var external = Path.Combine(Path.GetTempPath(), "memento-external-media-" + Guid.NewGuid().ToString("N") + ".wav");
+        File.WriteAllBytes(external, [5, 4, 3]);
+        try
+        {
+            var bytes = File.ReadAllBytes(external);
+            var source = repository.AddSource(new SourceMetadata(
+                "source-external-delete",
+                "audio",
+                session.SessionId,
+                null,
+                external,
+                "PCM WAV",
+                48000,
+                1,
+                16,
+                bytes.LongLength,
+                0,
+                Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(),
+                DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow,
+                "finalized",
+                DateTimeOffset.UtcNow));
+
+            var result = new ArchiveDeletionService(repository, new FixedTestAdminAuthorizer("admin-1"))
+                .DeleteSource("admin-1", source.SourceId, "remove external media reference");
+
+            Assert.False(result.MediaRemoved);
+            Assert.Contains(result.Findings, finding => finding.Contains("outside the archive directory", StringComparison.Ordinal));
+            Assert.True(File.Exists(external));
+            Assert.Null(repository.GetSource(source.SourceId));
+        }
+        finally
+        {
+            if (File.Exists(external)) File.Delete(external);
+        }
+    }
+
+    [Fact]
     public void Sessionless_placeholder_source_can_be_deleted_without_crashing()
     {
         using var fixture = new DeletionFixture();

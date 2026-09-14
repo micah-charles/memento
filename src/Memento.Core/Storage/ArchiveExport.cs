@@ -22,6 +22,7 @@ public static class ArchiveExporter
     public static ArchiveExportResult Export(SqliteArchive archive, string destinationDirectory, bool includeMedia = false, bool includeWithdrawn = false)
     {
         if (string.IsNullOrWhiteSpace(destinationDirectory)) throw new ArgumentException("An export directory is required.", nameof(destinationDirectory));
+        var archiveRoot = ArchivePathSafety.GetArchiveRoot(archive);
         Directory.CreateDirectory(destinationDirectory);
         var exportDirectory = Path.Combine(destinationDirectory, "memento-export-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(exportDirectory);
@@ -68,7 +69,7 @@ public static class ArchiveExporter
                         var sourcePath = reader.GetString(1);
                         var expectedLength = reader.IsDBNull(2) ? (long?)null : reader.GetInt64(2);
                         var expectedHash = reader.IsDBNull(3) ? null : reader.GetString(3);
-                        var target = GetUniqueMediaPath(mediaDirectory, RequireMediaPath(sourceId, sourcePath), "source-" + sourceId);
+                        var target = GetUniqueMediaPath(mediaDirectory, RequireMediaPath(sourceId, sourcePath, archiveRoot), "source-" + sourceId);
                         var actualHash = CopyVerifiedMedia(sourceId, sourcePath, target, expectedLength, expectedHash);
                         hashes[Path.Combine("media", Path.GetFileName(target)).Replace('\\', '/')] = actualHash;
                     }
@@ -86,7 +87,7 @@ public static class ArchiveExporter
                         var sourcePath = reader.GetString(1);
                         var expectedLength = reader.IsDBNull(2) ? (long?)null : reader.GetInt64(2);
                         var expectedHash = reader.IsDBNull(3) ? null : reader.GetString(3);
-                        var filename = RequireMediaPath(assetId, sourcePath);
+                        var filename = RequireMediaPath(assetId, sourcePath, archiveRoot);
                         var target = GetUniqueMediaPath(mediaDirectory, "derived-" + filename, "derived-" + assetId);
                         var actualHash = CopyVerifiedMedia("derived asset " + assetId, sourcePath, target, expectedLength, expectedHash);
                         hashes[Path.Combine("media", Path.GetFileName(target)).Replace('\\', '/')] = actualHash;
@@ -323,10 +324,13 @@ public static class ArchiveExporter
     private static void WriteJsonLine(StreamWriter writer, object value)
         => writer.WriteLine(JsonSerializer.Serialize(value));
 
-    private static string RequireMediaPath(string recordId, string sourcePath)
+    private static string RequireMediaPath(string recordId, string sourcePath, string archiveRoot)
     {
         if (string.IsNullOrWhiteSpace(sourcePath))
             throw new FileNotFoundException($"Media for {recordId} has no file path.", sourcePath);
+        if (!ArchivePathSafety.IsPathUnderRoot(sourcePath, archiveRoot))
+            throw new InvalidDataException($"Media for {recordId} is outside the archive directory.");
+        ArchivePathSafety.EnsureNoReparsePointInPath(sourcePath, "The export media path");
         if (!File.Exists(sourcePath))
             throw new FileNotFoundException($"Media for {recordId} is missing.", sourcePath);
         var filename = Path.GetFileName(sourcePath);

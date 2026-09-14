@@ -11,6 +11,7 @@ public static class ArchiveHealthCheck
     {
         var findings = new List<string>();
         var integrity = archive.IsIntegrityCheckClean();
+        var archiveRoot = ArchivePathSafety.GetArchiveRoot(archive);
         if (!integrity) findings.Add("SQLite integrity_check did not return ok.");
         var recoverable = Audio.AudioRecoveryScanner.Scan(audioRootDirectory).Count;
         if (recoverable > 0) findings.Add($"{recoverable} recoverable audio capture(s) require review.");
@@ -84,7 +85,7 @@ public static class ArchiveHealthCheck
                 var path = reader.IsDBNull(0) ? string.Empty : reader.GetString(0);
                 var expectedLength = reader.IsDBNull(1) ? -1 : reader.GetInt64(1);
                 var expectedHash = reader.IsDBNull(2) ? null : reader.GetString(2);
-                if (!IsFileMatching(path, expectedLength, expectedHash))
+                if (!IsFileMatching(path, expectedLength, expectedHash, archiveRoot))
                     invalidSources++;
             }
         }
@@ -100,7 +101,7 @@ public static class ArchiveHealthCheck
                 var path = reader.GetString(0);
                 var expectedLength = reader.GetInt64(1);
                 var expectedHash = reader.GetString(2);
-                if (!IsFileMatching(path, expectedLength, expectedHash))
+                if (!IsFileMatching(path, expectedLength, expectedHash, archiveRoot))
                 {
                     invalidDerived++;
                 }
@@ -111,10 +112,11 @@ public static class ArchiveHealthCheck
         return new ArchiveHealthReport(integrity, archive.CurrentSchemaVersion, recoverable, pending, findings, invalidDerived, invalidSources, invalidSearchIndex);
     }
 
-    private static bool IsFileMatching(string path, long expectedLength, string? expectedHash)
+    private static bool IsFileMatching(string path, long expectedLength, string? expectedHash, string archiveRoot)
     {
         try
         {
+            if (!ArchivePathSafety.IsPathUnderRoot(path, archiveRoot)) return false;
             ArchivePathSafety.EnsureNoReparsePointInPath(path, "The archive media path");
         }
         catch (Exception error) when (error is ArgumentException or IOException or UnauthorizedAccessException)

@@ -16,11 +16,13 @@ public sealed class ArchiveDeletionService
 {
     private readonly ArchiveRepository _repository;
     private readonly IAdminAuthorizer _authorizer;
+    private readonly string _archiveRoot;
 
     public ArchiveDeletionService(ArchiveRepository repository, IAdminAuthorizer authorizer)
     {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _authorizer = authorizer ?? throw new ArgumentNullException(nameof(authorizer));
+        _archiveRoot = ArchivePathSafety.GetArchiveRoot(_repository.Archive);
     }
 
     public ArchiveDeletionResult DeleteSource(string actorId, string sourceId, string reason, DateTimeOffset? occurredAt = null)
@@ -131,6 +133,12 @@ public sealed class ArchiveDeletionService
         using var remainingReferences = _repository.Archive.OpenConnection();
         foreach (var path in mediaPaths)
         {
+            if (!ArchivePathSafety.IsPathUnderRoot(path, _archiveRoot))
+            {
+                mediaRemoved = false;
+                findings.Add($"Media asset '{Path.GetFileName(path)}' was retained because its path is outside the archive directory.");
+                continue;
+            }
             try
             {
                 ArchivePathSafety.EnsureNoReparsePointInPath(path, "The media deletion path");
