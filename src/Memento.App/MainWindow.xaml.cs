@@ -194,7 +194,20 @@ public sealed partial class MainWindow : Window
         if (_applicationLock is null || _locked || _capture?.State == AudioCaptureState.Capturing || _processing)
             return;
 
-        if (_applicationLock.IsConfigured)
+        bool configured;
+        try
+        {
+            configured = _applicationLock.IsConfigured;
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "未能讀取應用程式鎖；請使用 recovery helper 清理損壞嘅 Windows credential。";
+            _locked = true;
+            ApplyLockState();
+            return;
+        }
+
+        if (configured)
         {
             var currentPassword = new PasswordBox { Header = "目前應用程式鎖密碼", MinWidth = 300 };
             var disableDialog = new ContentDialog
