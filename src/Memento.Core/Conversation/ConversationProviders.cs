@@ -26,6 +26,27 @@ public sealed record ConversationResponse(
 
 public sealed class CloudConsentRequiredException() : InvalidOperationException("Cloud conversation requires explicit cloud consent.");
 
+internal static class SourcePathGuard
+{
+    public static void EnsureMatches(SourceMetadata source, string requestedPath)
+    {
+        if (string.IsNullOrWhiteSpace(source.FilePath) || !PathsEqual(source.FilePath, requestedPath))
+            throw new InvalidDataException("The requested audio path does not match the archived Source.");
+    }
+
+    private static bool PathsEqual(string left, string right)
+    {
+        try
+        {
+            return string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), StringComparison.OrdinalIgnoreCase);
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+}
+
 /// <summary>Produces bounded, content-free diagnostics for persisted provider failures.</summary>
 public static class ProviderFailureSummary
 {
@@ -135,6 +156,7 @@ public sealed class ConversationOrchestrator
                 throw new InvalidDataException("The requested Source does not belong to the requested session.");
             if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
                 throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
+            SourcePathGuard.EnsureMatches(source, request.LocalAudioPath);
         }
         if (!_repository.HasGrantedConsent(request.SessionId, ConsentScope.CloudTranscription))
             throw new CloudNotPermittedException();

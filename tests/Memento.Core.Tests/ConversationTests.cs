@@ -45,6 +45,27 @@ public sealed class ConversationTests
     }
 
     [Fact]
+    public async Task Conversation_rejects_audio_path_that_does_not_match_archived_source()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        File.WriteAllBytes(fixture.AudioPath, [1, 2, 3]);
+        var alternatePath = Path.Combine(fixture.DirectoryPath, "alternate.wav");
+        File.WriteAllBytes(alternatePath, [4, 5, 6]);
+        var source = repository.AddSource(new SourceMetadata("source-path-guard", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 3, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        var provider = new CountingProvider();
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => new ConversationOrchestrator(repository, provider).ExecuteAsync(new ConversationRequest(
+            session.SessionId, null, alternatePath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, SourceId: source.SourceId)));
+
+        Assert.Equal(0, provider.Calls);
+    }
+
+    [Fact]
     public async Task Local_capture_only_never_calls_provider()
     {
         using var fixture = new ConversationFixture();

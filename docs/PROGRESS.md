@@ -113,13 +113,14 @@
 - M04 now includes a complete non-sensitive synthetic corpus covering every required language-validation category; the corpus is wired through the report harness and remains clearly separate from real-provider quality evidence.
 - The shell also exposes a local index repair action, so a health-check parity finding can be fixed from the app without opening SQLite or a terminal.
 - Archive health checks now detect semantic search-index corruption (content, Source, Session, duplicates, and unexpected IDs) in addition to missing-row parity.
-- The cumulative suite now passes **157/157** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while target-machine restart/power-loss observation, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
+- The cumulative suite now passes **158/158** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while target-machine restart/power-loss observation, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
 - Clarification provenance now rejects cross-session or unpersisted initial revisions before creating a correction chain.
 - Clarification ownership checks now reject sessionless or mismatched Source context before creating a corrected revision, avoiding orphaned correction records.
 - Clarification chain persistence now uses one SQLite transaction for corrected revision, event, vocabulary, and provenance search row.
 - The WinUI capture flow now creates a participant Turn before opening the microphone, links the finalized Source and provider work to that Turn, and closes the Turn on normal stop, capture failure, shutdown recovery, or microphone-start failure. `ArchiveRepository` also persists turn closure and provides a restart-safe next sequence number.
 - In-flight transcription, response, and speech-output calls now re-check Source withdrawal and cloud consent before writing success metadata, persisting derived speech, or handing audio to playback; deterministic withdrawal/consent race tests cover these boundaries.
 - Realtime conversation responses now also re-check that the Source still exists after provider work completes, so concurrent authenticated deletion cannot create stale success metadata or derived speech.
+- Conversation, bounded transcription, and Realtime request paths now require the supplied local audio path to match the archived Source path before any provider call, preventing cross-Source audio attribution.
 - OpenAI response and extraction requests label transcript text as untrusted participant data and explicitly prohibit embedded commands from changing privacy or memory authority. Wrapper markers inside participant text are neutralized so transcript data cannot close the boundary and inject a new instruction block.
 - Archive repository writes now enforce matching Source, Turn, Session, and transcript-revision context when those records already exist; foreign keys still handle missing-ID relationships.
 - Archive writes now require an exact Source-to-Turn match when a Source is already turn-linked; transcript revisions and queued jobs cannot silently drop that provenance by supplying a null TurnId.
@@ -157,7 +158,7 @@
 - The WinUI shell now exposes the M12/M13 health-check, media export, encrypted-backup, and disposable restore/verification operations with plain Cantonese status messages; these actions still require supervised native UI verification.
 - The Family Admin shell now exposes a confirmation-gated deletion of the latest finalized Source; it removes dependent content through the authenticated deletion service and preserves only a minimal audit tombstone.
 - The Family Admin shell also exposes a confirmation-gated withdrawal of the latest finalized Source; it retains local history and media but disables future cloud processing and ordinary search/export paths.
-- The cumulative suite now passes **157/157** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
+- The cumulative suite now passes **158/158** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
 
 ## M14 status
 

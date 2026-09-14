@@ -361,6 +361,7 @@ public sealed class RealtimeConversationOrchestrator
             var source = _repository.GetSource(request.SourceId) ?? throw new InvalidDataException("The requested Source was not found.");
             if (!string.Equals(source.SessionId, request.SessionId, StringComparison.Ordinal)) throw new InvalidDataException("The requested Source does not belong to the requested session.");
             if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase)) throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
+            SourcePathGuard.EnsureMatches(source, request.LocalAudioPath);
         }
 
         var started = DateTimeOffset.UtcNow;
