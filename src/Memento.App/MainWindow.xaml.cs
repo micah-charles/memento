@@ -772,9 +772,15 @@ public sealed partial class MainWindow : Window
                 CurrentInfoResultsText.Text = "雲端同意已撤回，未顯示目前資訊結果。";
                 return;
             }
-            CurrentInfoResultsText.Text = result.Sources.Count == 0
+            var resultHeader = $"查詢時間：{result.RetrievedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss zzz}\n" +
+                               $"來源：{result.Provider}\n" +
+                               (result.IsUntrustedExternalInformation
+                                   ? "外部資料只供本次回答參考，不會加入本機記憶。"
+                                   : "本次結果未標記為外部不可信資料。\n");
+            var sourceText = result.Sources.Count == 0
                 ? "未收到 allowlisted source。"
                 : string.Join(Environment.NewLine + Environment.NewLine, result.Sources.Select(source => $"{source.Title}\n{source.Snippet}\n{source.Url}"));
+            CurrentInfoResultsText.Text = resultHeader + Environment.NewLine + Environment.NewLine + sourceText;
             StatusText.Text = "目前資訊已收到；外部資料未加入本機記憶。";
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
