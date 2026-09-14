@@ -16,6 +16,50 @@ public sealed record RealtimeStreamingRequest(
     DateTimeOffset RequestedAt,
     string? SourceId = null);
 
+public enum RealtimeTurnDetectionMode
+{
+    Disabled,
+    ServerVad,
+    SemanticVad
+}
+
+/// <summary>
+/// Optional protocol configuration for a future automatic-turn session. The
+/// shipped app keeps this disabled until live event sequencing and playback
+/// truncation are verified on the target device.
+/// </summary>
+public sealed record RealtimeTurnDetectionOptions(
+    RealtimeTurnDetectionMode Mode = RealtimeTurnDetectionMode.Disabled,
+    double Threshold = 0.5,
+    int PrefixPaddingMs = 300,
+    int SilenceDurationMs = 900,
+    string Eagerness = "low",
+    bool CreateResponse = true,
+    bool InterruptResponse = true)
+{
+    public object? ToPayload()
+        => Mode switch
+        {
+            RealtimeTurnDetectionMode.ServerVad => new
+            {
+                type = "server_vad",
+                threshold = Threshold,
+                prefix_padding_ms = PrefixPaddingMs,
+                silence_duration_ms = SilenceDurationMs,
+                create_response = CreateResponse,
+                interrupt_response = InterruptResponse
+            },
+            RealtimeTurnDetectionMode.SemanticVad => new
+            {
+                type = "semantic_vad",
+                eagerness = Eagerness,
+                create_response = CreateResponse,
+                interrupt_response = InterruptResponse
+            },
+            _ => null
+        };
+}
+
 public interface IRealtimeStreamingProvider
 {
     string Provider { get; }
@@ -37,6 +81,7 @@ public sealed class OpenAiRealtimeStreamingProvider : IRealtimeStreamingProvider
     private readonly Uri _endpoint;
     private readonly TimeSpan _completionTimeout;
     private readonly string _transcriptionModel;
+    private readonly RealtimeTurnDetectionOptions _turnDetection;
 
     public OpenAiRealtimeStreamingProvider(
         IApiCredentialProvider credentials,
@@ -44,7 +89,8 @@ public sealed class OpenAiRealtimeStreamingProvider : IRealtimeStreamingProvider
         Func<IRealtimeMessageTransport>? transportFactory = null,
         Uri? endpoint = null,
         TimeSpan? completionTimeout = null,
-        string transcriptionModel = "gpt-transcribe")
+        string transcriptionModel = "gpt-transcribe",
+        RealtimeTurnDetectionOptions? turnDetection = null)
     {
         _credentials = credentials ?? throw new ArgumentNullException(nameof(credentials));
         Model = string.IsNullOrWhiteSpace(model) ? throw new ArgumentException("A model is required.", nameof(model)) : model;
@@ -54,6 +100,7 @@ public sealed class OpenAiRealtimeStreamingProvider : IRealtimeStreamingProvider
         if (_endpoint.Scheme is not ("wss" or "ws")) throw new ArgumentException("The realtime endpoint must use ws or wss.", nameof(endpoint));
         _completionTimeout = completionTimeout ?? DefaultCompletionTimeout;
         if (_completionTimeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(completionTimeout), "Realtime completion timeout must be positive.");
+        _turnDetection = turnDetection ?? new RealtimeTurnDetectionOptions();
     }
 
     public string Provider => "openai";
@@ -86,7 +133,7 @@ public sealed class OpenAiRealtimeStreamingProvider : IRealtimeStreamingProvider
                         input = new
                         {
                             format = new { type = "audio/pcm", rate = 24000 },
-                            turn_detection = (object?)null,
+                            turn_detection = _turnDetection.ToPayload(),
                             transcription = new { model = _transcriptionModel }
                         },
                         output = new { format = new { type = "audio/pcm", rate = 24000 } }

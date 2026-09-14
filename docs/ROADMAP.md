@@ -35,7 +35,7 @@ This is a product-facing track layered over the existing M01–M14 archive and s
 | CX01 | Participant shell separated from Family Admin / diagnostics | PASS (automated) |
 | CX02 | WinUI-independent participant conversation state machine | PASS — 5 deterministic tests |
 | CX03 | Live voice loop with automatic derived-speech playback and safe return state | PARTIAL — auto-play wired; continuous microphone loop pending |
-| CX04 | Verified turn detection / conservative VAD and interruption handling | BLOCKED pending official provider/device validation |
+| CX04 | Verified turn detection / conservative VAD and interruption handling | PARTIAL — protocol options/tests added; production enablement pending live provider/device validation |
 | CX05 | Conversational clarification | PARTIAL — durable protocol exists; spoken UX pending |
 | CX06 | Bounded conversational memory continuity | PARTIAL — same-session context window implemented; claim-aware retrieval pending |
 | CX07 | Spoken current-information routing | PARTIAL — conservative intent detector implemented; voice answer composition/live search pending |
