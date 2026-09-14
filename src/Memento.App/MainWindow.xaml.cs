@@ -727,8 +727,9 @@ public sealed partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private void SearchArchiveButton_Click(object sender, RoutedEventArgs e)
+    private async void SearchArchiveButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_processing) return;
         var query = SearchBox.Text.Trim();
         if (query.Length == 0)
         {
@@ -736,9 +737,11 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        _processing = true;
+        UpdateRecordControl();
         try
         {
-            var hits = new ArchiveSearchService(_repository.Archive).Search(query, 20);
+            var hits = await Task.Run(() => new ArchiveSearchService(_repository.Archive).Search(query, 20));
             SearchResultsText.Text = hits.Count == 0
                 ? "未找到符合嘅本機記錄。"
                 : string.Join(Environment.NewLine, hits.Select(hit => $"[{hit.RecordType}] {hit.Content}"));
@@ -747,6 +750,11 @@ public sealed partial class MainWindow : Window
         catch (Exception)
         {
             SearchResultsText.Text = "未能完成本機搜尋。";
+        }
+        finally
+        {
+            _processing = false;
+            UpdateRecordControl();
         }
     }
 
@@ -779,6 +787,7 @@ public sealed partial class MainWindow : Window
         }
 
         var cancellation = new CancellationTokenSource();
+        _currentInfoCancellation?.Cancel();
         _currentInfoCancellation?.Dispose();
         _currentInfoCancellation = cancellation;
         SearchCurrentInformationButton.IsEnabled = false;
@@ -787,6 +796,12 @@ public sealed partial class MainWindow : Window
         {
             var privacyMode = _session?.PrivacyMode ?? GetSelectedPrivacyMode();
             var result = await _currentInformation.SearchAsync(query, privacyMode, HasGrantedCloudConsent(), cancellation.Token);
+            // A cancelled request may still complete if a provider ignores
+            // cancellation. Only the currently-owned request may update the
+            // visible result, so an old external answer cannot cross into a
+            // new session or consent state.
+            if (!ReferenceEquals(_currentInfoCancellation, cancellation))
+                return;
             if (!HasGrantedCloudConsent())
             {
                 CurrentInfoResultsText.Text = "雲端同意已撤回，未顯示目前資訊結果。";
@@ -824,21 +839,32 @@ public sealed partial class MainWindow : Window
 
     private async void AdminReviewButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_adminReview is null || string.IsNullOrWhiteSpace(_adminActorId)) return;
+        if (_adminReview is null || string.IsNullOrWhiteSpace(_adminActorId) || _processing) return;
+        _processing = true;
+        UpdateRecordControl();
         IReadOnlyList<MemoryClaim> candidates;
         try
         {
-            candidates = _adminReview.ListCandidates(_adminActorId);
+            candidates = await Task.Run(() => _adminReview.ListCandidates(_adminActorId));
         }
         catch (UnauthorizedAccessException)
         {
-            await ShowAdminMessageAsync("未獲授權", "只有獲授權嘅 Windows 管理員可以進入家庭管理審閱。", "知道了");
+            try { await ShowAdminMessageAsync("未獲授權", "只有獲授權嘅 Windows 管理員可以進入家庭管理審閱。", "知道了"); }
+            finally { _processing = false; UpdateRecordControl(); }
+            return;
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "未能讀取候選記憶。";
+            _processing = false;
+            UpdateRecordControl();
             return;
         }
 
         if (candidates.Count == 0)
         {
-            await ShowAdminMessageAsync("未有候選記憶", "目前沒有需要家庭管理審閱嘅候選記憶。", "關閉");
+            try { await ShowAdminMessageAsync("未有候選記憶", "目前沒有需要家庭管理審閱嘅候選記憶。", "關閉"); }
+            finally { _processing = false; UpdateRecordControl(); }
             return;
         }
 
@@ -902,28 +928,34 @@ public sealed partial class MainWindow : Window
             CloseButtonText = "稍後處理",
             DefaultButton = ContentDialogButton.Close
         };
-        var result = await dialog.ShowAsync();
-        if (claimSelector.SelectedItem is not MemoryClaim claim)
-        {
-            StatusText.Text = "未選擇候選記憶。";
-            return;
-        }
         try
         {
+            var result = await dialog.ShowAsync();
+            if (claimSelector.SelectedItem is not MemoryClaim claim)
+            {
+                StatusText.Text = "未選擇候選記憶。";
+                return;
+            }
+
             if (result == ContentDialogResult.Primary)
             {
-                _adminReview.AnnotateClaim(_adminActorId, claim, "family_assessment", "家庭管理審閱：支持候選記憶。", "supported");
+                await Task.Run(() => _adminReview.AnnotateClaim(_adminActorId, claim, "family_assessment", "家庭管理審閱：支持候選記憶。", "supported"));
                 StatusText.Text = "已記錄家庭支持；仍保留原始證據鏈。";
             }
             else if (result == ContentDialogResult.Secondary)
             {
-                _adminReview.AnnotateClaim(_adminActorId, claim, "admin_annotation", "家庭管理審閱：拒絕候選記憶。", "rejected");
+                await Task.Run(() => _adminReview.AnnotateClaim(_adminActorId, claim, "admin_annotation", "家庭管理審閱：拒絕候選記憶。", "rejected"));
                 StatusText.Text = "已拒絕候選記憶；原始證據仍然保留。";
             }
         }
         catch (Exception)
         {
             StatusText.Text = "未能儲存家庭管理審閱。";
+        }
+        finally
+        {
+            _processing = false;
+            UpdateRecordControl();
         }
     }
 
@@ -947,10 +979,12 @@ public sealed partial class MainWindow : Window
         };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
 
+        _processing = true;
+        UpdateRecordControl();
         try
         {
             var sourceId = _lastSource.SourceId;
-            var result = _deletion.DeleteSource(_adminActorId, sourceId, "participant requested deletion");
+            var result = await Task.Run(() => _deletion.DeleteSource(_adminActorId, sourceId, "participant requested deletion"));
             _lastSource = null;
             _session = null;
             _pendingClarificationRevision = null;
@@ -964,6 +998,11 @@ public sealed partial class MainWindow : Window
         catch (Exception)
         {
             StatusText.Text = "未能刪除最近錄音；原有資料仍然保留。";
+        }
+        finally
+        {
+            _processing = false;
+            UpdateRecordControl();
         }
     }
 
@@ -987,10 +1026,13 @@ public sealed partial class MainWindow : Window
         };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
 
+        _processing = true;
+        UpdateRecordControl();
         try
         {
-            var result = _withdrawal.WithdrawSource(_adminActorId, _lastSource.SourceId, "participant requested future cloud processing withdrawal");
-            _lastSource = _repository.GetSource(result.SourceId);
+            var sourceId = _lastSource.SourceId;
+            var result = await Task.Run(() => _withdrawal.WithdrawSource(_adminActorId, sourceId, "participant requested future cloud processing withdrawal"));
+            _lastSource = await Task.Run(() => _repository.GetSource(result.SourceId));
             _pendingClarificationRevision = null;
             ClarificationPanel.Visibility = Visibility.Collapsed;
             StatusText.Text = "已停止此錄音日後雲端處理；歷史資料及原始錄音仍然保留。";
@@ -1000,13 +1042,21 @@ public sealed partial class MainWindow : Window
         {
             StatusText.Text = "未能停止日後雲端處理；原有資料仍然保留。";
         }
+        finally
+        {
+            _processing = false;
+            UpdateRecordControl();
+        }
     }
 
-    private void HealthCheckButton_Click(object sender, RoutedEventArgs e)
+    private async void HealthCheckButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_processing) return;
+        _processing = true;
+        UpdateRecordControl();
         try
         {
-            var report = ArchiveHealthCheck.Run(_repository.Archive, _audioRoot);
+            var report = await Task.Run(() => ArchiveHealthCheck.Run(_repository.Archive, _audioRoot));
             StatusText.Text = report.Findings.Count == 0
                 ? $"健康檢查完成：SQLite {report.SchemaVersion}，未發現問題。"
                 : $"健康檢查發現 {report.Findings.Count} 項：{string.Join("；", report.Findings)}";
@@ -1014,6 +1064,11 @@ public sealed partial class MainWindow : Window
         catch (Exception)
         {
             StatusText.Text = "未能完成本機資料健康檢查。";
+        }
+        finally
+        {
+            _processing = false;
+            UpdateRecordControl();
         }
     }
 
@@ -1026,7 +1081,16 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var candidates = AudioRecoveryScanner.Scan(_audioRoot).Where(candidate => candidate.IsValidPcm).ToArray();
+        RecoverableAudioAsset[] candidates;
+        try
+        {
+            candidates = await Task.Run(() => AudioRecoveryScanner.Scan(_audioRoot).Where(candidate => candidate.IsValidPcm).ToArray());
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "未能檢查未完成錄音；原有暫存檔仍然保留。";
+            return;
+        }
         if (candidates.Length == 0)
         {
             StatusText.Text = "目前沒有可整理嘅未完成錄音。";
@@ -1048,47 +1112,72 @@ public sealed partial class MainWindow : Window
         };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
 
-        var recovered = 0;
-        var skipped = 0;
-        foreach (var candidate in candidates)
-        {
-            if (!AudioRecoveryService.TryInferSessionId(candidate.TemporaryPath, out var sessionId))
-            {
-                skipped++;
-                continue;
-            }
-
-            try
-            {
-                _audioRecovery.Recover(candidate.TemporaryPath, sessionId);
-                recovered++;
-            }
-            catch
-            {
-                // Keep the marker for a later supervised review. Do not show
-                // paths or raw exception text in the participant-facing shell.
-                skipped++;
-            }
-        }
-
-        if (recovered > 0)
-            _adminReview!.RecordAdminOperation(_adminActorId!, "recover_audio");
-        StatusText.Text = skipped == 0
-            ? $"已整理 {recovered} 段未完成錄音。"
-            : $"已整理 {recovered} 段未完成錄音；{skipped} 段保留待管理員檢查。";
+        _processing = true;
         UpdateRecordControl();
-    }
-
-    private void RebuildSearchButton_Click(object sender, RoutedEventArgs e)
-    {
         try
         {
-            var count = new ArchiveSearchService(_repository.Archive).Rebuild();
+            var result = await Task.Run(() =>
+            {
+                var recovered = 0;
+                var skipped = 0;
+                foreach (var candidate in candidates)
+                {
+                    if (!AudioRecoveryService.TryInferSessionId(candidate.TemporaryPath, out var sessionId))
+                    {
+                        skipped++;
+                        continue;
+                    }
+
+                    try
+                    {
+                        _audioRecovery.Recover(candidate.TemporaryPath, sessionId);
+                        recovered++;
+                    }
+                    catch
+                    {
+                        // Keep the marker for a later supervised review. Do not show
+                        // paths or raw exception text in the participant-facing shell.
+                        skipped++;
+                    }
+                }
+
+                if (recovered > 0)
+                    _adminReview!.RecordAdminOperation(_adminActorId!, "recover_audio");
+                return (recovered, skipped);
+            });
+            StatusText.Text = result.skipped == 0
+                ? $"已整理 {result.recovered} 段未完成錄音。"
+                : $"已整理 {result.recovered} 段未完成錄音；{result.skipped} 段保留待管理員檢查。";
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "未能整理未完成錄音；原有暫存檔仍然保留。";
+        }
+        finally
+        {
+            _processing = false;
+            UpdateRecordControl();
+        }
+    }
+
+    private async void RebuildSearchButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_processing) return;
+        _processing = true;
+        UpdateRecordControl();
+        try
+        {
+            var count = await Task.Run(() => new ArchiveSearchService(_repository.Archive).Rebuild());
             StatusText.Text = $"本機搜尋索引已修復：{count} 項。";
         }
         catch (Exception)
         {
             StatusText.Text = "未能修復本機搜尋索引；原有資料仍然保留。";
+        }
+        finally
+        {
+            _processing = false;
+            UpdateRecordControl();
         }
     }
 
