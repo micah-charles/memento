@@ -39,6 +39,16 @@ public sealed class RealtimeConversationTests
         Assert.Contains(transport.Messages, message => message.Contains("input_audio_buffer.append", StringComparison.Ordinal));
         Assert.Contains(transport.Messages, message => message.Contains("input_audio_buffer.commit", StringComparison.Ordinal));
         Assert.Contains(transport.Messages, message => message.Contains("response.create", StringComparison.Ordinal));
+        var sessionUpdate = transport.Messages.Single(message => message.Contains("session.update", StringComparison.Ordinal));
+        using var sessionDocument = JsonDocument.Parse(sessionUpdate);
+        var session = sessionDocument.RootElement.GetProperty("session");
+        Assert.Equal("realtime", session.GetProperty("type").GetString());
+        Assert.Equal("audio", session.GetProperty("output_modalities")[0].GetString());
+        Assert.Equal("audio/pcm", session.GetProperty("audio").GetProperty("input").GetProperty("format").GetProperty("type").GetString());
+        Assert.Equal(24000, session.GetProperty("audio").GetProperty("input").GetProperty("format").GetProperty("rate").GetInt32());
+        Assert.True(session.GetProperty("audio").GetProperty("input").GetProperty("turn_detection").ValueKind == JsonValueKind.Null);
+        Assert.Equal("gpt-transcribe", session.GetProperty("audio").GetProperty("input").GetProperty("transcription").GetProperty("model").GetString());
+        Assert.Equal("{\"type\":\"response.create\"}", transport.Messages.Single(message => message.Contains("response.create", StringComparison.Ordinal)));
         var append = transport.Messages.Single(message => message.Contains("input_audio_buffer.append", StringComparison.Ordinal));
         using var appendDocument = JsonDocument.Parse(append);
         Assert.Equal(Convert.ToBase64String(fixture.PcmBytes), appendDocument.RootElement.GetProperty("audio").GetString());
