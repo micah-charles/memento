@@ -315,6 +315,8 @@ public sealed partial class MainWindow : Window
             finally { _initializing = false; }
             _currentInfoCancellation?.Cancel();
             CurrentInfoResultsText.Text = "本次對話只保留本機；目前資訊結果已清除。";
+            ParticipantCurrentInfoText.Text = string.Empty;
+            ParticipantCurrentInfoText.Visibility = Visibility.Collapsed;
             CloudConsentCheckBox.IsEnabled = false;
             RealtimeConsentCheckBox.IsEnabled = false;
             StatusText.Text = privacyMode == PrivacyMode.PrivateConversation
@@ -389,6 +391,7 @@ public sealed partial class MainWindow : Window
                             SetConversationState(ParticipantConversationState.ConversationEnded, "今次對話已保存。你想再傾時可以再次按開始對話。", allowReset: true);
                         else if (_conversationState.Current == ParticipantConversationState.Thinking)
                             SetConversationState(ParticipantConversationState.ConversationEnded, "今次對話已保存。你想再傾時可以再次按開始對話。", allowReset: true);
+                        await RouteCurrentInformationAsync(result.InputTranscript);
                     }
                     catch (Exception)
                     {
@@ -448,6 +451,8 @@ public sealed partial class MainWindow : Window
             var startedAt = DateTimeOffset.UtcNow;
             _currentInfoCancellation?.Cancel();
             CurrentInfoResultsText.Text = string.Empty;
+            ParticipantCurrentInfoText.Text = string.Empty;
+            ParticipantCurrentInfoText.Visibility = Visibility.Collapsed;
             _pendingClarificationRevision = null;
             ClarificationPanel.Visibility = Visibility.Collapsed;
             _session = _repository.AddSession(startedAt, privacyMode);
@@ -542,6 +547,7 @@ public sealed partial class MainWindow : Window
             var result = await _voiceConversation.ExecuteAsync(request);
             _latestSpeechAsset = result.SpeechAsset ?? _repository.GetLatestDerivedSpeechAsset();
             RefreshClarificationRevision();
+            await RouteCurrentInformationAsync(result.Transcription.Text);
             if (result.Conversation.Response is null)
             {
                 StartRetryWorkerIfAvailable();
@@ -553,17 +559,10 @@ public sealed partial class MainWindow : Window
                 StatusText.Text = "已完成轉錄及回覆。";
                 if (_latestSpeechAsset is not null && _speechPlayback is not null)
                 {
+                    // BoundedVoiceConversationService owns playback for this
+                    // fallback path. Do not play the same derived asset twice.
                     SetConversationState(ParticipantConversationState.Speaking, result.Conversation.Response.Text ?? "我有回覆你。 ", allowReset: true);
-                    try
-                    {
-                        await _speechPlayback.PlayAsync(_latestSpeechAsset);
-                    }
-                    catch (Exception)
-                    {
-                        SetConversationState(ParticipantConversationState.ErrorRecoverable, "文字回覆已準備好，但喇叭未能播放。你可以喺家庭管理／診斷重播。", allowReset: true);
-                    }
-                    if (_conversationState.Current == ParticipantConversationState.Speaking)
-                        SetConversationState(ParticipantConversationState.ConversationEnded, "今次對話已保存。你想再傾時可以再次按開始對話。", allowReset: true);
+                    SetConversationState(ParticipantConversationState.ConversationEnded, "今次對話已保存。你想再傾時可以再次按開始對話。", allowReset: true);
                 }
                 else
                 {
@@ -603,6 +602,7 @@ public sealed partial class MainWindow : Window
             var result = await _realtimeConversation.ExecuteAsync(request);
             _latestSpeechAsset = result.OutputSpeechAsset ?? _repository.GetLatestDerivedSpeechAsset();
             RefreshClarificationRevision();
+            await RouteCurrentInformationAsync(result.InputTranscript);
             StatusText.Text = result.OutputSpeechAsset is null
                 ? "Realtime 已完成文字回覆；沒有可播放嘅語音輸出。"
                 : "Realtime 已完成語音回覆，可以播放最近回覆。";
@@ -1858,6 +1858,27 @@ public sealed partial class MainWindow : Window
             PrivacyMode.LocalCaptureOnly => "🔒 只本機保存",
             _ => "🔒 一般模式"
         };
+    }
+
+    private async Task RouteCurrentInformationAsync(string? transcript)
+    {
+        if (_currentInformation is null || _session is null || !HasGrantedCloudConsent()) return;
+        try
+        {
+            var result = await _currentInformation.TrySearchFromTranscriptAsync(transcript, _session.PrivacyMode, cloudConsent: true);
+            if (result is null) return;
+            var source = result.Sources.FirstOrDefault();
+            ParticipantCurrentInfoText.Text = source is null
+                ? "目前資訊已收到；外部資料未加入本機記憶。"
+                : $"目前資訊（{result.RetrievedAt.LocalDateTime:g}）\n{source.Snippet}\n資料來源：{source.Title}";
+            ParticipantCurrentInfoText.Visibility = Visibility.Visible;
+            CurrentInfoResultsText.Text = ParticipantCurrentInfoText.Text;
+        }
+        catch (Exception)
+        {
+            ParticipantCurrentInfoText.Text = "暫時未能取得目前資訊；本次對話及本機錄音仍然保留。";
+            ParticipantCurrentInfoText.Visibility = Visibility.Visible;
+        }
     }
 
     private bool HasGrantedCloudConsent()

@@ -27,6 +27,7 @@
                         <TextBlock x:Name="ConversationResponseText" Text="撳一下開始對話。" FontSize="20" TextWrapping="Wrap" HorizontalAlignment="Center" />
                     </StackPanel>
                 </Border>
+                <TextBlock x:Name="ParticipantCurrentInfoText" Visibility="Collapsed" FontSize="18" TextWrapping="Wrap" MaxWidth="700" HorizontalAlignment="Center" />
 
                 <Button x:Name="RecordButton" Content="開始對話" IsEnabled="False" Click="RecordButton_Click" HorizontalAlignment="Center" Padding="36,14" FontSize="22" />
                 <Button x:Name="EndConversationButton" Content="停止對話" Visibility="Collapsed" Click="EndConversationButton_Click" HorizontalAlignment="Center" Padding="28,10" />

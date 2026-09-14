@@ -50,4 +50,18 @@ public sealed class CurrentInformationService
             IsUntrustedExternalInformation = true
         };
     }
+
+    /// <summary>
+    /// Routes only an explicit present-time question from a participant turn.
+    /// A null result means the turn remains on the normal conversation path.
+    /// </summary>
+    public async Task<ExternalInformationResult?> TrySearchFromTranscriptAsync(
+        string? transcript,
+        PrivacyMode privacyMode,
+        bool cloudConsent,
+        CancellationToken cancellationToken = default)
+    {
+        if (!CurrentInformationIntentDetector.TryDetect(transcript, out var match)) return null;
+        return await SearchAsync(match.Query, privacyMode, cloudConsent, cancellationToken).ConfigureAwait(false);
+    }
 }
