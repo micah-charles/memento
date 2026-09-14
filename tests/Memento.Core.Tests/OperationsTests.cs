@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.IO.Compression;
+using Microsoft.Data.Sqlite;
 using Memento.Core.Audio;
 using Memento.Core.Admin;
 using Memento.Core.Conversation;
@@ -182,6 +183,14 @@ public sealed class OperationsTests
         Assert.True(File.Exists(Path.Combine(result.ExportDirectory, "media", "source-source-export-second-recording.wav")));
         Assert.NotEqual(result.ExportDirectory, secondResult.ExportDirectory);
         Assert.True(File.Exists(Path.Combine(result.ExportDirectory, "archive.sqlite")));
+        var exportedSourceRows = File.ReadLines(Path.Combine(result.ExportDirectory, "sources.jsonl")).Count(line => !string.IsNullOrWhiteSpace(line));
+        using (var snapshot = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(result.ExportDirectory, "archive.sqlite"), Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString()))
+        {
+            snapshot.Open();
+            using var sourceCount = snapshot.CreateCommand();
+            sourceCount.CommandText = "SELECT COUNT(*) FROM sources";
+            Assert.Equal(Convert.ToInt32(sourceCount.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture), exportedSourceRows);
+        }
         var encrypted = Path.Combine(fixture.ExportRoot, "backup.memento");
         var restored = Path.Combine(fixture.ExportRoot, "restored.sqlite");
         ArchiveBackupProtector.EncryptFile(Path.Combine(result.ExportDirectory, "archive.sqlite"), encrypted, "test-password");
