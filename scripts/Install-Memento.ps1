@@ -40,6 +40,7 @@ $swapped = $false
 $shortcutDirectory = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs\MEMENTO'
 $shortcutPath = Join-Path $shortcutDirectory 'MEMENTO.lnk'
 $uninstallScriptSource = Join-Path $repoRoot 'scripts\Uninstall-Memento.ps1'
+$recoveryScriptSource = Join-Path $repoRoot 'scripts\Reset-MementoApplicationLock.ps1'
 $uninstallRegistryPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\MEMENTO'
 try {
     New-Item -ItemType Directory -Force -Path $installParent | Out-Null
@@ -57,6 +58,10 @@ try {
         throw "Uninstall script not found: $uninstallScriptSource"
     }
     Copy-Item -LiteralPath $uninstallScriptSource -Destination (Join-Path $stagingRoot 'Uninstall-Memento.ps1') -Force
+    if (-not (Test-Path -LiteralPath $recoveryScriptSource -PathType Leaf)) {
+        throw "Application-lock recovery script not found: $recoveryScriptSource"
+    }
+    Copy-Item -LiteralPath $recoveryScriptSource -Destination (Join-Path $stagingRoot 'Reset-MementoApplicationLock.ps1') -Force
     if (Test-Path -LiteralPath $InstallRoot) {
         Move-Item -LiteralPath $InstallRoot -Destination $previousRoot
     }
