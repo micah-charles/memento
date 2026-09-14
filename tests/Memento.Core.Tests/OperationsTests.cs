@@ -359,6 +359,31 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void Export_rejects_media_outside_archive_root_and_removes_incomplete_bundle()
+    {
+        using var fixture = new OperationsFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var external = Path.Combine(Path.GetTempPath(), "memento-external-export-" + Guid.NewGuid().ToString("N") + ".wav");
+        File.WriteAllBytes(external, [1, 2, 3]);
+        try
+        {
+            repository.AddSource(new SourceMetadata(
+                "source-external-export", "audio", session.SessionId, null, external, "PCM WAV", 48000, 1, 16,
+                3, 0, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(external))).ToLowerInvariant(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+
+            Assert.Throws<InvalidDataException>(() => ArchiveExporter.Export(archive, fixture.ExportRoot, includeMedia: true));
+            Assert.Empty(Directory.GetDirectories(fixture.ExportRoot, "memento-export-*"));
+            Assert.Equal([1, 2, 3], File.ReadAllBytes(external));
+        }
+        finally
+        {
+            if (File.Exists(external)) File.Delete(external);
+        }
+    }
+
+    [Fact]
     public void Backup_file_replacement_is_complete_before_destination_is_replaced()
     {
         using var fixture = new OperationsFixture();
@@ -609,6 +634,33 @@ public sealed class OperationsTests
 
         Assert.Equal(1, report.InvalidSourceAssetCount);
         Assert.Contains(report.Findings, finding => finding.Contains("recovered", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Health_check_marks_media_outside_archive_root_invalid()
+    {
+        using var fixture = new OperationsFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.LocalCaptureOnly);
+        var external = Path.Combine(Path.GetTempPath(), "memento-external-health-" + Guid.NewGuid().ToString("N") + ".wav");
+        File.WriteAllBytes(external, [7, 8, 9]);
+        try
+        {
+            repository.AddSource(new SourceMetadata(
+                "source-external-health", "audio", session.SessionId, null, external, "PCM WAV", 48000, 1, 16,
+                3, 0, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(external))).ToLowerInvariant(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+
+            var report = ArchiveHealthCheck.Run(archive, fixture.AudioRoot);
+
+            Assert.Equal(1, report.InvalidSourceAssetCount);
+            Assert.Contains(report.Findings, finding => finding.Contains("source asset", StringComparison.OrdinalIgnoreCase));
+            Assert.True(File.Exists(external));
+        }
+        finally
+        {
+            if (File.Exists(external)) File.Delete(external);
+        }
     }
 
     [Fact]
