@@ -609,9 +609,10 @@ public sealed partial class MainWindow : Window
             return;
         }
         if (_currentInformation is null || _processing || _sourcePlaybackCancellation is not null) return;
-        if (_session is not null && CloudNotPermittedException.IsBlocked(_session.PrivacyMode))
+        if (CloudNotPermittedException.IsBlocked(GetSelectedPrivacyMode()) || (_session is not null && CloudNotPermittedException.IsBlocked(_session.PrivacyMode)))
         {
-            CurrentInfoResultsText.Text = $"本次對話設定為{PrivacyModeLabel(_session.PrivacyMode)}，未能使用雲端目前資訊查詢。";
+            var mode = CloudNotPermittedException.IsBlocked(GetSelectedPrivacyMode()) ? GetSelectedPrivacyMode() : _session!.PrivacyMode;
+            CurrentInfoResultsText.Text = $"本次對話設定為{PrivacyModeLabel(mode)}，未能使用雲端目前資訊查詢。";
             return;
         }
         if (!HasGrantedCloudConsent())
@@ -1067,7 +1068,7 @@ public sealed partial class MainWindow : Window
         PlaySpeechButton.IsEnabled = !_processing && _sourcePlaybackCancellation is null && _latestSpeechAsset is not null && _speechPlayback is not null;
         var adminIdle = !_processing && _capture?.State != AudioCaptureState.Capturing && _sourcePlaybackCancellation is null;
         ClarificationPanel.IsHitTestVisible = adminIdle && _pendingClarificationRevision is not null;
-        SearchCurrentInformationButton.IsEnabled = !_processing && _currentInfoCancellation is null && _sourcePlaybackCancellation is null && _capture?.State != AudioCaptureState.Capturing && _currentInformation is not null;
+        SearchCurrentInformationButton.IsEnabled = !_processing && _currentInfoCancellation is null && _sourcePlaybackCancellation is null && _capture?.State != AudioCaptureState.Capturing && _currentInformation is not null && !CloudNotPermittedException.IsBlocked(selectedPrivacyMode) && (_session is null || !CloudNotPermittedException.IsBlocked(_session.PrivacyMode));
         AdminReviewButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
         DeleteLatestSourceButton.IsEnabled = adminIdle && _deletion is not null && _lastSource is not null;
         WithdrawLatestSourceButton.IsEnabled = adminIdle && _withdrawal is not null && _lastSource is not null && !string.Equals(_lastSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase);
