@@ -113,7 +113,7 @@
 - M04 now includes a complete non-sensitive synthetic corpus covering every required language-validation category; the corpus is wired through the report harness and remains clearly separate from real-provider quality evidence.
 - The shell also exposes a local index repair action, so a health-check parity finding can be fixed from the app without opening SQLite or a terminal.
 - Archive health checks now detect semantic search-index corruption (content, Source, Session, duplicates, and unexpected IDs) in addition to missing-row parity.
-- The cumulative suite now passes **151/151** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while target-machine restart/power-loss observation, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
+- The cumulative suite now passes **152/152** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while target-machine restart/power-loss observation, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
 - Clarification provenance now rejects cross-session or unpersisted initial revisions before creating a correction chain.
 - Clarification ownership checks now reject sessionless or mismatched Source context before creating a corrected revision, avoiding orphaned correction records.
 - Clarification chain persistence now uses one SQLite transaction for corrected revision, event, vocabulary, and provenance search row.
@@ -135,6 +135,7 @@
 - Current-information results now show local retrieval time, provider, source links, and an explicit untrusted/external-data notice in the shell so a time-bound answer is not mistaken for personal memory.
 - Revoking cloud consent or switching to a local-only/private mode now cancels an in-flight current-information request and clears the previously displayed external result.
 - Starting a new recording session also clears the previous session's current-information display so time-bound external answers do not cross session boundaries.
+- The current-information service now normalizes provider identity and the original query at its own boundary and forcibly marks every provider result as untrusted, even if a provider returns spoofed metadata or a trusted flag.
 - M11 added an authenticated-admin boundary, candidate claim review listing, attributed annotations, and explicit family assessment/admin rejection transitions. The repository does not treat family support as speaker confirmation.
 - Family Admin review now displays linked Evidence relationships, participant certainty, and speaker-confirmation state, and an authorized administrator can play the latest finalized PCM WAV Source only after length, SHA-256, and WAV validation.
 - Export, encrypted backup, and restore-verification controls now use the same Family Admin authorization and record minimal archive-operation audit metadata without paths or personal content.
@@ -152,7 +153,7 @@
 - The WinUI shell now exposes the M12/M13 health-check, media export, encrypted-backup, and disposable restore/verification operations with plain Cantonese status messages; these actions still require supervised native UI verification.
 - The Family Admin shell now exposes a confirmation-gated deletion of the latest finalized Source; it removes dependent content through the authenticated deletion service and preserves only a minimal audit tombstone.
 - The Family Admin shell also exposes a confirmation-gated withdrawal of the latest finalized Source; it retains local history and media but disables future cloud processing and ordinary search/export paths.
-- The cumulative suite now passes **151/151** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
+- The cumulative suite now passes **152/152** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
 
 ## M14 status
 

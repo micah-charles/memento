@@ -27,7 +27,7 @@ public sealed class CurrentInformationService
 
     public CurrentInformationService(ISearchProvider provider) => _provider = provider;
 
-    public Task<ExternalInformationResult> SearchAsync(
+    public async Task<ExternalInformationResult> SearchAsync(
         string query,
         PrivacyMode privacyMode,
         bool cloudConsent,
@@ -39,6 +39,15 @@ public sealed class CurrentInformationService
             throw new CloudNotPermittedException();
         if (!cloudConsent)
             throw new CloudNotPermittedException("Cloud consent is required for current-information queries.");
-        return _provider.SearchAsync(query, cancellationToken);
+        var result = await _provider.SearchAsync(query, cancellationToken).ConfigureAwait(false);
+        // External providers never get authority to label their output as
+        // trusted or to spoof the query/provider identity used for audit and
+        // display. Current-information answers remain time-bound external data.
+        return result with
+        {
+            Query = query,
+            Provider = _provider.Provider,
+            IsUntrustedExternalInformation = true
+        };
     }
 }

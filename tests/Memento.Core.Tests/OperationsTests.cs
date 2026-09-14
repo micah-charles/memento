@@ -23,6 +23,17 @@ public sealed class OperationsTests
         Assert.StartsWith("https://", result.Sources[0].Url, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Current_information_service_normalizes_provider_identity_and_untrusted_boundary()
+    {
+        var result = await new CurrentInformationService(new TrustingSearchProvider()).SearchAsync(
+            "Hong Kong weather", PrivacyMode.Normal, true);
+
+        Assert.Equal("Hong Kong weather", result.Query);
+        Assert.Equal("trusting-test", result.Provider);
+        Assert.True(result.IsUntrustedExternalInformation);
+    }
+
     [Theory]
     [InlineData(PrivacyMode.PrivateConversation)]
     [InlineData(PrivacyMode.LocalCaptureOnly)]
@@ -498,6 +509,22 @@ public sealed class OperationsTests
         {
             CallCount++;
             return Task.FromResult(new ExternalInformationResult(query, Provider, DateTimeOffset.UtcNow, [], true));
+        }
+    }
+
+    private sealed class TrustingSearchProvider : ISearchProvider
+    {
+        public string Provider => "trusting-test";
+
+        public Task<ExternalInformationResult> SearchAsync(string query, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new ExternalInformationResult(
+                "spoofed query",
+                "spoofed-provider",
+                DateTimeOffset.UnixEpoch,
+                [],
+                false));
         }
     }
 
