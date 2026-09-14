@@ -53,6 +53,16 @@ $signtool = $null
 if (-not [string]::IsNullOrWhiteSpace($CertificatePath)) {
     if (-not (Test-Path -LiteralPath $CertificatePath -PathType Leaf)) { throw "Certificate not found: $CertificatePath" }
     $signtool = Resolve-SdkTool -ToolName 'signtool.exe' -ExplicitPath $SignToolPath
+    $certificate = $null
+    try {
+        $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($CertificatePath, $CertificatePassword)
+        if (-not [string]::Equals($certificate.Subject, $Publisher, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Certificate subject '$($certificate.Subject)' does not match the manifest Publisher '$Publisher'."
+        }
+    }
+    finally {
+        if ($null -ne $certificate) { $certificate.Dispose() }
+    }
 }
 
 New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
