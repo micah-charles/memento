@@ -2,7 +2,7 @@
 
 **Report date:** 2026-09-14
 **Starting reviewed checkpoint:** `82cbccc` (`main` on `origin`)
-**Current local checkpoint:** `e6cc6e5` (`fix: enforce source audio path provenance`).
+**Current local checkpoint:** `58715cb` (`fix: verify source audio integrity before cloud work`).
 **Environment:** Windows, .NET 10 SDK, `win-x64`, repository worktree
 
 This report records what is implemented and verified in the local worktree. It does not turn simulated, automated, or process-only checks into native GUI, hardware, live-provider, or participant evidence.
@@ -12,7 +12,7 @@ This report records what is implemented and verified in the local worktree. It d
 - `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **159 passed, 0 failed**.
 - `dotnet build Memento.slnx --configuration Release --no-restore` — **0 warnings, 0 errors**.
 - M04 CLI — synthetic corpus `m04-synthetic-v1`, **14/14 PASS**, `correctionRequiredCount: 0`.
-- Published bundle — `artifacts/MEMENTO-win-x64.zip`, 109,614,257 bytes, SHA-256 `3f6e432159c2ba833a16df6f7c5bd106e2578cce545c0f0ce37afd88927774e4`.
+- Published bundle — `artifacts/MEMENTO-win-x64.zip`, 109,614,503 bytes, SHA-256 `aa5fb8af94d18edf76462f491a5607238510b4acf3a81891e929eb791bb8cb49`.
 - Deployment preflight — **PASS** for bundle, sidecar, installed executable, Start Menu shortcut, archive paths, free disk, and stopped-process state.
 - Deployment preflight — **PASS** for the current-user Installed apps registration and its stable per-user install path.
 - Credential setup check — default preflight emitted a **WARN** because `MEMENTO/OpenAI` is absent (local-only mode remains available); `-RequireCloudCredential` correctly returned one blocking failure without exposing a secret.
