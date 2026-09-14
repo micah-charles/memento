@@ -25,6 +25,8 @@ The governing principle is:
 
 Project state is kept in [PROGRESS](docs/PROGRESS.md), [DECISIONS](docs/DECISIONS.md), [KNOWN_ISSUES](docs/KNOWN_ISSUES.md), [EVIDENCE](docs/EVIDENCE.md), and the latest [implementation report](docs/OVERNIGHT_REPORT.md).
 
+For the shortest verified installation and first-use path, see the [setup checklist](docs/SETUP_CHECKLIST.md).
+
 The repository also has a Windows GitHub Actions quality workflow at `.github/workflows/windows-quality.yml`. It runs the PowerShell parser gate, Release tests/build, and deterministic M04 validation on a clean checkout; the local deployment preflight remains separate because it requires this machine's installed app, archive, and audio-device policy.
 
 ## Start the Windows app
