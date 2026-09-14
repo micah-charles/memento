@@ -52,8 +52,11 @@ public sealed class WaveFileSourceAudioPlayback : ISourceAudioPlayback
             output.Init(reader);
             using var cancellation = cancellationToken.Register(() =>
             {
-                output.Stop();
+                // WinMM may raise PlaybackStopped synchronously from Stop().
+                // Mark cancellation first so that event cannot win the race
+                // and make an interrupted playback look successful.
                 stopped.TrySetCanceled(cancellationToken);
+                try { output.Stop(); } catch { }
             });
             output.Play();
             await stopped.Task.ConfigureAwait(false);
