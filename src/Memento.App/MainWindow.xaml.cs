@@ -516,7 +516,7 @@ public sealed partial class MainWindow : Window
             _lastSource = null;
             _pendingClarificationRevision = null;
             ClarificationPanel.Visibility = Visibility.Collapsed;
-            RecordButton.Content = "開始錄音";
+            RecordButton.Content = "開始對話";
             EndConversationButton.Visibility = Visibility.Collapsed;
             ConsentCheckBox.IsEnabled = true;
             CloudConsentCheckBox.IsEnabled = true;
@@ -534,6 +534,7 @@ public sealed partial class MainWindow : Window
 
         _processing = true;
         UpdateRecordControl();
+        SetConversationState(ParticipantConversationState.Thinking, "我整理緊頭先嘅內容…", allowReset: true);
         StatusText.Text = "正在轉錄及準備回覆…";
         try
         {
@@ -552,7 +553,7 @@ public sealed partial class MainWindow : Window
                 StatusText.Text = "已完成轉錄及回覆。";
                 if (_latestSpeechAsset is not null && _speechPlayback is not null)
                 {
-                    SetConversationState(ParticipantConversationState.Speaking, result.Conversation.Response.Text ?? "我有回覆你。 ");
+                    SetConversationState(ParticipantConversationState.Speaking, result.Conversation.Response.Text ?? "我有回覆你。 ", allowReset: true);
                     try
                     {
                         await _speechPlayback.PlayAsync(_latestSpeechAsset);
@@ -563,6 +564,10 @@ public sealed partial class MainWindow : Window
                     }
                     if (_conversationState.Current == ParticipantConversationState.Speaking)
                         SetConversationState(ParticipantConversationState.ConversationEnded, "今次對話已保存。你想再傾時可以再次按開始對話。", allowReset: true);
+                }
+                else
+                {
+                    SetConversationState(ParticipantConversationState.ConversationEnded, "今次對話已保存。你想再傾時可以再次按開始對話。", allowReset: true);
                 }
             }
         }
@@ -590,6 +595,7 @@ public sealed partial class MainWindow : Window
 
         _processing = true;
         UpdateRecordControl();
+        SetConversationState(ParticipantConversationState.Thinking, "我整理緊頭先嘅內容…", allowReset: true);
         StatusText.Text = "正在使用 Realtime 語音回覆…";
         try
         {
@@ -602,7 +608,7 @@ public sealed partial class MainWindow : Window
                 : "Realtime 已完成語音回覆，可以播放最近回覆。";
             if (_latestSpeechAsset is not null && _speechPlayback is not null)
             {
-                SetConversationState(ParticipantConversationState.Speaking, result.Response.Text ?? "我有回覆你。 ");
+                SetConversationState(ParticipantConversationState.Speaking, result.Response.Text ?? "我有回覆你。 ", allowReset: true);
                 try
                 {
                     await _speechPlayback.PlayAsync(_latestSpeechAsset);
@@ -613,6 +619,10 @@ public sealed partial class MainWindow : Window
                 }
                 if (_conversationState.Current == ParticipantConversationState.Speaking)
                     SetConversationState(ParticipantConversationState.ConversationEnded, "今次對話已保存。你想再傾時可以再次按開始對話。", allowReset: true);
+            }
+            else
+            {
+                SetConversationState(ParticipantConversationState.ConversationEnded, "今次對話已保存。你想再傾時可以再次按開始對話。", allowReset: true);
             }
         }
         catch (OperationCanceledException)
@@ -654,7 +664,7 @@ public sealed partial class MainWindow : Window
         if (_speechPlayback is null || _latestSpeechAsset is null) return;
         PlaySpeechButton.IsEnabled = false;
         StatusText.Text = "播放中…";
-        SetConversationState(ParticipantConversationState.Speaking, "播放最近一段 AI 回覆…");
+        SetConversationState(ParticipantConversationState.Speaking, "播放最近一段 AI 回覆…", allowReset: true);
         try
         {
             await _speechPlayback.PlayAsync(_latestSpeechAsset);

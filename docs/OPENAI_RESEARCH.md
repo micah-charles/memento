@@ -4,7 +4,7 @@
 **Status:** Current research snapshot; re-check before implementation  
 **Research/access date:** 2026-09-12
 
-**Targeted recheck:** 2026-09-14. The official model catalogue and the current GPT-5.6 Terra, GPT-Transcribe, GPT-Realtime-2.1 Mini, GPT-4o Mini TTS, Responses web-search, and audio API references were rechecked before the M14 deployment audit. The model identifiers, reviewed pricing assumptions, `web_search` domain-filter shape, and adapter endpoint choices below remain consistent; no provider code change was justified without a credentialed live exchange.
+**Targeted recheck:** 2026-09-14. The official model catalogue and the current GPT-5.6 Terra, GPT-Transcribe, GPT-Realtime-2.1 Mini, GPT-4o Mini TTS, Responses web-search, audio API, and Realtime VAD references were rechecked before the CX reset. The model identifiers, reviewed pricing assumptions, `web_search` domain-filter shape, and adapter endpoint choices below remain consistent; no uncontrolled provider experiment was justified without a credentialed live exchange.
 
 ## Evidence labels
 
@@ -20,6 +20,14 @@
 **Design recommendation:** Start M03 with a provider adapter whose default candidate is `gpt-realtime-2.1-mini`, using a transport selected after a Windows prototype. Keep the model alias in configuration and capture the actual model ID/snapshot in every session. Do not couple the archive schema to Realtime event names.
 
 **Boundary:** Realtime creates a useful live exchange but is not the durable evidence path. The client persists local input/output event metadata, audio, and later transcript revisions independently.
+
+## Realtime turn detection and interruption — targeted recheck 2026-09-14
+
+**Verified current capability:** The official Realtime VAD guide says VAD is enabled by default for supported speech-to-speech sessions and exposes `server_vad` and `semantic_vad`. `server_vad` supports `threshold`, `prefix_padding_ms`, and `silence_duration_ms`; `semantic_vad` supports an `eagerness` setting where `low` gives the speaker more time. In conversation mode the guide documents `create_response` and `interrupt_response`. The Realtime conversation guide documents `input_audio_buffer.speech_started` / `speech_stopped`, response cancellation, and WebSocket-side `conversation.item.truncate` because the client owns output playback.
+
+**Design recommendation:** MEMENTO should evaluate `semantic_vad` with low eagerness for the older-Cantonese pilot, with an explicit manual end/stop fallback and visible state. It should not enable aggressive VAD solely from documentation. A WebSocket implementation must stop playback and truncate unplayed assistant audio on interruption, while preserving the participant Source and never treating assistant audio as human evidence.
+
+**Current implementation decision:** The existing adapter remains push-to-talk (`turn_detection = null`) until a provider/model/device test proves the event sequence and output playback accounting. CX04 is therefore a documented implementation gate rather than a claimed feature. This avoids sending both automatic VAD responses and the current manual `commit`/`response.create` sequence on one session.
 
 ## Durable transcription
 
@@ -89,3 +97,7 @@ MEMENTO stores provider/model metadata as provenance, not as the identity of the
 - GPT-5.6 Terra: <https://developers.openai.com/api/docs/models/gpt-5.6-terra> — accessed 2026-09-12.
 - Speech endpoint: <https://developers.openai.com/api/reference/cli/resources/audio/subresources/speech/methods/create> — accessed 2026-09-12.
 - OpenAI data controls: <https://developers.openai.com/api/docs/guides/your-data> — accessed 2026-09-12.
+- Realtime getting started: <https://developers.openai.com/api/docs/guides/realtime> — accessed 2026-09-14.
+- Realtime VAD: <https://developers.openai.com/api/docs/guides/realtime-vad> — accessed 2026-09-14.
+- Realtime conversations: <https://developers.openai.com/api/docs/guides/realtime-conversations> — accessed 2026-09-14.
+- Realtime WebSockets: <https://developers.openai.com/api/docs/guides/voice-websockets> — accessed 2026-09-14.
