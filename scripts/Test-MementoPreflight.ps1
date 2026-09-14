@@ -3,7 +3,8 @@ param(
     [string]$BundlePath = '',
     [string]$InstallRoot = '',
     [string]$DataRoot = '',
-    [long]$MinimumFreeBytes = 1073741824
+    [long]$MinimumFreeBytes = 1073741824,
+    [switch]$RequireCloudCredential
 )
 
 $ErrorActionPreference = 'Stop'
@@ -53,6 +54,21 @@ $databasePath = Join-Path $DataRoot 'data\memory.db'
 Write-Check 'archive database' (Test-Path -LiteralPath $databasePath -PathType Leaf) ($(if (Test-Path -LiteralPath $databasePath -PathType Leaf) { $databasePath } else { 'created on first launch' })) 'WARN'
 
 try {
+    # cmdkey lists only credential metadata; it never prints the credential
+    # secret. The target is optional for local-only use and can be promoted to
+    # a blocking check for a cloud-enabled pilot with -RequireCloudCredential.
+    $credentialListing = (& cmdkey.exe /list:MEMENTO/OpenAI 2>$null | Out-String)
+    $credentialConfigured = -not [string]::IsNullOrWhiteSpace($credentialListing) -and $credentialListing -notmatch '\*\s*NONE\s*\*'
+    $credentialDetail = if ($credentialConfigured) { 'MEMENTO/OpenAI target is present' } else { 'MEMENTO/OpenAI target is absent; local-only mode remains available' }
+    $credentialSeverity = if ($RequireCloudCredential) { 'FAIL' } else { 'WARN' }
+    Write-Check 'OpenAI credential target' $credentialConfigured $credentialDetail $credentialSeverity
+}
+catch {
+    $credentialSeverity = if ($RequireCloudCredential) { 'FAIL' } else { 'WARN' }
+    Write-Check 'OpenAI credential target' $false ('unable to inspect Windows Credential Manager: ' + $_.Exception.GetType().Name) $credentialSeverity
+}
+
+try {
     $driveRoot = [System.IO.Path]::GetPathRoot($DataRoot)
     $drive = [System.IO.DriveInfo]::new($driveRoot)
     $freeBytes = $drive.AvailableFreeSpace
@@ -65,7 +81,7 @@ catch {
 $running = Get-Process -Name 'Memento.App' -ErrorAction SilentlyContinue
 Write-Check 'MEMENTO process state' ($null -eq $running) ($(if ($null -eq $running) { 'not running; safe for install/update' } else { 'running; close before install/update' })) 'WARN'
 
-Write-Output 'INFO  native GUI, microphone hardware, live provider credentials, and participant UX still require supervised target-machine verification.'
+Write-Output 'INFO  native GUI, microphone hardware, live provider exchange, and participant UX still require supervised target-machine verification.'
 if ($failures -gt 0) {
     Write-Output "Preflight failed: $failures blocking check(s)."
     exit 1

@@ -58,6 +58,12 @@ To start MEMENTO after installation, or start the repository's published executa
 .\scripts\Start-Memento.ps1
 ```
 
+Before a cloud-enabled pilot, verify the credential target without exposing its value:
+
+```powershell
+.\scripts\Test-MementoPreflight.ps1 -RequireCloudCredential
+```
+
 To remove the installed app while preserving the local archive by default:
 
 ```powershell

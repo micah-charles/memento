@@ -16,10 +16,16 @@ Scripts must not read or upload personal data by default.
 .\scripts\Start-Memento.ps1
 ```
 
-`Test-MementoPreflight.ps1` performs a read-only deployment check for the bundle checksum, installed executable, shortcut, archive paths, free disk space, and running-process state. It reports native GUI, microphone, credentials, and participant checks as remaining supervised gates:
+`Test-MementoPreflight.ps1` performs a read-only deployment check for the bundle checksum, installed executable, shortcut, archive paths, free disk space, and running-process state. It also checks whether the `MEMENTO/OpenAI` Windows Credential Manager target exists without reading its secret. The credential is a warning by default because local-only capture does not need it; make it blocking for a cloud-enabled pilot with `-RequireCloudCredential`. Native GUI, microphone, live exchange, and participant checks remain supervised gates:
 
 ```powershell
 .\scripts\Test-MementoPreflight.ps1
+```
+
+For a cloud-enabled pilot, require the credential target explicitly:
+
+```powershell
+.\scripts\Test-MementoPreflight.ps1 -RequireCloudCredential
 ```
 
 `Uninstall-Memento.ps1` removes the app files and shortcut while preserving the `%LOCALAPPDATA%\MEMENTO` archive by default. Pass `-RemoveData` only after making and checking a backup:

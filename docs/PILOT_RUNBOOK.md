@@ -6,7 +6,7 @@ Do not run a real participant pilot until every item below has an owner and reco
 
 ## Before the session
 
-- Run the read-only deployment preflight: `.\scripts\Test-MementoPreflight.ps1`; resolve every blocking check and record the warnings before continuing.
+- Run the read-only deployment preflight: `.\scripts\Test-MementoPreflight.ps1`; use `.\scripts\Test-MementoPreflight.ps1 -RequireCloudCredential` when the pilot includes cloud processing, then resolve every blocking check and record the warnings before continuing.
 - Confirm the participant and any guest understand local recording, optional cloud processing, retention, deletion, and who can review/export the archive.
 - Confirm the microphone, Windows permissions, local disk capacity, backup destination, and restore procedure on the target machine.
 - Run a short synthetic capture, stop it, inspect the Source checksum, and confirm the original audio remains playable.
