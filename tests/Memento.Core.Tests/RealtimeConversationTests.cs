@@ -190,6 +190,43 @@ public sealed class RealtimeConversationTests
     }
 
     [Fact]
+    public async Task Streaming_orchestrator_drops_response_after_live_consent_is_revoked()
+    {
+        using var fixture = new RealtimeFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.LiveCloudConversation, PrivacyMode.Normal, true, "privacy-1");
+        using var source = new FakeAudioChunkSource(new PcmWaveFormat(24000, 1, 16));
+        await using var transport = new StreamingFakeRealtimeTransport();
+        var provider = new OpenAiRealtimeStreamingProvider(
+            new DelegateApiCredentialProvider(() => "test-key"),
+            "gpt-test",
+            () => transport,
+            new Uri("wss://example.test/v1/realtime?model=gpt-test"));
+        var speechStore = new DerivedAudioStore(repository, Path.Combine(fixture.DirectoryPath, "derived", "audio"));
+        var orchestrator = new RealtimeStreamingOrchestrator(repository, provider, speechStore);
+
+        await using var live = await orchestrator.StartAsync(new RealtimeStreamingRequest(
+            session.SessionId, null, PrivacyMode.Normal, true, DateTimeOffset.UtcNow), source);
+        repository.AddConsent(session.SessionId, ConsentScope.LiveCloudConversation, PrivacyMode.Normal, false, "privacy-1");
+        source.Emit([1, 0, 2, 0]);
+        var completion = live.CompleteAsync();
+        await transport.WaitForMessageAsync(message => message.Contains("input_audio_buffer.commit", StringComparison.Ordinal));
+        await transport.EmitAsync("{\"type\":\"response.output_audio_transcript.delta\",\"delta\":\"唔應該顯示\"}");
+        await transport.EmitAsync("{\"type\":\"response.done\",\"response\":{\"id\":\"revoked-stream\",\"status\":\"completed\"}}");
+
+        await Assert.ThrowsAsync<CloudNotPermittedException>(() => completion);
+        Assert.Empty(repository.ListDerivedSpeechAssets(session.SessionId));
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT succeeded FROM provider_interactions WHERE session_id = $session ORDER BY created_at DESC LIMIT 1";
+        command.Parameters.AddWithValue("$session", session.SessionId);
+        Assert.Equal(0, Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
     public async Task Realtime_orchestrator_requires_live_scope_and_persists_success_metadata()
     {
         using var fixture = new RealtimeFixture();
