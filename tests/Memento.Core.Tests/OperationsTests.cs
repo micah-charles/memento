@@ -325,6 +325,36 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void Scoped_redacted_export_rejects_reparse_point_destination_without_writing_through_it()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new OperationsFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(fixture.Source(session.SessionId, "source-scoped-reparse"));
+        var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-scoped-reparse", source.SourceId, null, 1, "initial", "safe text", 0.9, null, DateTimeOffset.UtcNow));
+        var evidence = repository.AddEvidence(new EvidenceRecord("evidence-scoped-reparse", EvidenceKind.DirectStatement, source.SourceId, session.SessionId, null, revision.TranscriptRevisionId, "safe statement", "safe expression", ParticipantCertainty.Stated, true, DateTimeOffset.UtcNow, null, null, "provider", "model"));
+        var claim = repository.AddMemoryClaim(new MemoryClaim("claim-scoped-reparse", "Safe claim", null, "is", "safe", ClaimStatus.Reviewed, DateTimeOffset.UtcNow));
+        repository.AddEvidenceClaimLink(new EvidenceClaimLink(evidence.EvidenceId, claim.MemoryClaimId, "supports", DateTimeOffset.UtcNow));
+
+        var actualTarget = Path.Combine(fixture.ExportRoot, "scoped-export-target");
+        Directory.CreateDirectory(actualTarget);
+        var link = Path.Combine(fixture.ExportRoot, "scoped-export-link");
+        try
+        {
+            Directory.CreateSymbolicLink(link, actualTarget);
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        Assert.Throws<IOException>(() => ArchiveExporter.ExportRedacted(archive, link, [claim.MemoryClaimId]));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(actualTarget));
+    }
+
+    [Fact]
     public void Scoped_redacted_export_rejects_unreviewed_claims()
     {
         using var fixture = new OperationsFixture();

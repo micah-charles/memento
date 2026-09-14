@@ -116,7 +116,7 @@
 - M04 now includes a complete non-sensitive synthetic corpus covering every required language-validation category; the corpus is wired through the report harness and remains clearly separate from real-provider quality evidence.
 - The shell also exposes a local index repair action, so a health-check parity finding can be fixed from the app without opening SQLite or a terminal.
 - Archive health checks now detect semantic search-index corruption (content, Source, Session, duplicates, and unexpected IDs) in addition to missing-row parity.
-- The cumulative suite now passes **193/193** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while target-machine restart/power-loss observation, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
+- The cumulative suite now passes **194/194** tests. These milestones are **IMPLEMENTED / AUTOMATED TESTED**, while target-machine restart/power-loss observation, provider extraction quality, and Family Admin review remain future verification work. See [M06–M09 evidence](evidence/M06-M09.md).
 - Clarification provenance now rejects cross-session or unpersisted initial revisions before creating a correction chain.
 - Clarification ownership checks now reject sessionless or mismatched Source context before creating a corrected revision, avoiding orphaned correction records.
 - Clarification chain persistence now uses one SQLite transaction for corrected revision, event, vocabulary, and provenance search row.
@@ -171,11 +171,12 @@
 - Encrypted backup and restore now reject reparse-point input paths before reading through them; file and directory source-link regressions confirm no backup is created and the link targets remain unchanged.
 - Directory backups now inspect the complete source tree before ZIP creation, rejecting nested junctions/symbolic links instead of allowing archive enumeration to follow them; restore-input symlink coverage is included as well.
 - Full and scoped exports now reject reparse-point destination roots before creating any snapshot or JSONL output; the Windows regression confirms a junction target remains empty.
+- The scoped redacted-export path now has its own junction regression, covering the reviewed-Claim selection flow as well as the complete export path.
 - Family Admin full export, scoped export, encrypted backup, restore verification, and password rotation now acquire the same `_processing` busy-state guard as other archive operations, preventing overlapping clicks while their background work is running.
 - The Family Admin shell now exposes a confirmation-gated deletion of the latest finalized Source; it removes dependent content through the authenticated deletion service and preserves only a minimal audit tombstone.
 - The Family Admin shell also exposes a confirmation-gated withdrawal of the latest finalized Source; it retains local history and media but disables future cloud processing and ordinary search/export paths.
-- The cumulative suite now passes **193/193** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
-- Added `ArchiveExporter.ExportRedacted`, a claim-ID-scoped portable export that includes selected reviewed Memory Claims, authority metadata, and linked Evidence relationships while explicitly redacting Evidence content and withholding Source IDs, transcript links, audio, provider interactions, and raw SQLite. Family Admin can now choose one or more reviewed Claims from the WinUI shell; the export rejects empty, unknown, withdrawn, or unreviewed selections, writes a redaction manifest, and is covered by the Release suite (now **193/193** tests).
+- The cumulative suite now passes **194/194** tests. M10–M13 are **IMPLEMENTED / AUTOMATED TESTED**, with live search, live extraction quality, supervised Family Admin UX, target-machine encrypted bundle restore, and destructive reliability drills still pending. See [M10–M13 evidence](evidence/M10-M13.md).
+- Added `ArchiveExporter.ExportRedacted`, a claim-ID-scoped portable export that includes selected reviewed Memory Claims, authority metadata, and linked Evidence relationships while explicitly redacting Evidence content and withholding Source IDs, transcript links, audio, provider interactions, and raw SQLite. Family Admin can now choose one or more reviewed Claims from the WinUI shell; the export rejects empty, unknown, withdrawn, or unreviewed selections, writes a redaction manifest, and is covered by the Release suite (now **194/194** tests).
 
 ## M14 status
 
