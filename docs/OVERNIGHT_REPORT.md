@@ -2,7 +2,7 @@
 
 **Report date:** 2026-09-14
 **Starting reviewed checkpoint:** `82cbccc` (`main` on `origin`)
-**Current local checkpoint:** `0a507d3` (`feat: gate deployment on enumerated audio devices`).
+**Current local checkpoint:** `8ae791a` (`feat: add cloud credential revocation helper`).
 **Environment:** Windows, .NET 10 SDK, `win-x64`, repository worktree
 
 This report records what is implemented and verified in the local worktree. It does not turn simulated, automated, or process-only checks into native GUI, hardware, live-provider, or participant evidence.
@@ -16,6 +16,7 @@ This report records what is implemented and verified in the local worktree. It d
 - Deployment preflight — **PASS** for bundle, sidecar, installed executable, Start Menu shortcut, archive paths, free disk, stopped-process state, one wave-in device, and one active WASAPI render device; no microphone was opened and no audio was played.
 - Deployment policy gates — `Setup-Memento.ps1 -SkipPublish -RequireAudioInput -RequireAudioOutput` passed; the same switches can promote missing enumerated devices to blocking failures without claiming physical capture/playback.
 - Credential setup plumbing — the installed hidden-input helper created a disposable `MEMENTO/OpenAI` Credential Manager target, then the target was removed; no live provider request was made.
+- Credential revocation plumbing — the installed fixed-target removal helper removed a disposable `MEMENTO/OpenAI` target after MEMENTO was closed, and `cmdkey.exe /list:MEMENTO/OpenAI` confirmed `* NONE *`; archive data was unchanged.
 - Deployment preflight — **PASS** for the current-user Installed apps registration and its stable per-user install path.
 - Credential setup check — default preflight emitted a **WARN** because `MEMENTO/OpenAI` is absent (local-only mode remains available); `-RequireCloudCredential` correctly returned one blocking failure without exposing a secret.
 - Application-lock setup check — default preflight emitted an **optional WARN** because `MEMENTO/AppLock` is absent; `-RequireApplicationLock` correctly turns that policy choice into one blocking failure without exposing the verifier.
