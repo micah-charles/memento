@@ -17,6 +17,7 @@ public sealed partial class MainWindow : Window
     private readonly ArchiveRepository _repository;
     private readonly string _audioRoot;
     private readonly int _recoverableAudioCount;
+    private readonly AudioRecoveryService _audioRecovery;
     private readonly DispatcherQueue _dispatcherQueue;
     private readonly string _dataRoot;
     private readonly BoundedVoiceConversationService? _voiceConversation;
@@ -50,6 +51,7 @@ public sealed partial class MainWindow : Window
         _repository = repository;
         _audioRoot = audioRoot;
         _recoverableAudioCount = recoverableAudioCount;
+        _audioRecovery = new AudioRecoveryService(repository, audioRoot);
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
         _dataRoot = dataRoot is null ? Path.GetFullPath(Path.Combine(audioRoot, "..", "..")) : Path.GetFullPath(dataRoot);
         _voiceConversation = voiceConversation;
@@ -827,6 +829,68 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async void RecoverAudioButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!EnsureAdminForOperation()) return;
+        if (_processing || _capture?.State == AudioCaptureState.Capturing)
+        {
+            StatusText.Text = "請先完成目前錄音或處理工作。";
+            return;
+        }
+
+        var candidates = AudioRecoveryScanner.Scan(_audioRoot).Where(candidate => candidate.IsValidPcm).ToArray();
+        if (candidates.Length == 0)
+        {
+            StatusText.Text = "目前沒有可整理嘅未完成錄音。";
+            return;
+        }
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = RootGrid.XamlRoot,
+            Title = "整理未完成錄音？",
+            Content = new TextBlock
+            {
+                Text = $"會將 {candidates.Length} 段可讀取嘅暫存 WAV 修復成 archive Source；原始 transcript 不會自行新增或修改。",
+                TextWrapping = TextWrapping.Wrap
+            },
+            PrimaryButtonText = "整理",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+        var recovered = 0;
+        var skipped = 0;
+        foreach (var candidate in candidates)
+        {
+            if (!AudioRecoveryService.TryInferSessionId(candidate.TemporaryPath, out var sessionId))
+            {
+                skipped++;
+                continue;
+            }
+
+            try
+            {
+                _audioRecovery.Recover(candidate.TemporaryPath, sessionId);
+                recovered++;
+            }
+            catch
+            {
+                // Keep the marker for a later supervised review. Do not show
+                // paths or raw exception text in the participant-facing shell.
+                skipped++;
+            }
+        }
+
+        if (recovered > 0)
+            _adminReview!.RecordAdminOperation(_adminActorId!, "recover_audio");
+        StatusText.Text = skipped == 0
+            ? $"已整理 {recovered} 段未完成錄音。"
+            : $"已整理 {recovered} 段未完成錄音；{skipped} 段保留待管理員檢查。";
+        UpdateRecordControl();
+    }
+
     private void RebuildSearchButton_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -1082,6 +1146,7 @@ public sealed partial class MainWindow : Window
         ExportButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
         BackupButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
         RestoreButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
+        RecoverAudioButton.IsEnabled = adminIdle && _adminReview is not null && _adminActorId is not null;
         LockNowButton.IsEnabled = _applicationLock?.IsConfigured == true && adminIdle;
     }
 

@@ -118,6 +118,58 @@ public sealed class AudioTests
     }
 
     [Fact]
+    public void Recovery_service_repairs_marker_and_registers_recovered_source()
+    {
+        using var fixture = new AudioFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.LocalCaptureOnly);
+        var format = new PcmWaveFormat(16000, 1, 16);
+        using var writer = PcmWaveWriter.Create(fixture.AudioRoot, session.SessionId, DateTimeOffset.UtcNow, format, "interrupted-source");
+        writer.Append(new byte[format.BlockAlign * 160]);
+        writer.Dispose();
+        var marker = writer.TemporaryPath;
+        using (var patch = new FileStream(marker, FileMode.Open, FileAccess.Write, FileShare.Read))
+        {
+            patch.Position = 40;
+            patch.Write([0, 0, 0, 0]);
+            patch.Flush(flushToDisk: true);
+        }
+
+        var recovered = new AudioRecoveryService(repository, fixture.AudioRoot).Recover(marker, session.SessionId);
+
+        Assert.Equal("recovered", recovered.RecoveryStatus);
+        Assert.False(File.Exists(marker));
+        Assert.True(File.Exists(recovered.FilePath));
+        Assert.Equal(format, PcmWaveValidator.Validate(recovered.FilePath!, allowPartial: false));
+        Assert.Equal(10, recovered.DurationMs);
+        Assert.Equal(recovered.SourceId, repository.GetSource(recovered.SourceId)!.SourceId);
+        Assert.Equal(recovered.Sha256, Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(recovered.FilePath!))).ToLowerInvariant());
+    }
+
+    [Fact]
+    public void Recovery_service_restores_valid_marker_when_source_registration_fails()
+    {
+        using var fixture = new AudioFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.LocalCaptureOnly);
+        using var writer = PcmWaveWriter.Create(fixture.AudioRoot, session.SessionId, DateTimeOffset.UtcNow, new PcmWaveFormat(16000, 1, 16), "registration-failure");
+        writer.Append(new byte[320]);
+        writer.Dispose();
+        var marker = writer.TemporaryPath;
+
+        var error = Assert.ThrowsAny<Exception>(() => new AudioRecoveryService(repository, fixture.AudioRoot).Recover(marker, session.SessionId, "missing-turn"));
+        Assert.Contains("FOREIGN KEY", error.ToString(), StringComparison.OrdinalIgnoreCase);
+
+        Assert.True(File.Exists(marker));
+        Assert.True(PcmWaveValidator.Validate(marker, allowPartial: false).Equals(new PcmWaveFormat(16000, 1, 16)));
+        Assert.Empty(Directory.EnumerateFiles(Path.GetDirectoryName(marker)!, "*-recovered-*.wav"));
+    }
+
+    [Fact]
     public void Corrupt_partial_is_reported_without_being_deleted()
     {
         using var fixture = new AudioFixture();

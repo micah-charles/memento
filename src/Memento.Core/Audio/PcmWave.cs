@@ -156,7 +156,7 @@ public sealed class PcmWaveWriter : IDisposable
 
     private void Flush() => _stream.Flush(flushToDisk: true);
 
-    private void WriteHeader(long dataBytes)
+    internal static void WriteHeader(Stream stream, PcmWaveFormat format, long dataBytes)
     {
         if (dataBytes > uint.MaxValue) throw new InvalidOperationException("WAV data exceeds the RIFF size limit.");
         Span<byte> header = stackalloc byte[HeaderLength];
@@ -167,17 +167,19 @@ public sealed class PcmWaveWriter : IDisposable
         "fmt "u8.CopyTo(header[12..16]);
         BinaryPrimitives.WriteUInt32LittleEndian(header[16..20], 16);
         BinaryPrimitives.WriteUInt16LittleEndian(header[20..22], 1);
-        BinaryPrimitives.WriteUInt16LittleEndian(header[22..24], checked((ushort)_format.Channels));
-        BinaryPrimitives.WriteUInt32LittleEndian(header[24..28], checked((uint)_format.SampleRate));
-        BinaryPrimitives.WriteUInt32LittleEndian(header[28..32], checked((uint)_format.ByteRate));
-        BinaryPrimitives.WriteUInt16LittleEndian(header[32..34], checked((ushort)_format.BlockAlign));
-        BinaryPrimitives.WriteUInt16LittleEndian(header[34..36], checked((ushort)_format.BitsPerSample));
+        BinaryPrimitives.WriteUInt16LittleEndian(header[22..24], checked((ushort)format.Channels));
+        BinaryPrimitives.WriteUInt32LittleEndian(header[24..28], checked((uint)format.SampleRate));
+        BinaryPrimitives.WriteUInt32LittleEndian(header[28..32], checked((uint)format.ByteRate));
+        BinaryPrimitives.WriteUInt16LittleEndian(header[32..34], checked((ushort)format.BlockAlign));
+        BinaryPrimitives.WriteUInt16LittleEndian(header[34..36], checked((ushort)format.BitsPerSample));
         "data"u8.CopyTo(header[36..40]);
         BinaryPrimitives.WriteUInt32LittleEndian(header[40..44], checked((uint)dataBytes));
-        _stream.Position = 0;
-        _stream.Write(header);
-        _stream.Position = _stream.Length;
+        stream.Position = 0;
+        stream.Write(header);
+        stream.Position = stream.Length;
     }
+
+    private void WriteHeader(long dataBytes) => WriteHeader(_stream, _format, dataBytes);
 
     private long Duration(long bytes) => bytes * 1000L / _format.ByteRate;
     private static string ComputeSha256(string path) { using var stream = File.OpenRead(path); return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant(); }
