@@ -153,6 +153,40 @@ public sealed class RealtimeConversationTests
     }
 
     [Fact]
+    public async Task Streaming_timeout_persists_content_free_failure_metadata()
+    {
+        using var fixture = new RealtimeFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.LiveCloudConversation, PrivacyMode.Normal, true, "privacy-1");
+        using var source = new FakeAudioChunkSource(new PcmWaveFormat(24000, 1, 16));
+        await using var transport = new StreamingFakeRealtimeTransport();
+        var provider = new OpenAiRealtimeStreamingProvider(
+            new DelegateApiCredentialProvider(() => "test-key"),
+            transportFactory: () => transport,
+            endpoint: new Uri("wss://example.test/v1/realtime"),
+            completionTimeout: TimeSpan.FromMilliseconds(75));
+        var live = await new RealtimeStreamingOrchestrator(repository, provider).StartAsync(new RealtimeStreamingRequest(
+            session.SessionId, null, PrivacyMode.Normal, true, DateTimeOffset.UtcNow), source);
+        await using (live)
+        {
+            source.Emit([1, 0, 2, 0]);
+            await Assert.ThrowsAsync<ProviderRequestException>(() => live.CompleteAsync());
+        }
+
+        using var connection = archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT succeeded, error_message FROM provider_interactions WHERE session_id = $session ORDER BY created_at DESC LIMIT 1";
+        command.Parameters.AddWithValue("$session", session.SessionId);
+        using var reader = command.ExecuteReader();
+        Assert.True(reader.Read());
+        Assert.Equal(0, reader.GetInt32(0));
+        Assert.Equal("provider request failed (HTTP 504)", reader.GetString(1));
+    }
+
+    [Fact]
     public async Task Streaming_provider_requires_live_consent_before_connecting()
     {
         using var source = new FakeAudioChunkSource(new PcmWaveFormat(24000, 1, 16));
