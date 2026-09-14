@@ -44,6 +44,12 @@ Cloud transcription, replies, speech output, and launch-time retry processing ar
 
 The helper writes the `MEMENTO/OpenAI` generic credential for the current Windows user. MEMENTO reads that credential at runtime and never writes it to the archive or logs. If the credential is absent, local recording and the local-only privacy mode still work.
 
+To disable future cloud access, close MEMENTO and run:
+
+```powershell
+.\scripts\Remove-MementoOpenAiCredential.ps1
+```
+
 To create a portable self-contained bundle:
 
 ```powershell

@@ -10,7 +10,7 @@ Scripts must not read or upload personal data by default.
 .\scripts\Setup-Memento.ps1 -RequireCloudCredential -Launch
 ```
 
-`Install-Memento.ps1` installs that bundle under `%LOCALAPPDATA%\MEMENTO\App`, creates a per-user Start Menu shortcut, and registers MEMENTO in the current user's Windows Installed apps list without administrator access. The app-local `Uninstall-Memento.ps1`, `Reset-MementoApplicationLock.ps1`, and `Set-MementoOpenAiCredential.ps1` helpers are copied into the install tree so registration, forgotten-passcode recovery, and credential setup remain usable after the repository is moved. Updates are staged as a clean tree and swapped into place, so files removed from a newer bundle cannot remain from an older install; any failure after the swap also moves the failed tree aside and restores the previous app. The archive data directory is outside the app tree and is preserved. When a matching `.zip.sha256` sidecar is present, it verifies the bundle before copying files:
+`Install-Memento.ps1` installs that bundle under `%LOCALAPPDATA%\MEMENTO\App`, creates a per-user Start Menu shortcut, and registers MEMENTO in the current user's Windows Installed apps list without administrator access. The app-local `Uninstall-Memento.ps1`, `Reset-MementoApplicationLock.ps1`, `Set-MementoOpenAiCredential.ps1`, and `Remove-MementoOpenAiCredential.ps1` helpers are copied into the install tree so registration, forgotten-passcode recovery, credential setup, and credential removal remain usable after the repository is moved. Updates are staged as a clean tree and swapped into place, so files removed from a newer bundle cannot remain from an older install; any failure after the swap also moves the failed tree aside and restores the previous app. The archive data directory is outside the app tree and is preserved. When a matching `.zip.sha256` sidecar is present, it verifies the bundle before copying files:
 
 ```powershell
 .\scripts\Install-Memento.ps1
@@ -41,6 +41,12 @@ To configure the optional cloud credential without putting the API key in a comm
 ```
 
 Use `cmdkey.exe /delete:MEMENTO/OpenAI` after closing MEMENTO when the credential should be removed.
+
+The installed removal helper performs the same fixed-target deletion with an explicit confirmation boundary:
+
+```powershell
+.\scripts\Remove-MementoOpenAiCredential.ps1
+```
 
 For a family deployment that requires the optional application lock, add `-RequireApplicationLock`; otherwise its Credential Manager target is reported as an optional warning:
 

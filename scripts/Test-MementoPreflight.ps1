@@ -60,6 +60,10 @@ $installedCredentialHelper = Join-Path $InstallRoot 'Set-MementoOpenAiCredential
 $credentialHelperExists = Test-Path -LiteralPath $installedCredentialHelper -PathType Leaf
 Write-Check 'OpenAI credential setup helper' $credentialHelperExists ($(if ($credentialHelperExists) { $installedCredentialHelper } else { "not found at $installedCredentialHelper" }))
 
+$installedCredentialRemovalHelper = Join-Path $InstallRoot 'Remove-MementoOpenAiCredential.ps1'
+$credentialRemovalHelperExists = Test-Path -LiteralPath $installedCredentialRemovalHelper -PathType Leaf
+Write-Check 'OpenAI credential removal helper' $credentialRemovalHelperExists ($(if ($credentialRemovalHelperExists) { $installedCredentialRemovalHelper } else { "not found at $installedCredentialRemovalHelper" }))
+
 $audioAssemblyRoot = Split-Path -Parent $installedExecutable
 $naudioCore = Join-Path $audioAssemblyRoot 'NAudio.Core.dll'
 $naudioWinMm = Join-Path $audioAssemblyRoot 'NAudio.WinMM.dll'
