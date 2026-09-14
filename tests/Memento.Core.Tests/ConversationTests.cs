@@ -87,6 +87,34 @@ public sealed class ConversationTests
     }
 
     [Fact]
+    public async Task Conversation_rejects_source_audio_outside_archive_root_before_provider_call()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        var external = Path.Combine(Path.GetTempPath(), "memento-external-conversation-" + Guid.NewGuid().ToString("N") + ".wav");
+        File.WriteAllBytes(external, [1, 2, 3]);
+        try
+        {
+            var source = repository.AddSource(new SourceMetadata("source-external-conversation", "audio", session.SessionId, null, external, "PCM WAV", 48000, 1, 16, 3, 0, Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(external))).ToLowerInvariant(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+            var provider = new CountingProvider();
+
+            await Assert.ThrowsAsync<InvalidDataException>(() => new ConversationOrchestrator(repository, provider).ExecuteAsync(new ConversationRequest(
+                session.SessionId, null, external, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, SourceId: source.SourceId)));
+
+            Assert.Equal(0, provider.Calls);
+            Assert.True(File.Exists(external));
+        }
+        finally
+        {
+            if (File.Exists(external)) File.Delete(external);
+        }
+    }
+
+    [Fact]
     public async Task Local_capture_only_never_calls_provider()
     {
         using var fixture = new ConversationFixture();
@@ -330,6 +358,29 @@ public sealed class ConversationTests
             null,
             new SpeechOutputResult("test", "test-model", "test", "wav", "request", [1, 2, 3], DateTimeOffset.UtcNow)));
         Assert.Empty(Directory.EnumerateFileSystemEntries(targetRoot));
+    }
+
+    [Fact]
+    public void Derived_audio_store_rejects_asset_outside_store_root()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var storeRoot = Path.Combine(fixture.DirectoryPath, "derived", "audio");
+        var external = Path.Combine(Path.GetTempPath(), "memento-external-derived-" + Guid.NewGuid().ToString("N") + ".wav");
+        File.WriteAllBytes(external, [1, 2, 3]);
+        try
+        {
+            var bytes = File.ReadAllBytes(external);
+            var asset = new DerivedSpeechAsset("derived-external", "session", null, external, "wav", bytes.LongLength, Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant(), "test", "test-model", "test", "request", DateTimeOffset.UtcNow);
+            Assert.Throws<InvalidDataException>(() => new DerivedAudioStore(repository, storeRoot).ReadVerified(asset));
+            Assert.True(File.Exists(external));
+        }
+        finally
+        {
+            if (File.Exists(external)) File.Delete(external);
+        }
     }
 
     [Fact]

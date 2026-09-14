@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Memento.Core.Domain;
+using Memento.Core.Storage;
 using NAudio.Wave;
 
 namespace Memento.Core.Audio;
@@ -12,11 +13,22 @@ public interface ISourceAudioPlayback
 /// <summary>Windows playback for an integrity-checked participant Source.</summary>
 public sealed class WaveFileSourceAudioPlayback : ISourceAudioPlayback
 {
+    private readonly string _archiveRoot;
+
+    public WaveFileSourceAudioPlayback(string archiveRoot)
+    {
+        if (string.IsNullOrWhiteSpace(archiveRoot)) throw new ArgumentException("An archive root is required.", nameof(archiveRoot));
+        _archiveRoot = Path.GetFullPath(archiveRoot);
+    }
+
     public async Task PlayAsync(SourceMetadata source, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
         if (string.IsNullOrWhiteSpace(source.FilePath))
             throw new FileNotFoundException("The Source has no local audio path.", source.SourceId);
+        if (!ArchivePathSafety.IsPathUnderRoot(source.FilePath, _archiveRoot))
+            throw new InvalidDataException("The Source audio path is outside the archive directory.");
+        ArchivePathSafety.EnsureNoReparsePointInPath(source.FilePath, "The Source audio path");
         if (!File.Exists(source.FilePath))
             throw new FileNotFoundException("The Source audio file was not found.", source.FilePath);
 

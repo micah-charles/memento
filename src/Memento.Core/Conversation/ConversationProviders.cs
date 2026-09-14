@@ -28,10 +28,12 @@ public sealed class CloudConsentRequiredException() : InvalidOperationException(
 
 internal static class SourcePathGuard
 {
-    public static void EnsureMatches(SourceMetadata source, string requestedPath)
+    public static void EnsureMatches(SourceMetadata source, string requestedPath, string archiveRoot)
     {
         if (string.IsNullOrWhiteSpace(source.FilePath) || !PathsEqual(source.FilePath, requestedPath))
             throw new InvalidDataException("The requested audio path does not match the archived Source.");
+        if (!ArchivePathSafety.IsPathUnderRoot(source.FilePath, archiveRoot))
+            throw new InvalidDataException("The archived Source audio path is outside the archive directory.");
         ArchivePathSafety.EnsureNoReparsePointInPath(source.FilePath, "The Source audio path");
         if (!File.Exists(source.FilePath))
             throw new FileNotFoundException("The archived Source audio file was not found.", source.FilePath);
@@ -173,7 +175,7 @@ public sealed class ConversationOrchestrator
                 throw new InvalidDataException("The requested Source does not belong to the requested session.");
             if (string.Equals(source.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))
                 throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
-            SourcePathGuard.EnsureMatches(source, request.LocalAudioPath);
+            SourcePathGuard.EnsureMatches(source, request.LocalAudioPath, ArchivePathSafety.GetArchiveRoot(_repository.Archive));
         }
         if (!_repository.HasGrantedConsent(request.SessionId, ConsentScope.CloudTranscription))
             throw new CloudNotPermittedException();

@@ -96,6 +96,8 @@ public sealed class DerivedAudioStore
     public byte[] ReadVerified(DerivedSpeechAsset asset)
     {
         ArgumentNullException.ThrowIfNull(asset);
+        if (!ArchivePathSafety.IsPathUnderRoot(asset.FilePath, _rootDirectory))
+            throw new InvalidDataException("Derived speech output is outside the derived audio directory.");
         ArchivePathSafety.EnsureNoReparsePointInPath(asset.FilePath, "The derived audio path");
         var bytes = File.ReadAllBytes(asset.FilePath);
         var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();

@@ -66,7 +66,7 @@ public partial class App : Application
         var adminAuthorized = adminAuthorizer.IsAuthorized(adminActorId);
         var deletion = adminAuthorized ? new Memento.Core.Admin.ArchiveDeletionService(Repository, adminAuthorizer) : null;
         var withdrawal = adminAuthorized ? new Memento.Core.Admin.ArchiveWithdrawalService(Repository, adminAuthorizer) : null;
-        var sourceAudioPlayback = adminAuthorized ? new WaveFileSourceAudioPlayback() : null;
+        var sourceAudioPlayback = adminAuthorized ? new WaveFileSourceAudioPlayback(dataDirectory) : null;
         _window = new MainWindow(Repository, audioDirectory, recoverableAudioCount, voiceConversation, new WaveFileSpeechOutputPlayback(derivedAudioStore), adminReview, adminActorId, retryWorker, () => !string.IsNullOrWhiteSpace(credentials.GetApiKey()), dataDirectory, deletion, withdrawal, sourceAudioPlayback, currentInformation, applicationLock, realtimeConversation, realtimeStreaming);
         _window.Activate();
     }
