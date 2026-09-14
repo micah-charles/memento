@@ -68,6 +68,25 @@ public sealed class ArchiveTests
     }
 
     [Fact]
+    public void Latest_source_includes_a_recovered_audio_asset()
+    {
+        using var fixture = new ArchiveFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.LocalCaptureOnly);
+        var recovered = new SourceMetadata(
+            "source-recovered-latest", "audio", session.SessionId, null,
+            "raw/recovered.wav", "PCM WAV", 16000, 1, 16, 44, 0, "abc",
+            DateTimeOffset.UtcNow.AddMinutes(1), DateTimeOffset.UtcNow.AddMinutes(1),
+            "recovered", DateTimeOffset.UtcNow);
+
+        repository.AddSource(recovered);
+
+        Assert.Equal(recovered.SourceId, repository.GetLatestFinalizedSource()!.SourceId);
+    }
+
+    [Fact]
     public void Foreign_key_rejects_invalid_relationship()
     {
         using var fixture = new ArchiveFixture();
