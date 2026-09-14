@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.IO.Compression;
@@ -266,39 +267,151 @@ public static class ArchiveExporter
 
 public static class ArchiveBackupProtector
 {
-    private static readonly byte[] Magic = "MEMENTO1"u8.ToArray();
+    private static readonly byte[] LegacyMagic = "MEMENTO1"u8.ToArray();
+    private static readonly byte[] StreamingMagic = "MEMENTO2"u8.ToArray();
+    private const int SaltLength = 16;
+    private const int NonceLength = 12;
+    private const int TagLength = 16;
+    private const int ChunkSize = 1024 * 1024;
 
     public static void EncryptFile(string sourcePath, string destinationPath, string password)
     {
         if (string.IsNullOrEmpty(password)) throw new ArgumentException("A backup password is required.", nameof(password));
-        var plain = File.ReadAllBytes(sourcePath);
-        var salt = RandomNumberGenerator.GetBytes(16);
-        var nonce = RandomNumberGenerator.GetBytes(12);
+        using var input = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.SequentialScan);
+        var salt = RandomNumberGenerator.GetBytes(SaltLength);
         var key = Rfc2898DeriveBytes.Pbkdf2(password, salt, 150_000, HashAlgorithmName.SHA256, 32);
-        var cipher = new byte[plain.Length];
-        var tag = new byte[16];
-        using var aes = new AesGcm(key, tag.Length);
-        aes.Encrypt(nonce, plain, cipher, tag);
         WriteAtomically(destinationPath, stream =>
         {
-            stream.Write(Magic); stream.Write(salt); stream.Write(nonce); stream.Write(tag); stream.Write(cipher);
+            stream.Write(StreamingMagic);
+            stream.Write(salt);
+            EncryptChunks(input, stream, key);
         });
     }
 
     public static void DecryptFile(string sourcePath, string destinationPath, string password)
     {
         if (string.IsNullOrEmpty(password)) throw new ArgumentException("A backup password is required.", nameof(password));
+        var magic = new byte[StreamingMagic.Length];
+        using (var header = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.SequentialScan))
+        {
+            try { header.ReadExactly(magic); }
+            catch (EndOfStreamException) { throw new InvalidDataException("Unsupported MEMENTO backup."); }
+        }
+
+        if (magic.AsSpan().SequenceEqual(LegacyMagic))
+        {
+            DecryptLegacyFile(sourcePath, destinationPath, password);
+            return;
+        }
+        if (!magic.AsSpan().SequenceEqual(StreamingMagic))
+            throw new InvalidDataException("Unsupported MEMENTO backup.");
+
+        using var input = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.SequentialScan);
+        input.Position = StreamingMagic.Length;
+        var salt = new byte[SaltLength];
+        try { input.ReadExactly(salt); }
+        catch (EndOfStreamException) { throw new InvalidDataException("MEMENTO backup header is incomplete."); }
+        var key = Rfc2898DeriveBytes.Pbkdf2(password, salt, 150_000, HashAlgorithmName.SHA256, 32);
+        WriteAtomically(destinationPath, stream => DecryptChunks(input, stream, key));
+    }
+
+    private static void EncryptChunks(Stream input, Stream output, byte[] key)
+    {
+        using var aes = new AesGcm(key, TagLength);
+        var buffer = new byte[ChunkSize];
+        long chunkIndex = 0;
+        while (true)
+        {
+            var read = input.Read(buffer, 0, buffer.Length);
+            if (read == 0) break;
+            var nonce = RandomNumberGenerator.GetBytes(NonceLength);
+            var cipher = new byte[read];
+            var tag = new byte[TagLength];
+            var associatedData = AssociatedData(chunkIndex, read);
+            aes.Encrypt(nonce, buffer.AsSpan(0, read), cipher, tag, associatedData);
+            WriteInt32(output, read);
+            output.Write(nonce);
+            output.Write(tag);
+            output.Write(cipher);
+            chunkIndex++;
+        }
+
+        WriteInt32(output, 0);
+    }
+
+    private static void DecryptChunks(Stream input, Stream output, byte[] key)
+    {
+        using var aes = new AesGcm(key, TagLength);
+        var lengthBuffer = new byte[sizeof(int)];
+        var nonce = new byte[NonceLength];
+        var tag = new byte[TagLength];
+        long chunkIndex = 0;
+        while (true)
+        {
+            try { input.ReadExactly(lengthBuffer); }
+            catch (EndOfStreamException) { throw new InvalidDataException("MEMENTO backup chunk header is incomplete."); }
+            var length = BinaryPrimitives.ReadInt32LittleEndian(lengthBuffer);
+            if (length == 0)
+            {
+                if (input.Position != input.Length)
+                    throw new InvalidDataException("MEMENTO backup contains data after its final chunk.");
+                return;
+            }
+            if (length < 0 || length > ChunkSize)
+                throw new InvalidDataException("MEMENTO backup chunk length is invalid.");
+
+            try
+            {
+                input.ReadExactly(nonce);
+                input.ReadExactly(tag);
+                var cipher = new byte[length];
+                input.ReadExactly(cipher);
+                var plain = new byte[length];
+                aes.Decrypt(nonce, cipher, tag, plain, AssociatedData(chunkIndex, length));
+                output.Write(plain);
+            }
+            catch (EndOfStreamException)
+            {
+                throw new InvalidDataException("MEMENTO backup chunk is truncated.");
+            }
+            catch (CryptographicException error)
+            {
+                throw new InvalidDataException("MEMENTO backup authentication failed.", error);
+            }
+
+            chunkIndex++;
+        }
+    }
+
+    private static void DecryptLegacyFile(string sourcePath, string destinationPath, string password)
+    {
         var payload = File.ReadAllBytes(sourcePath);
-        if (payload.Length < Magic.Length + 16 + 12 + 16 || !payload.AsSpan(0, Magic.Length).SequenceEqual(Magic)) throw new InvalidDataException("Unsupported MEMENTO backup.");
-        var salt = payload.AsSpan(Magic.Length, 16).ToArray();
-        var nonce = payload.AsSpan(Magic.Length + 16, 12).ToArray();
-        var tag = payload.AsSpan(Magic.Length + 28, 16).ToArray();
-        var cipher = payload.AsSpan(Magic.Length + 44).ToArray();
+        if (payload.Length < LegacyMagic.Length + SaltLength + NonceLength + TagLength || !payload.AsSpan(0, LegacyMagic.Length).SequenceEqual(LegacyMagic))
+            throw new InvalidDataException("Unsupported MEMENTO backup.");
+        var salt = payload.AsSpan(LegacyMagic.Length, SaltLength).ToArray();
+        var nonce = payload.AsSpan(LegacyMagic.Length + SaltLength, NonceLength).ToArray();
+        var tag = payload.AsSpan(LegacyMagic.Length + SaltLength + NonceLength, TagLength).ToArray();
+        var cipher = payload.AsSpan(LegacyMagic.Length + SaltLength + NonceLength + TagLength).ToArray();
         var key = Rfc2898DeriveBytes.Pbkdf2(password, salt, 150_000, HashAlgorithmName.SHA256, 32);
         var plain = new byte[cipher.Length];
         using var aes = new AesGcm(key, tag.Length);
         aes.Decrypt(nonce, cipher, tag, plain);
         WriteAtomically(destinationPath, stream => stream.Write(plain));
+    }
+
+    private static void WriteInt32(Stream output, int value)
+    {
+        Span<byte> buffer = stackalloc byte[sizeof(int)];
+        BinaryPrimitives.WriteInt32LittleEndian(buffer, value);
+        output.Write(buffer);
+    }
+
+    private static byte[] AssociatedData(long chunkIndex, int length)
+    {
+        var data = new byte[sizeof(long) + sizeof(int)];
+        BinaryPrimitives.WriteInt64LittleEndian(data.AsSpan(0, sizeof(long)), chunkIndex);
+        BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(sizeof(long)), length);
+        return data;
     }
 
     public static void ReencryptFile(string sourcePath, string destinationPath, string oldPassword, string newPassword)

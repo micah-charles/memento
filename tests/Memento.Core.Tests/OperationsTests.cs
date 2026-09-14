@@ -295,6 +295,53 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void Encrypted_backup_streams_large_files_and_reads_legacy_format()
+    {
+        using var fixture = new OperationsFixture();
+        Directory.CreateDirectory(fixture.ExportRoot);
+        var source = Path.Combine(fixture.ExportRoot, "large-source.bin");
+        var encrypted = Path.Combine(fixture.ExportRoot, "large-backup.memento");
+        var restored = Path.Combine(fixture.ExportRoot, "large-restored.bin");
+        var content = new byte[(1024 * 1024 * 2) + 123];
+        for (var index = 0; index < content.Length; index++)
+            content[index] = (byte)(index % 251);
+        File.WriteAllBytes(source, content);
+
+        ArchiveBackupProtector.EncryptFile(source, encrypted, "test-password");
+        using (var header = File.OpenRead(encrypted))
+        {
+            var magic = new byte[8];
+            header.ReadExactly(magic);
+            Assert.Equal("MEMENTO2"u8.ToArray(), magic);
+        }
+        ArchiveBackupProtector.DecryptFile(encrypted, restored, "test-password");
+        using (var restoredStream = File.OpenRead(restored))
+            Assert.Equal(SHA256.HashData(content), SHA256.HashData(restoredStream));
+
+        var legacy = Path.Combine(fixture.ExportRoot, "legacy-backup.memento");
+        var legacyPlain = new byte[] { 3, 1, 4, 1, 5, 9 };
+        var salt = RandomNumberGenerator.GetBytes(16);
+        var nonce = RandomNumberGenerator.GetBytes(12);
+        var key = Rfc2898DeriveBytes.Pbkdf2("test-password", salt, 150_000, HashAlgorithmName.SHA256, 32);
+        var cipher = new byte[legacyPlain.Length];
+        var tag = new byte[16];
+        using (var aes = new AesGcm(key, tag.Length))
+            aes.Encrypt(nonce, legacyPlain, cipher, tag);
+        using (var legacyStream = File.Create(legacy))
+        {
+            legacyStream.Write("MEMENTO1"u8);
+            legacyStream.Write(salt);
+            legacyStream.Write(nonce);
+            legacyStream.Write(tag);
+            legacyStream.Write(cipher);
+        }
+
+        var legacyRestored = Path.Combine(fixture.ExportRoot, "legacy-restored.bin");
+        ArchiveBackupProtector.DecryptFile(legacy, legacyRestored, "test-password");
+        Assert.Equal(legacyPlain, File.ReadAllBytes(legacyRestored));
+    }
+
+    [Fact]
     public void Restore_rejects_a_manifest_that_omits_the_archive_snapshot()
     {
         using var fixture = new OperationsFixture();
