@@ -6,7 +6,7 @@ Do not run a real participant pilot until every item below has an owner and reco
 
 ## Before the session
 
-- Run the deployment workflow with `.\scripts\Setup-Memento.ps1 -RequireCloudCredential -RequireAudioInput -RequireAudioOutput -RequireArchiveIntegrity` when the pilot includes cloud processing, requires both enumerated devices, and requires a clean SQLite archive, and add `-RequireApplicationLock` when the family policy requires the optional app lock. The setup flow publishes, installs, and runs the read-only preflight; use `.\scripts\Test-MementoPreflight.ps1` separately when only a check is needed. Resolve every blocking check and record the warnings before continuing.
+- Run the deployment workflow with `.\scripts\Setup-Memento.ps1 -RequireCloudCredential -RequireAudioInput -RequireAudioOutput -RequireArchiveIntegrity -RequireInstalledPayloadMatch` when the pilot includes cloud processing, requires both enumerated devices, and requires a clean SQLite archive, and add `-RequireApplicationLock` when the family policy requires the optional app lock. The setup flow publishes, installs, and runs the read-only preflight; use `.\scripts\Test-MementoPreflight.ps1` separately when only a check is needed. Resolve every blocking check and record the warnings before continuing.
 - Confirm the participant and any guest understand local recording, optional cloud processing, retention, deletion, and who can review/export the archive.
 - Confirm the microphone, Windows permissions, local disk capacity, backup destination, and restore procedure on the target machine.
 - Run a short synthetic capture, stop it, inspect the Source checksum, and confirm the original audio remains playable.

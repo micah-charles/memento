@@ -19,7 +19,7 @@ Scripts must not read or upload personal data by default.
 For a full local code-and-process gate after the bundle is installed:
 
 ```powershell
-.\scripts\Verify-MementoAutomation.ps1 -VerifyLaunch -RequireAudioInput -RequireAudioOutput -RequireArchiveIntegrity
+.\scripts\Verify-MementoAutomation.ps1 -VerifyLaunch -RequireAudioInput -RequireAudioOutput -RequireArchiveIntegrity -RequireInstalledPayloadMatch
 ```
 
 `Install-Memento.ps1` installs that bundle under `%LOCALAPPDATA%\MEMENTO\App`, creates a per-user Start Menu shortcut, and registers MEMENTO in the current user's Windows Installed apps list without administrator access. The app-local `Uninstall-Memento.ps1`, `Reset-MementoApplicationLock.ps1`, `Set-MementoOpenAiCredential.ps1`, and `Remove-MementoOpenAiCredential.ps1` helpers are copied into the install tree so registration, forgotten-passcode recovery, credential setup, and credential removal remain usable after the repository is moved. Updates are staged as a clean tree and swapped into place, so files removed from a newer bundle cannot remain from an older install; any failure after the swap also moves the failed tree aside and restores the previous app. Install and uninstall refuse existing Windows reparse points in the target path, staging path, or optional data-removal path before moving or deleting directories. The archive data directory is outside the app tree and is preserved. When a matching `.zip.sha256` sidecar is present, it verifies the bundle before copying files:
