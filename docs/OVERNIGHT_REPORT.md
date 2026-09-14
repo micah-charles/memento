@@ -2,7 +2,7 @@
 
 **Report date:** 2026-09-14
 **Starting reviewed checkpoint:** `82cbccc` (`main` on `origin`)
-**Current local checkpoint:** `58715cb` (`fix: verify source audio integrity before cloud work`).
+**Current local checkpoint:** `5eed3c5` (`fix: handle malformed app lock in UI`).
 **Environment:** Windows, .NET 10 SDK, `win-x64`, repository worktree
 
 This report records what is implemented and verified in the local worktree. It does not turn simulated, automated, or process-only checks into native GUI, hardware, live-provider, or participant evidence.
