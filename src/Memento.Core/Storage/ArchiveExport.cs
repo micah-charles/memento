@@ -473,7 +473,7 @@ public static class ArchiveBackupProtector
                     continue;
                 }
 
-                var actual = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(candidate))).ToLowerInvariant();
+                var actual = HashFile(candidate);
                 if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
                     findings.Add($"Backup hash mismatch: {relative}");
             }
@@ -498,6 +498,12 @@ public static class ArchiveBackupProtector
 
     private static bool IsSha256(string value)
         => value.Length == 64 && value.All(Uri.IsHexDigit);
+
+    private static string HashFile(string path)
+    {
+        using var stream = File.OpenRead(path);
+        return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+    }
 }
 
 public sealed record ArchiveRestoreResult(bool IntegrityOk, IReadOnlyList<string> Findings);
