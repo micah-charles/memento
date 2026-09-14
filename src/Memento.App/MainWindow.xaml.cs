@@ -1127,14 +1127,15 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var selector = new ComboBox
+        var selector = new ListView
         {
-            Header = "選擇要分享嘅已審閱記憶",
             ItemsSource = claims,
             DisplayMemberPath = nameof(MemoryClaim.Statement),
-            SelectedIndex = 0,
+            SelectionMode = ListViewSelectionMode.Multiple,
+            MaxHeight = 260,
             MinWidth = 420
         };
+        selector.SelectedItems.Add(claims[0]);
         var panel = new StackPanel { Spacing = 12 };
         panel.Children.Add(selector);
         panel.Children.Add(new TextBlock
@@ -1152,7 +1153,8 @@ public sealed partial class MainWindow : Window
             DefaultButton = ContentDialogButton.Primary
         };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
-        if (selector.SelectedItem is not MemoryClaim claim)
+        var selectedClaims = selector.SelectedItems.OfType<MemoryClaim>().ToArray();
+        if (selectedClaims.Length == 0)
         {
             StatusText.Text = "未選擇要分享嘅記憶。";
             return;
@@ -1160,9 +1162,9 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            var result = ArchiveExporter.ExportRedacted(_repository.Archive, Path.Combine(_dataRoot, "exports"), [claim.MemoryClaimId]);
+            var result = ArchiveExporter.ExportRedacted(_repository.Archive, Path.Combine(_dataRoot, "exports"), selectedClaims.Select(claim => claim.MemoryClaimId).ToArray());
             _adminReview.RecordAdminOperation(_adminActorId!, "export_redacted");
-            StatusText.Text = $"已匯出精簡記憶（錄音已遮蔽）：{result.ExportDirectory}";
+            StatusText.Text = $"已匯出 {result.ExportedClaimIds.Count} 項精簡記憶（錄音已遮蔽）：{result.ExportDirectory}";
         }
         catch (Exception)
         {

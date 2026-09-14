@@ -279,11 +279,14 @@ public sealed class OperationsTests
         var revision = repository.AddTranscriptRevision(new TranscriptRevision("revision-scoped", source.SourceId, null, 1, "initial", "private transcript phrase", 0.9, null, DateTimeOffset.UtcNow));
         var evidence = repository.AddEvidence(new EvidenceRecord("evidence-scoped", EvidenceKind.DirectStatement, source.SourceId, session.SessionId, null, revision.TranscriptRevisionId, "private evidence statement", "private original expression", ParticipantCertainty.Stated, true, DateTimeOffset.UtcNow, 10, 20, "provider", "model"));
         var claim = repository.AddMemoryClaim(new MemoryClaim("claim-scoped", "Participant likes fish balls", null, "likes", "fish balls", ClaimStatus.Reviewed, DateTimeOffset.UtcNow));
+        var secondClaim = repository.AddMemoryClaim(new MemoryClaim("claim-scoped-second", "Participant prefers warm tea", null, "prefers", "warm tea", ClaimStatus.Reviewed, DateTimeOffset.UtcNow));
         repository.AddEvidenceClaimLink(new EvidenceClaimLink(evidence.EvidenceId, claim.MemoryClaimId, "supports", DateTimeOffset.UtcNow));
+        repository.AddEvidenceClaimLink(new EvidenceClaimLink(evidence.EvidenceId, secondClaim.MemoryClaimId, "contextualises", DateTimeOffset.UtcNow));
         repository.AddReviewAnnotation(new ReviewAnnotation("annotation-scoped", "memory_claim", claim.MemoryClaimId, "admin-1", "family_assessment", "private admin note", "supported", DateTimeOffset.UtcNow));
 
-        var result = ArchiveExporter.ExportRedacted(archive, fixture.ExportRoot, [claim.MemoryClaimId]);
-        Assert.Equal([claim.MemoryClaimId], result.ExportedClaimIds);
+        var result = ArchiveExporter.ExportRedacted(archive, fixture.ExportRoot, [claim.MemoryClaimId, secondClaim.MemoryClaimId]);
+        Assert.Contains(claim.MemoryClaimId, result.ExportedClaimIds);
+        Assert.Contains(secondClaim.MemoryClaimId, result.ExportedClaimIds);
         Assert.Equal([evidence.EvidenceId], result.ExportedEvidenceIds);
         Assert.False(File.Exists(Path.Combine(result.ExportDirectory, "archive.sqlite")));
         Assert.False(Directory.Exists(Path.Combine(result.ExportDirectory, "media")));
@@ -302,6 +305,7 @@ public sealed class OperationsTests
         Assert.DoesNotContain(source.SourceId, evidenceJson, StringComparison.Ordinal);
         Assert.DoesNotContain(revision.TranscriptRevisionId, evidenceJson, StringComparison.Ordinal);
         Assert.Contains("source_reference", linksJson, StringComparison.Ordinal);
+        Assert.Contains(secondClaim.MemoryClaimId, linksJson, StringComparison.Ordinal);
         Assert.Contains("content_withheld", annotationsJson, StringComparison.Ordinal);
         Assert.DoesNotContain("private admin note", annotationsJson, StringComparison.Ordinal);
         Assert.Contains("scoped-redacted", manifestJson, StringComparison.Ordinal);
