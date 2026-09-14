@@ -437,6 +437,30 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void Health_check_verifies_recovered_source_assets()
+    {
+        using var fixture = new OperationsFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.LocalCaptureOnly);
+        var format = new PcmWaveFormat(16000, 1, 16);
+        FinalizedAudioAsset asset;
+        using (var writer = PcmWaveWriter.Create(fixture.AudioRoot, session.SessionId, DateTimeOffset.UtcNow, format, "recovered-health"))
+        {
+            writer.Append(new byte[320]);
+            asset = writer.FinalizeAsset();
+        }
+
+        repository.AddSource(new SourceMetadata(asset.SourceId, "audio", session.SessionId, null, asset.FilePath, "PCM WAV", format.SampleRate, format.Channels, format.BitsPerSample, asset.ByteLength, asset.DurationMs, asset.Sha256, asset.StartedAt, asset.FinalizedAt, "recovered", DateTimeOffset.UtcNow));
+        File.AppendAllBytes(asset.FilePath, [99]);
+
+        var report = ArchiveHealthCheck.Run(archive, fixture.AudioRoot);
+
+        Assert.Equal(1, report.InvalidSourceAssetCount);
+        Assert.Contains(report.Findings, finding => finding.Contains("recovered", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Health_check_ignores_fresh_processing_jobs_but_reports_stale_jobs()
     {
         using var fixture = new OperationsFixture();

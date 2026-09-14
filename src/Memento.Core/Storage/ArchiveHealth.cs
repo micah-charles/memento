@@ -45,7 +45,7 @@ public static class ArchiveHealthCheck
         using (var connection = archive.OpenConnection())
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT file_path, byte_length, sha256 FROM sources WHERE recovery_status = 'finalized' AND source_type = 'audio'";
+            command.CommandText = "SELECT file_path, byte_length, sha256 FROM sources WHERE recovery_status IN ('finalized', 'recovered') AND source_type = 'audio'";
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
@@ -57,7 +57,7 @@ public static class ArchiveHealthCheck
             }
         }
 
-        if (invalidSources > 0) findings.Add($"{invalidSources} finalized source asset(s) failed integrity verification.");
+        if (invalidSources > 0) findings.Add($"{invalidSources} finalized or recovered source asset(s) failed integrity verification.");
         using (var connection = archive.OpenConnection())
         using (var command = connection.CreateCommand())
         {
