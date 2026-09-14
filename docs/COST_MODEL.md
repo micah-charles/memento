@@ -5,6 +5,8 @@
 **Pricing research/access date:** 2026-09-12  
 **Currency:** USD; taxes, account minimums, network, storage, and search-tool charges excluded unless stated.
 
+**Targeted pricing recheck:** 2026-09-14. The official model pages still show the listed GPT-Realtime-2.1 Mini audio rates, GPT-Transcribe per-minute rate, GPT-5.6 Terra text rates, and GPT-4o Mini TTS output rate. These remain planning inputs until a live account usage receipt is recorded.
+
 ## Principles
 
 Cost is a product constraint, not a reason to discard evidence. MEMENTO should:

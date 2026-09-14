@@ -4,6 +4,8 @@
 **Status:** Current research snapshot; re-check before implementation  
 **Research/access date:** 2026-09-12
 
+**Targeted recheck:** 2026-09-14. The official model catalogue and the current GPT-5.6 Terra, GPT-Transcribe, GPT-Realtime-2.1 Mini, GPT-4o Mini TTS, Responses web-search, and audio API references were rechecked before the M14 deployment audit. The model identifiers, reviewed pricing assumptions, `web_search` domain-filter shape, and adapter endpoint choices below remain consistent; no provider code change was justified without a credentialed live exchange.
+
 ## Evidence labels
 
 - **Verified current capability** — stated by the official source reviewed on the date above.

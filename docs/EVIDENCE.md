@@ -232,3 +232,4 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - Current-information source parsing rejects allowlisted-host URLs that include user-info or a non-default HTTPS port; the external search regression response exercises both cases.
 - The consolidated M14 deployment and pilot-preparation record is maintained in [evidence/M14.md](evidence/M14.md).
 - The MSIX verifier now checks package identity/version, the expected MEMENTO application entry, visual asset references, and exact asset names in addition to executable shape; the latest unsigned package passed this stricter verification while signature and target deployment remain open.
+- A targeted official OpenAI documentation and pricing recheck on 2026-09-14 found the current model identifiers, reviewed price assumptions, Responses `web_search` domain-filter shape, and adapter endpoint choices consistent with the recorded research; no live account usage or provider call was made.
