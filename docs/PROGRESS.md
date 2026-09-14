@@ -174,6 +174,7 @@
 - Optional TTS now completes the turn-based pipeline as local WAV → transcription → text response → verified derived speech storage → optional NAudio WAV playback. The WinUI shell can replay the latest stored assistant output; real output-device playback and continuous Realtime/WebRTC device streaming remain deployment work.
 - The optional Realtime shell path now has a separate `LiveCloudConversation` consent checkbox and action. Realtime PCM output is converted to a verified 24 kHz mono WAV in `derived_speech_assets`, so the existing local playback and integrity checks can be used without treating provider audio as participant evidence.
 - Added a cancellable device-chunk Realtime session boundary. When the separate live consent is selected, the shell opens the session before capture, forwards locally-written PCM chunks with 48→24 kHz downsampling, commits after stop, and preserves the local Source if connection or provider work fails. Continuous live transport is now implemented and tested; credential-broker, target-device, and live-account verification remain open.
+- If a Realtime turn fails after local capture, the shell now queues the finalized Source for the existing durable transcription worker when the broader cloud-transcription consent is also granted; duplicate or already-transcribed work is skipped.
 
 ## Next action
 

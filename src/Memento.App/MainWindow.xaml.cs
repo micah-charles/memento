@@ -330,7 +330,10 @@ public sealed partial class MainWindow : Window
                     }
                     catch (Exception)
                     {
-                        StatusText.Text = "已儲存本機錄音；Realtime 未能完成，錄音仍然保留。";
+                        var queuedFallback = QueueRealtimeFallback();
+                        StatusText.Text = queuedFallback
+                            ? "已儲存本機錄音；Realtime 未能完成，已安排稍後轉錄重試。"
+                            : "已儲存本機錄音；Realtime 未能完成，錄音仍然保留。";
                     }
                     finally
                     {
@@ -514,6 +517,23 @@ public sealed partial class MainWindow : Window
         {
             _processing = false;
             UpdateRecordControl();
+        }
+    }
+
+    private bool QueueRealtimeFallback()
+    {
+        if (_session is null || _lastSource is null || !HasGrantedCloudConsent()) return false;
+        try
+        {
+            if (_repository.ListTranscriptRevisions(_lastSource.SourceId).Count > 0 || _repository.HasActiveConversationJob(_session.SessionId, _lastSource.SourceId, "durable_transcription"))
+                return false;
+            new ConversationSessionWriter(_repository).QueueTranscription(_session, _turn, _lastSource);
+            StartRetryWorkerIfAvailable();
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 
