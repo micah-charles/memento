@@ -66,6 +66,27 @@ public sealed class ConversationTests
     }
 
     [Fact]
+    public async Task Conversation_rejects_tampered_source_audio_before_provider_call()
+    {
+        using var fixture = new ConversationFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        File.WriteAllBytes(fixture.AudioPath, [1, 2, 3]);
+        var archivedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(fixture.AudioPath))).ToLowerInvariant();
+        var source = repository.AddSource(new SourceMetadata("source-integrity-guard", "audio", session.SessionId, null, fixture.AudioPath, "PCM WAV", 48000, 1, 16, 3, 0, archivedHash, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        File.WriteAllBytes(fixture.AudioPath, [1, 2, 4]);
+        var provider = new CountingProvider();
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => new ConversationOrchestrator(repository, provider).ExecuteAsync(new ConversationRequest(
+            session.SessionId, null, fixture.AudioPath, PrivacyMode.Normal, true, DateTimeOffset.UtcNow, SourceId: source.SourceId)));
+
+        Assert.Equal(0, provider.Calls);
+    }
+
+    [Fact]
     public async Task Local_capture_only_never_calls_provider()
     {
         using var fixture = new ConversationFixture();

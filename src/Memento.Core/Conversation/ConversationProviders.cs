@@ -32,6 +32,19 @@ internal static class SourcePathGuard
     {
         if (string.IsNullOrWhiteSpace(source.FilePath) || !PathsEqual(source.FilePath, requestedPath))
             throw new InvalidDataException("The requested audio path does not match the archived Source.");
+        if (!File.Exists(source.FilePath))
+            throw new FileNotFoundException("The archived Source audio file was not found.", source.FilePath);
+
+        var fileInfo = new FileInfo(source.FilePath);
+        if (source.ByteLength is long expectedLength && fileInfo.Length != expectedLength)
+            throw new InvalidDataException("The Source audio length does not match its archived metadata.");
+        if (IsSha256(source.Sha256))
+        {
+            using var stream = new FileStream(source.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var actualHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stream)).ToLowerInvariant();
+            if (!string.Equals(actualHash, source.Sha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("The Source audio failed its archived SHA-256 integrity check.");
+        }
     }
 
     private static bool PathsEqual(string left, string right)
@@ -45,6 +58,9 @@ internal static class SourcePathGuard
             return false;
         }
     }
+
+    private static bool IsSha256(string? value)
+        => value is not null && value.Length == 64 && value.All(Uri.IsHexDigit);
 }
 
 /// <summary>Produces bounded, content-free diagnostics for persisted provider failures.</summary>
