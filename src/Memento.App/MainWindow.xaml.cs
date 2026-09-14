@@ -1831,7 +1831,23 @@ public sealed partial class MainWindow : Window
         {
             if (!allowReset) return;
             _conversationState.Reset();
-            if (!_conversationState.TryTransition(next)) return;
+            var path = next switch
+            {
+                ParticipantConversationState.Idle => Array.Empty<ParticipantConversationState>(),
+                ParticipantConversationState.Greeting => [ParticipantConversationState.Greeting],
+                ParticipantConversationState.Listening => [ParticipantConversationState.Greeting, ParticipantConversationState.Listening],
+                ParticipantConversationState.Thinking => [ParticipantConversationState.Greeting, ParticipantConversationState.Listening, ParticipantConversationState.Thinking],
+                ParticipantConversationState.Speaking => [ParticipantConversationState.Greeting, ParticipantConversationState.Listening, ParticipantConversationState.Thinking, ParticipantConversationState.Speaking],
+                ParticipantConversationState.Clarifying => [ParticipantConversationState.Greeting, ParticipantConversationState.Listening, ParticipantConversationState.Thinking, ParticipantConversationState.Clarifying],
+                ParticipantConversationState.Offline => [ParticipantConversationState.Greeting, ParticipantConversationState.Offline],
+                ParticipantConversationState.ErrorRecoverable => [ParticipantConversationState.Greeting, ParticipantConversationState.ErrorRecoverable],
+                ParticipantConversationState.ConversationEnded => [ParticipantConversationState.ConversationEnded],
+                _ => Array.Empty<ParticipantConversationState>()
+            };
+            foreach (var step in path)
+            {
+                if (!_conversationState.TryTransition(step)) return;
+            }
         }
 
         ConversationStateText.Text = next switch
