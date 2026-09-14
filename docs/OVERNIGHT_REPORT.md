@@ -17,7 +17,7 @@ This report records what is implemented and verified in the local worktree. It d
 - Deployment preflight — **PASS** for the current-user Installed apps registration and its stable per-user install path.
 - Credential setup check — default preflight emitted a **WARN** because `MEMENTO/OpenAI` is absent (local-only mode remains available); `-RequireCloudCredential` correctly returned one blocking failure without exposing a secret.
 - Application-lock setup check — default preflight emitted an **optional WARN** because `MEMENTO/AppLock` is absent; `-RequireApplicationLock` correctly turns that policy choice into one blocking failure without exposing the verifier.
-- Deployment workflow — `scripts/Setup-Memento.ps1 -SkipPublish` now composes install and preflight, with optional cloud/app-lock policy gates and `-Launch` support.
+- Deployment workflow — `scripts/Setup-Memento.ps1 -SkipPublish` now composes install and preflight, with optional cloud/app-lock policy gates and `-Launch` support; the launch branch was smoke-tested and stopped cleanly.
 - Installed process smoke — launched via `scripts\\Start-Memento.ps1`; observed title `MEMENTO` and `Responding=True` after seven seconds, then stopped cleanly. This is process evidence only; no visual GUI claim is made.
 
 ## Milestone status
