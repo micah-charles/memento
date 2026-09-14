@@ -11,6 +11,29 @@ if ([string]::IsNullOrWhiteSpace($InstallRoot)) { $InstallRoot = Join-Path $env:
 $BundlePath = [System.IO.Path]::GetFullPath($BundlePath)
 $InstallRoot = [System.IO.Path]::GetFullPath($InstallRoot)
 
+function Assert-NoReparsePointInPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Description
+    )
+
+    $current = [System.IO.Path]::GetFullPath($Path)
+    while (-not [string]::IsNullOrWhiteSpace($current)) {
+        $item = Get-Item -LiteralPath $current -Force -ErrorAction SilentlyContinue
+        if ($null -ne $item -and ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "$Description cannot contain a reparse point: $current"
+        }
+
+        $parent = Split-Path -Parent $current
+        if ([string]::IsNullOrWhiteSpace($parent) -or [string]::Equals($parent, $current, [StringComparison]::OrdinalIgnoreCase)) {
+            break
+        }
+        $current = $parent
+    }
+}
+
+Assert-NoReparsePointInPath -Path $InstallRoot -Description 'The install path'
+
 if (-not (Test-Path -LiteralPath $BundlePath -PathType Leaf)) {
     throw "Bundle not found: $BundlePath. Run scripts\Publish-Memento.ps1 first."
 }
@@ -33,6 +56,7 @@ if ($null -ne $running) {
 $temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('memento-install-' + [Guid]::NewGuid().ToString('N'))
 $installParent = Split-Path -Parent $InstallRoot
 $installParent = [System.IO.Path]::GetFullPath($installParent)
+Assert-NoReparsePointInPath -Path $installParent -Description 'The install parent path'
 $stagingRoot = Join-Path $installParent ('.App-staging-' + [Guid]::NewGuid().ToString('N'))
 $previousRoot = Join-Path $installParent ('.App-previous-' + [Guid]::NewGuid().ToString('N'))
 $failedRoot = Join-Path $installParent ('.App-failed-' + [Guid]::NewGuid().ToString('N'))
@@ -80,6 +104,7 @@ try {
     # not cross volumes. The archive lives in the parent MEMENTO directory and
     # is deliberately outside this tree.
     New-Item -ItemType Directory -Force -Path $stagingRoot | Out-Null
+    Assert-NoReparsePointInPath -Path $stagingRoot -Description 'The install staging path'
     Copy-Item -Path (Join-Path $temporaryRoot '*') -Destination $stagingRoot -Recurse -Force
     if (-not (Test-Path -LiteralPath $uninstallScriptSource -PathType Leaf)) {
         throw "Uninstall script not found: $uninstallScriptSource"

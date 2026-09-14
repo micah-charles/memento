@@ -17,6 +17,33 @@ if (-not [string]::Equals($InstallRoot, $defaultInstallRoot, [StringComparison]:
 $dataRoot = [System.IO.Path]::GetFullPath((Join-Path $localAppData 'MEMENTO'))
 $shortcutPath = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs\MEMENTO\MEMENTO.lnk'
 $uninstallRegistryPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\MEMENTO'
+
+function Assert-NoReparsePointInPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Description
+    )
+
+    $current = [System.IO.Path]::GetFullPath($Path)
+    while (-not [string]::IsNullOrWhiteSpace($current)) {
+        $item = Get-Item -LiteralPath $current -Force -ErrorAction SilentlyContinue
+        if ($null -ne $item -and ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "$Description cannot contain a reparse point: $current"
+        }
+
+        $parent = Split-Path -Parent $current
+        if ([string]::IsNullOrWhiteSpace($parent) -or [string]::Equals($parent, $current, [StringComparison]::OrdinalIgnoreCase)) {
+            break
+        }
+        $current = $parent
+    }
+}
+
+Assert-NoReparsePointInPath -Path $InstallRoot -Description 'The uninstall path'
+if ($RemoveData) {
+    Assert-NoReparsePointInPath -Path $dataRoot -Description 'The data removal path'
+}
+
 $running = Get-Process -Name 'Memento.App' -ErrorAction SilentlyContinue
 if ($null -ne $running) {
     throw 'MEMENTO is still running. Close it before uninstalling.'
