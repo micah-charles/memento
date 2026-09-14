@@ -11,7 +11,8 @@ public sealed record ConversationRequest(
     bool CloudConsent,
     DateTimeOffset RequestedAt,
     string? TranscriptText = null,
-    string? SourceId = null);
+    string? SourceId = null,
+    string? ContextText = null);
 
 public sealed record ConversationResponse(
     string Provider,

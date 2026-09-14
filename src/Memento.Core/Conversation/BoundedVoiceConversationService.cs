@@ -16,6 +16,7 @@ public sealed class BoundedVoiceConversationService
     private readonly ISpeechOutputPlayback? _speechPlayback;
     private readonly bool _queueExtractionJobs;
     private readonly ConversationSessionWriter _sessionWriter;
+    private readonly ConversationContextBuilder _contextBuilder;
 
     public BoundedVoiceConversationService(ArchiveRepository repository, ITranscriptionProvider transcription, IConversationProvider conversation, ISpeechOutputProvider? speechOutput = null, DerivedAudioStore? speechStore = null, ISpeechOutputPlayback? speechPlayback = null, bool queueExtractionJobs = false)
     {
@@ -27,6 +28,7 @@ public sealed class BoundedVoiceConversationService
         _speechPlayback = speechPlayback;
         _queueExtractionJobs = queueExtractionJobs;
         _sessionWriter = new ConversationSessionWriter(repository);
+        _contextBuilder = new ConversationContextBuilder(repository);
         if (_speechPlayback is not null && _speechStore is null)
             throw new ArgumentException("Speech playback requires a derived speech store.", nameof(speechPlayback));
     }
@@ -79,7 +81,11 @@ public sealed class BoundedVoiceConversationService
         if (!_repository.HasGrantedConsent(request.SessionId, ConsentScope.CloudTranscription)) throw new CloudNotPermittedException();
         var currentSource = _repository.GetSource(request.SourceId!) ?? throw new InvalidDataException("The requested Source was removed while transcription was running.");
         if (string.Equals(currentSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase)) throw new CloudNotPermittedException(CloudNotPermittedException.WithdrawnSourceMessage);
-        var responseRequest = request with { TranscriptText = transcript.Text };
+        var responseRequest = request with
+        {
+            TranscriptText = transcript.Text,
+            ContextText = _contextBuilder.Build(request.SessionId, request.SourceId)
+        };
         var conversation = await _conversation.ExecuteAsync(responseRequest, cancellationToken).ConfigureAwait(false);
         if (conversation.Response is null && request.SourceId is not null && conversation.Interaction is not null && IsRetryableProviderFailure(conversation.Interaction.ErrorCode))
         {
