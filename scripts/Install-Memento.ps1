@@ -42,6 +42,31 @@ $shortcutPath = Join-Path $shortcutDirectory 'MEMENTO.lnk'
 $uninstallScriptSource = Join-Path $repoRoot 'scripts\Uninstall-Memento.ps1'
 $recoveryScriptSource = Join-Path $repoRoot 'scripts\Reset-MementoApplicationLock.ps1'
 $uninstallRegistryPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\MEMENTO'
+
+function Move-DirectoryWithRetry {
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$Destination,
+        [int]$Attempts = 5
+    )
+
+    $lastError = $null
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        try {
+            Move-Item -LiteralPath $Source -Destination $Destination -Force -ErrorAction Stop
+            return
+        }
+        catch {
+            $lastError = $_
+            if ($attempt -lt $Attempts) {
+                Start-Sleep -Milliseconds (250 * $attempt)
+            }
+        }
+    }
+
+    throw $lastError
+}
+
 try {
     New-Item -ItemType Directory -Force -Path $installParent | Out-Null
     Expand-Archive -LiteralPath $BundlePath -DestinationPath $temporaryRoot -Force
@@ -63,9 +88,9 @@ try {
     }
     Copy-Item -LiteralPath $recoveryScriptSource -Destination (Join-Path $stagingRoot 'Reset-MementoApplicationLock.ps1') -Force
     if (Test-Path -LiteralPath $InstallRoot) {
-        Move-Item -LiteralPath $InstallRoot -Destination $previousRoot
+        Move-DirectoryWithRetry -Source $InstallRoot -Destination $previousRoot
     }
-    Move-Item -LiteralPath $stagingRoot -Destination $InstallRoot
+    Move-DirectoryWithRetry -Source $stagingRoot -Destination $InstallRoot
     $swapped = $true
 
     New-Item -ItemType Directory -Force -Path $shortcutDirectory | Out-Null
@@ -105,12 +130,12 @@ catch {
         # shortcut also targets that stable path, so restoring the tree keeps
         # an existing shortcut usable.
         if (Test-Path -LiteralPath $InstallRoot) {
-            Move-Item -LiteralPath $InstallRoot -Destination $failedRoot -Force
+            Move-DirectoryWithRetry -Source $InstallRoot -Destination $failedRoot
         }
         $swapped = $false
     }
     if ((Test-Path -LiteralPath $previousRoot) -and -not (Test-Path -LiteralPath $InstallRoot)) {
-        Move-Item -LiteralPath $previousRoot -Destination $InstallRoot
+        Move-DirectoryWithRetry -Source $previousRoot -Destination $InstallRoot
     }
     throw $failure
 }
