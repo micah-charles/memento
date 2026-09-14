@@ -12,7 +12,7 @@ This report records what is implemented and verified in the local worktree. It d
 - `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **126 passed, 0 failed**.
 - `dotnet build Memento.slnx --configuration Release --no-restore` — **0 warnings, 0 errors**.
 - M04 CLI — synthetic corpus `m04-synthetic-v1`, **14/14 PASS**, `correctionRequiredCount: 0`.
-- Published bundle — `artifacts/MEMENTO-win-x64.zip`, 106,473,938 bytes, SHA-256 `35f0ff6d545bf21ee60498fe70b5ae61fa808bfcbaa05d80268c30b1eaa4b5d7`.
+- Published bundle — `artifacts/MEMENTO-win-x64.zip`, 106,474,036 bytes, SHA-256 `63f1cb3b5571cff7207c835539b41fe66c54f8acb308cdb1bd45000f44c54e28`.
 - Deployment preflight — **PASS** for bundle, sidecar, installed executable, Start Menu shortcut, archive paths, free disk, and stopped-process state.
 - Credential setup check — default preflight emitted a **WARN** because `MEMENTO/OpenAI` is absent (local-only mode remains available); `-RequireCloudCredential` correctly returned one blocking failure without exposing a secret.
 - Installed process smoke — launched via `scripts\\Start-Memento.ps1`; observed title `MEMENTO` and `Responding=True` after seven seconds, then stopped cleanly. This is process evidence only; no visual GUI claim is made.
