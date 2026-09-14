@@ -34,7 +34,18 @@ function Resolve-SdkTool {
         Sort-Object FullName -Descending |
         Select-Object -First 1
     if ($null -eq $candidate) {
-        throw "$ToolName was not found. Install the Windows 10/11 SDK or pass -$($ToolName.Replace('.exe', 'Path'))."
+        # The portable Microsoft.Windows.SDK.BuildTools package ships the same
+        # x64 tools and is commonly restored to the current user's NuGet cache
+        # on development machines that do not have the full Windows SDK.
+        $userProfile = [Environment]::GetFolderPath('UserProfile')
+        $buildToolsRoot = Join-Path $userProfile '.nuget\packages\microsoft.windows.sdk.buildtools'
+        $candidate = Get-ChildItem -LiteralPath $buildToolsRoot -Recurse -Filter $ToolName -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.DirectoryName -match '\\x64$' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+    }
+    if ($null -eq $candidate) {
+        throw "$ToolName was not found. Install the Windows 10/11 SDK or Microsoft.Windows.SDK.BuildTools, or pass -$($ToolName.Replace('.exe', 'Path'))."
     }
     return $candidate.FullName
 }
