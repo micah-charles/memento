@@ -46,7 +46,7 @@ For a family deployment that requires the optional application lock, add `-Requi
 .\scripts\Uninstall-Memento.ps1
 ```
 
-If the application-lock passcode is forgotten, close MEMENTO and use the explicit recovery helper below. It removes only the current Windows user's `MEMENTO/AppLock` credential; the local archive is not touched. The command supports PowerShell `-WhatIf` before the deletion:
+If the application-lock passcode is forgotten, close MEMENTO and use the explicit recovery helper below. It accepts only the current Windows user's fixed `MEMENTO/AppLock` target; the local archive is not touched. The command supports PowerShell `-WhatIf` before the deletion:
 
 ```powershell
 .\scripts\Reset-MementoApplicationLock.ps1

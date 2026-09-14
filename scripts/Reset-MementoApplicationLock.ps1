@@ -8,6 +8,9 @@ $ErrorActionPreference = 'Stop'
 if ([string]::IsNullOrWhiteSpace($TargetName)) {
     throw 'A Credential Manager target name is required.'
 }
+if (-not [string]::Equals($TargetName, 'MEMENTO/AppLock', [StringComparison]::Ordinal)) {
+    throw "This recovery helper can only remove the MEMENTO/AppLock credential."
+}
 
 $running = Get-Process -Name 'Memento.App' -ErrorAction SilentlyContinue
 if ($null -ne $running) {
