@@ -132,9 +132,8 @@ public sealed class BoundedVoiceConversationService
 
     private void QueueRetryIfMissing(string sessionId, string? turnId, string sourceId, string jobType, string error, DateTimeOffset retryAt)
     {
-        if (_repository.HasActiveConversationJob(sessionId, sourceId, jobType)) return;
         var now = DateTimeOffset.UtcNow;
-        _repository.AddConversationJob(new ConversationJob(Guid.NewGuid().ToString("N"), sessionId, turnId, sourceId, jobType, ConversationJobStatus.Failed, 0, retryAt, error, now, now));
+        _repository.TryAddConversationJobIfMissing(new ConversationJob(Guid.NewGuid().ToString("N"), sessionId, turnId, sourceId, jobType, ConversationJobStatus.Failed, 0, retryAt, error, now, now));
     }
 
     private void EnsureSourceStillAvailable(ConversationRequest request)

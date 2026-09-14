@@ -132,6 +132,23 @@ public sealed class ArchiveTests
     }
 
     [Fact]
+    public void Active_conversation_job_insert_is_atomic_and_idempotent()
+    {
+        using var fixture = new ArchiveFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(new SourceMetadata("source-atomic-job", "audio", session.SessionId, null, "raw/atomic.wav", "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        var first = new ConversationJob("job-atomic-one", session.SessionId, null, source.SourceId, "durable_transcription", ConversationJobStatus.Failed, 0, DateTimeOffset.UtcNow.AddMinutes(1), "temporary failure", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var duplicate = first with { ConversationJobId = "job-atomic-two" };
+
+        Assert.True(repository.TryAddConversationJobIfMissing(first));
+        Assert.False(repository.TryAddConversationJobIfMissing(duplicate));
+        Assert.Single(repository.ListRetryableConversationJobs(DateTimeOffset.UtcNow.AddMinutes(2)));
+    }
+
+    [Fact]
     public void Session_end_is_persisted_and_cannot_precede_start()
     {
         using var fixture = new ArchiveFixture();

@@ -458,6 +458,40 @@ public sealed class ArchiveRepository(SqliteArchive archive)
         return job;
     }
 
+    /// <summary>Atomically inserts a conversation job when no equivalent active job exists.</summary>
+    public bool TryAddConversationJobIfMissing(ConversationJob job)
+    {
+        using var connection = archive.OpenConnection();
+        EnsureTurnBelongsToSession(connection, job.SessionId, job.TurnId, "Conversation job");
+        EnsureSourceContext(connection, job.SourceId, job.SessionId, job.TurnId, "Conversation job");
+        if (job.TranscriptRevisionId is not null)
+            EnsureRevisionContext(connection, job.SourceId, job.TurnId, job.TranscriptRevisionId, "Conversation job transcript revision");
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO conversation_jobs(conversation_job_id, session_id, turn_id, source_id, job_type, status, attempt_count, next_attempt_at, last_error, created_at, updated_at, transcript_revision_id)
+            SELECT $id, $session, $turn, $source, $type, $status, $attempt, $next, $error, $created, $updated, $revision
+            WHERE NOT EXISTS (
+                SELECT 1 FROM conversation_jobs
+                WHERE session_id = $session AND source_id = $source AND job_type = $type
+                  AND (($revision IS NULL AND transcript_revision_id IS NULL) OR ($revision IS NOT NULL AND transcript_revision_id = $revision))
+                  AND (status IN ('Pending', 'Processing', 'Succeeded') OR (status = 'Failed' AND next_attempt_at IS NOT NULL))
+            )
+            """;
+        command.Parameters.AddWithValue("$id", job.ConversationJobId);
+        command.Parameters.AddWithValue("$session", job.SessionId);
+        command.Parameters.AddWithValue("$turn", (object?)job.TurnId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$source", job.SourceId);
+        command.Parameters.AddWithValue("$type", job.JobType);
+        command.Parameters.AddWithValue("$status", job.Status.ToString());
+        command.Parameters.AddWithValue("$attempt", job.AttemptCount);
+        command.Parameters.AddWithValue("$next", job.NextAttemptAt is null ? DBNull.Value : Format(job.NextAttemptAt.Value));
+        command.Parameters.AddWithValue("$error", (object?)job.LastError ?? DBNull.Value);
+        command.Parameters.AddWithValue("$created", Format(job.CreatedAt));
+        command.Parameters.AddWithValue("$updated", Format(job.UpdatedAt));
+        command.Parameters.AddWithValue("$revision", (object?)job.TranscriptRevisionId ?? DBNull.Value);
+        return command.ExecuteNonQuery() == 1;
+    }
+
     public void UpdateConversationJob(ConversationJob job)
     {
         using var connection = archive.OpenConnection();
