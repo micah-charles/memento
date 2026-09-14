@@ -8,7 +8,8 @@ param(
     [switch]$RequireCloudCredential,
     [switch]$RequireApplicationLock,
     [switch]$RequireAudioInput,
-    [switch]$RequireAudioOutput
+    [switch]$RequireAudioOutput,
+    [switch]$RequireArchiveIntegrity
 )
 
 $ErrorActionPreference = 'Stop'
@@ -67,6 +68,7 @@ try {
         if ($RequireApplicationLock) { $preflightParameters.RequireApplicationLock = $true }
         if ($RequireAudioInput) { $preflightParameters.RequireAudioInput = $true }
         if ($RequireAudioOutput) { $preflightParameters.RequireAudioOutput = $true }
+        if ($RequireArchiveIntegrity) { $preflightParameters.RequireArchiveIntegrity = $true }
         Invoke-NativeStep 'powershell' (@('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', '.\scripts\Test-MementoPreflight.ps1') + $(foreach ($key in $preflightParameters.Keys) { "-$key" }))
     }
 

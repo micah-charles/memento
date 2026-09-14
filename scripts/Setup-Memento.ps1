@@ -7,6 +7,7 @@ param(
     [switch]$RequireApplicationLock,
     [switch]$RequireAudioInput,
     [switch]$RequireAudioOutput,
+    [switch]$RequireArchiveIntegrity,
     [switch]$Launch
 )
 
@@ -38,6 +39,7 @@ if ($RequireCloudCredential) { $preflightParameters.RequireCloudCredential = $tr
 if ($RequireApplicationLock) { $preflightParameters.RequireApplicationLock = $true }
 if ($RequireAudioInput) { $preflightParameters.RequireAudioInput = $true }
 if ($RequireAudioOutput) { $preflightParameters.RequireAudioOutput = $true }
+if ($RequireArchiveIntegrity) { $preflightParameters.RequireArchiveIntegrity = $true }
 Invoke-MementoStep 'Test-MementoPreflight.ps1' $preflightParameters
 
 if ($Launch) {

@@ -204,6 +204,7 @@
 - Revision-scoped durable extraction enqueueing now uses the same atomic guard, so corrected transcript revisions cannot accumulate duplicate extraction work under concurrent completion.
 - Realtime transcription fallback now uses an atomic `QueueTranscriptionIfNeeded` API; an already queued Source is reported as no-op instead of creating a second retry job.
 - Added `scripts/Verify-MementoAutomation.ps1` as a repeatable repository gate: it parser-checks all PowerShell helpers, runs the Release test/build, regenerates the deterministic M04 report, and invokes the read-only deployment preflight with optional blocking policy switches.
+- Deployment preflight now verifies the installed archive through the bundled native SQLite library (`PRAGMA integrity_check` and schema version) without loading the app's .NET assemblies into PowerShell; `-RequireArchiveIntegrity` promotes a failed check to a blocking deployment policy.
 
 ## Next action
 

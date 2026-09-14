@@ -7,7 +7,8 @@ param(
     [switch]$RequireCloudCredential,
     [switch]$RequireApplicationLock,
     [switch]$RequireAudioInput,
-    [switch]$RequireAudioOutput
+    [switch]$RequireAudioOutput,
+    [switch]$RequireArchiveIntegrity
 )
 
 $ErrorActionPreference = 'Stop'
@@ -130,7 +131,99 @@ Write-Check 'Installed apps registration' $registeredInstall 'MEMENTO per-user u
 $dataRootExists = Test-Path -LiteralPath $DataRoot -PathType Container
 Write-Check 'archive directory' $dataRootExists ($(if ($dataRootExists) { $DataRoot } else { "not initialized at $DataRoot" })) 'WARN'
 $databasePath = Join-Path $DataRoot 'data\memory.db'
-Write-Check 'archive database' (Test-Path -LiteralPath $databasePath -PathType Leaf) ($(if (Test-Path -LiteralPath $databasePath -PathType Leaf) { $databasePath } else { 'created on first launch' })) 'WARN'
+$databaseExists = Test-Path -LiteralPath $databasePath -PathType Leaf
+Write-Check 'archive database' $databaseExists ($(if ($databaseExists) { $databasePath } else { 'created on first launch' })) 'WARN'
+if ($databaseExists) {
+    $previousPath = $env:PATH
+    try {
+        $nativeSqlite = Join-Path $InstallRoot 'e_sqlite3.dll'
+        if (-not (Test-Path -LiteralPath $nativeSqlite -PathType Leaf)) { throw 'installed e_sqlite3.dll is missing' }
+        $env:PATH = "$InstallRoot;$previousPath"
+        if (-not ('MementoNativeSqliteCheck' -as [type])) {
+            Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+public static class MementoNativeSqliteCheck
+{
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int ExecCallback(IntPtr argument, int columnCount, IntPtr values, IntPtr names);
+
+    [DllImport("e_sqlite3", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+    private static extern int sqlite3_open_v2(string filename, out IntPtr database, int flags, IntPtr vfs);
+
+    [DllImport("e_sqlite3", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+    private static extern int sqlite3_exec(IntPtr database, string sql, ExecCallback callback, IntPtr argument, out IntPtr error);
+
+    [DllImport("e_sqlite3", CallingConvention = CallingConvention.Cdecl)]
+    private static extern IntPtr sqlite3_errmsg(IntPtr database);
+
+    [DllImport("e_sqlite3", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int sqlite3_close(IntPtr database);
+
+    [DllImport("e_sqlite3", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void sqlite3_free(IntPtr pointer);
+
+    public static IntPtr OpenReadOnly(string filename)
+    {
+        const int ReadOnly = 0x00000001;
+        IntPtr database;
+        var result = sqlite3_open_v2(filename, out database, ReadOnly, IntPtr.Zero);
+        if (result != 0)
+        {
+            var message = database == IntPtr.Zero ? "SQLite could not open the database." : Marshal.PtrToStringAnsi(sqlite3_errmsg(database));
+            if (database != IntPtr.Zero) sqlite3_close(database);
+            throw new InvalidOperationException(string.Format("SQLite open failed ({0}): {1}", result, message));
+        }
+        return database;
+    }
+
+    public static string Scalar(IntPtr database, string sql)
+    {
+        string value = string.Empty;
+        ExecCallback callback = (argument, columnCount, values, names) =>
+        {
+            if (columnCount > 0 && values != IntPtr.Zero)
+            {
+                var pointer = Marshal.ReadIntPtr(values);
+                value = pointer == IntPtr.Zero ? string.Empty : Marshal.PtrToStringAnsi(pointer);
+                if (value == null) value = string.Empty;
+            }
+            return 0;
+        };
+        IntPtr error;
+        var result = sqlite3_exec(database, sql, callback, IntPtr.Zero, out error);
+        if (result != 0)
+        {
+            var message = error == IntPtr.Zero ? Marshal.PtrToStringAnsi(sqlite3_errmsg(database)) : Marshal.PtrToStringAnsi(error);
+            if (error != IntPtr.Zero) sqlite3_free(error);
+            throw new InvalidOperationException(string.Format("SQLite query failed ({0}): {1}", result, message));
+        }
+        return value;
+    }
+
+    public static void Close(IntPtr database)
+    {
+        if (database != IntPtr.Zero) sqlite3_close(database);
+    }
+}
+'@
+        }
+        $databaseHandle = [MementoNativeSqliteCheck]::OpenReadOnly($databasePath)
+        try {
+            $integrity = [MementoNativeSqliteCheck]::Scalar($databaseHandle, 'PRAGMA integrity_check')
+            $schemaVersion = [MementoNativeSqliteCheck]::Scalar($databaseHandle, 'SELECT COALESCE(MAX(version), 0) FROM schema_migrations')
+        }
+        finally { [MementoNativeSqliteCheck]::Close($databaseHandle) }
+        $integritySeverity = if ($RequireArchiveIntegrity) { 'FAIL' } else { 'WARN' }
+        Write-Check 'archive integrity' ($integrity -eq 'ok') ("SQLite integrity_check=$integrity; schema version $schemaVersion") $integritySeverity
+    }
+    catch {
+        $integritySeverity = if ($RequireArchiveIntegrity) { 'FAIL' } else { 'WARN' }
+        Write-Check 'archive integrity' $false ('unable to verify SQLite archive: ' + $_.Exception.GetType().Name) $integritySeverity
+    }
+    finally { $env:PATH = $previousPath }
+}
 
 try {
     # cmdkey lists only credential metadata; it never prints the credential

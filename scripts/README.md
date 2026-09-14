@@ -10,10 +10,10 @@ Scripts must not read or upload personal data by default.
 .\scripts\Setup-Memento.ps1 -RequireCloudCredential -Launch
 ```
 
-`Verify-MementoAutomation.ps1` is the repeatable repository verification command. It parser-checks every PowerShell helper, runs the Release test and build without restoring packages, regenerates the deterministic M04 synthetic report, and runs the read-only deployment preflight. Use `-SkipDotnet`, `-SkipLanguageValidation`, or `-SkipPreflight` when a narrower check is needed; the optional `-RequireCloudCredential`, `-RequireApplicationLock`, `-RequireAudioInput`, and `-RequireAudioOutput` switches promote those deployment policies to blocking checks:
+`Verify-MementoAutomation.ps1` is the repeatable repository verification command. It parser-checks every PowerShell helper, runs the Release test and build without restoring packages, regenerates the deterministic M04 synthetic report, and runs the read-only deployment preflight. Use `-SkipDotnet`, `-SkipLanguageValidation`, or `-SkipPreflight` when a narrower check is needed; the optional `-RequireCloudCredential`, `-RequireApplicationLock`, `-RequireAudioInput`, `-RequireAudioOutput`, and `-RequireArchiveIntegrity` switches promote those deployment policies to blocking checks:
 
 ```powershell
-.\scripts\Verify-MementoAutomation.ps1 -RequireAudioInput -RequireAudioOutput
+.\scripts\Verify-MementoAutomation.ps1 -RequireAudioInput -RequireAudioOutput -RequireArchiveIntegrity
 ```
 
 `Install-Memento.ps1` installs that bundle under `%LOCALAPPDATA%\MEMENTO\App`, creates a per-user Start Menu shortcut, and registers MEMENTO in the current user's Windows Installed apps list without administrator access. The app-local `Uninstall-Memento.ps1`, `Reset-MementoApplicationLock.ps1`, `Set-MementoOpenAiCredential.ps1`, and `Remove-MementoOpenAiCredential.ps1` helpers are copied into the install tree so registration, forgotten-passcode recovery, credential setup, and credential removal remain usable after the repository is moved. Updates are staged as a clean tree and swapped into place, so files removed from a newer bundle cannot remain from an older install; any failure after the swap also moves the failed tree aside and restores the previous app. The archive data directory is outside the app tree and is preserved. When a matching `.zip.sha256` sidecar is present, it verifies the bundle before copying files:
@@ -28,7 +28,7 @@ Scripts must not read or upload personal data by default.
 .\scripts\Start-Memento.ps1
 ```
 
-`Test-MementoPreflight.ps1` performs a read-only deployment check for the bundle checksum, installed executable, shortcut, archive paths, free disk space, running-process state, and the Windows wave-in and active render devices exposed by the installed NAudio adapters. The audio probe only enumerates capabilities; it never opens the microphone, starts a recording, or plays audio. The credential and device checks are warnings by default; make them blocking for a pilot with `-RequireCloudCredential`, `-RequireApplicationLock`, `-RequireAudioInput`, and/or `-RequireAudioOutput`. Native GUI, physical microphone capture, live exchange, and participant checks remain supervised gates:
+`Test-MementoPreflight.ps1` performs a read-only deployment check for the bundle checksum, installed executable, shortcut, archive paths, free-space, running-process state, SQLite integrity/schema version through the bundled native SQLite library, and the Windows wave-in and active render devices exposed by the installed NAudio adapters. The audio probe only enumerates capabilities; it never opens the microphone, starts a recording, or plays audio. The credential, archive, and device checks are warnings by default; make them blocking for a pilot with `-RequireCloudCredential`, `-RequireApplicationLock`, `-RequireAudioInput`, `-RequireAudioOutput`, and/or `-RequireArchiveIntegrity`. Native GUI, physical microphone capture, live exchange, and participant checks remain supervised gates:
 
 ```powershell
 .\scripts\Test-MementoPreflight.ps1
@@ -63,7 +63,7 @@ For a family deployment that requires the optional application lock, add `-Requi
 For a cloud voice pilot that requires both enumerated devices before launch:
 
 ```powershell
-.\scripts\Setup-Memento.ps1 -RequireCloudCredential -RequireApplicationLock -RequireAudioInput -RequireAudioOutput -Launch
+.\scripts\Setup-Memento.ps1 -RequireCloudCredential -RequireApplicationLock -RequireAudioInput -RequireAudioOutput -RequireArchiveIntegrity -Launch
 ```
 
 `Uninstall-Memento.ps1` removes the shortcut and current-user Installed apps registration immediately, then schedules deletion of the app files after the script exits; it preserves the `%LOCALAPPDATA%\MEMENTO` archive by default. Pass `-RemoveData` only after making and checking a backup:
