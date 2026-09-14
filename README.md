@@ -72,6 +72,8 @@ To remove the installed app, shortcut, and per-user Installed apps entry while p
 
 Pass `-RemoveData` only when the `%LOCALAPPDATA%\MEMENTO` archive has been backed up and should also be deleted. The in-app `啟用本機錄音功能` control independently enables or disables future recording; uninstalling does not silently delete the archive.
 
+If the optional application-lock passcode is forgotten, close MEMENTO and run `.\scripts\Reset-MementoApplicationLock.ps1`. This clears only the current Windows user's `MEMENTO/AppLock` credential and leaves the archive data untouched; use `-WhatIf` to preview the action.
+
 The optional in-app application lock can be configured from the participant shell. It stores only a salted verifier in the current Windows user's Credential Manager, blocks the shell and launch-time retry worker while locked, and is disabled by default. Choose a recovery policy before enabling it for a family deployment.
 
 To generate the reproducible non-sensitive M04 synthetic validation report:

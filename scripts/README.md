@@ -34,6 +34,12 @@ For a cloud-enabled pilot, require the credential target explicitly:
 .\scripts\Uninstall-Memento.ps1
 ```
 
+If the application-lock passcode is forgotten, close MEMENTO and use the explicit recovery helper below. It removes only the current Windows user's `MEMENTO/AppLock` credential; the local archive is not touched. The command supports PowerShell `-WhatIf` before the deletion:
+
+```powershell
+.\scripts\Reset-MementoApplicationLock.ps1
+```
+
 These helpers do not provide MSIX package identity, signing, or enterprise installer registration. The Installed apps entry is a per-user registry registration and is intentionally not an MSIX package identity. Cloud features additionally require a Windows Credential Manager generic credential named `MEMENTO/OpenAI`.
 
 The M04 validation CLI can regenerate the non-sensitive synthetic report without provider credentials:
