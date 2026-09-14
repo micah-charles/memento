@@ -56,6 +56,7 @@
 - If a new capture fails, the shell clears its active session/Source pairing so a previous recording cannot be accidentally processed with the failed session's identity.
 - If WAV finalization succeeds but SQLite Source registration fails, the finalized file is moved back to its `.capture.tmp` marker so restart recovery can surface intact audio instead of leaving an untracked orphan file.
 - Added an authenticated Family Admin recovery operation that repairs valid interrupted markers and registers them as `recovered` Sources; failed registration leaves a valid marker for retry.
+- New capture markers retain generated Session and Turn IDs so recovery can restore Turn linkage; legacy markers continue to recover without inventing a Turn.
 - The shell reloads the latest finalized local Source and Session after restart, so a consented normal session can be processed later without losing its local provenance.
 - Added deterministic tests for consent gating, normal finalization, checksum and metadata registration, recoverable partial files, and corrupt partial preservation. These tests use a fake input; physical microphone, permission, disconnect, disk-full, and crash tests remain unverified.
 - M02 is **PARTIAL/BLOCKED**, not passed: automated coverage is green, but physical microphone and native UI observation have not been verified in this environment. See [M02 evidence](evidence/M02.md).

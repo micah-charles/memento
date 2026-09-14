@@ -12,7 +12,7 @@ This report records what is implemented and verified in the local worktree. It d
 - `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **127 passed, 0 failed**.
 - `dotnet build Memento.slnx --configuration Release --no-restore` — **0 warnings, 0 errors**.
 - M04 CLI — synthetic corpus `m04-synthetic-v1`, **14/14 PASS**, `correctionRequiredCount: 0`.
-- Published bundle — `artifacts/MEMENTO-win-x64.zip`, 106,481,881 bytes, SHA-256 `40c89a4b2c21c9c4bad4f961b07dc859c8dadd868029a1f34876496247ba8218`.
+- Published bundle — `artifacts/MEMENTO-win-x64.zip`, 106,482,106 bytes, SHA-256 `7b3f608c83d2aa8aa7763a660b64bbcfe79bd63fd04c3b9ad0231616e049bef7`.
 - Deployment preflight — **PASS** for bundle, sidecar, installed executable, Start Menu shortcut, archive paths, free disk, and stopped-process state.
 - Deployment preflight — **PASS** for the current-user Installed apps registration and its stable per-user install path.
 - Credential setup check — default preflight emitted a **WARN** because `MEMENTO/OpenAI` is absent (local-only mode remains available); `-RequireCloudCredential` correctly returned one blocking failure without exposing a secret.
