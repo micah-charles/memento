@@ -77,6 +77,10 @@ try {
     # The publish directory is only an intermediate copy source. Leaving it
     # under the package root would duplicate every payload file in the MSIX.
     Remove-Item -LiteralPath $publish -Recurse -Force
+    $stagedExecutables = @(Get-ChildItem -LiteralPath $staging -Recurse -File -Filter 'Memento.App.exe')
+    if ($stagedExecutables.Count -ne 1 -or $stagedExecutables[0].FullName -ne (Join-Path $staging 'Memento.App.exe')) {
+        throw "MSIX staging must contain exactly one root Memento.App.exe; found $($stagedExecutables.Count)."
+    }
     foreach ($name in 'StoreLogo.png', 'Square150x150Logo.png', 'Square44x44Logo.png', 'SplashScreen.png') {
         Write-PlaceholderPng -Path (Join-Path $assets $name)
     }
