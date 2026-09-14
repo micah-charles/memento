@@ -159,6 +159,21 @@ public sealed class AudioTests
     }
 
     [Fact]
+    public void Recovery_service_rejects_markers_outside_audio_root()
+    {
+        using var fixture = new AudioFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.LocalCaptureOnly);
+        var outside = Path.Combine(fixture.DirectoryPath, "outside.wav.capture.tmp");
+        File.WriteAllBytes(outside, new byte[44]);
+
+        Assert.Throws<ArgumentException>(() => new AudioRecoveryService(repository, fixture.AudioRoot).Recover(outside, session.SessionId));
+        Assert.True(File.Exists(outside));
+    }
+
+    [Fact]
     public void Recovery_service_restores_valid_marker_when_source_registration_fails()
     {
         using var fixture = new AudioFixture();
