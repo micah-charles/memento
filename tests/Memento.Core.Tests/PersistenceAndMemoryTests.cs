@@ -198,6 +198,28 @@ public sealed class PersistenceAndMemoryTests
     }
 
     [Fact]
+    public async Task Durable_transcription_processor_does_not_duplicate_revision_after_concurrent_completion()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        var sourcePath = Path.Combine(fixture.DirectoryPath, "concurrent-source.wav");
+        File.WriteAllBytes(sourcePath, [1, 2]);
+        var source = repository.AddSource(new SourceMetadata("source-concurrent-transcription", "audio", session.SessionId, null, sourcePath, "PCM WAV", 48000, 1, 16, 2, 0, "abc", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+        var job = new ConversationSessionWriter(repository).QueueTranscription(session, null, source);
+        var provider = new ConcurrentRevisionTranscriptionProvider(repository, source.SourceId);
+
+        await new DurableTranscriptionJobProcessor(repository, provider).ProcessAsync(job);
+
+        var revisions = repository.ListTranscriptRevisions(source.SourceId);
+        var revision = Assert.Single(revisions);
+        Assert.Equal("persisted by concurrent worker", revision.Text);
+        Assert.Equal(1, provider.Calls);
+    }
+
+    [Fact]
     public async Task Private_conversation_durable_transcription_never_calls_provider()
     {
         using var fixture = new PersistenceFixture();
@@ -563,6 +585,20 @@ public sealed class PersistenceAndMemoryTests
             Calls++;
             Assert.Equal("yue", language);
             return Task.FromResult(new TranscriptionResult(Provider, Model, "fake-request", "synthetic transcript", DateTimeOffset.UtcNow));
+        }
+    }
+
+    private sealed class ConcurrentRevisionTranscriptionProvider(ArchiveRepository repository, string sourceId) : ITranscriptionProvider
+    {
+        public int Calls { get; private set; }
+        public string Provider => "concurrent-transcription";
+        public string Model => "concurrent-transcription-v1";
+
+        public Task<TranscriptionResult> TranscribeAsync(string localAudioPath, string? language = null, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            repository.AddTranscriptRevision(new TranscriptRevision("concurrent-revision", sourceId, null, 1, "initial", "persisted by concurrent worker", 1, null, DateTimeOffset.UtcNow));
+            return Task.FromResult(new TranscriptionResult(Provider, Model, "concurrent-request", "provider result", DateTimeOffset.UtcNow));
         }
     }
 

@@ -45,6 +45,16 @@ public sealed class DurableTranscriptionJobProcessor : IConversationJobProcessor
         if (!_repository.HasGrantedConsent(job.SessionId, ConsentScope.CloudTranscription))
             throw new CloudNotPermittedException();
         if (string.IsNullOrWhiteSpace(result.Text)) throw new InvalidDataException("Transcription provider returned no text.");
+        // Another worker can finish the same source while this provider call
+        // is in flight. Re-check before appending the initial revision so a
+        // retry race cannot create duplicate transcript provenance.
+        var revisionCreatedByConcurrentWorker = _repository.ListTranscriptRevisions(job.SourceId).OrderByDescending(item => item.RevisionNumber).FirstOrDefault();
+        if (revisionCreatedByConcurrentWorker is not null)
+        {
+            if (_queueExtractionJobs)
+                _sessionWriter.QueueExtractionIfNeeded(job.SessionId, job.TurnId, job.SourceId, revisionCreatedByConcurrentWorker.TranscriptRevisionId);
+            return;
+        }
         _repository.AddTranscriptRevision(new TranscriptRevision(Guid.NewGuid().ToString("N"), job.SourceId, job.TurnId, 1, "initial", result.Text, null, null, result.CompletedAt));
         var revision = _repository.ListTranscriptRevisions(job.SourceId).OrderByDescending(item => item.RevisionNumber).First();
         if (_queueExtractionJobs) _sessionWriter.QueueExtractionIfNeeded(job.SessionId, job.TurnId, job.SourceId, revision.TranscriptRevisionId);
