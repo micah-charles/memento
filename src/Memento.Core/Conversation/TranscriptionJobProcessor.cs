@@ -38,6 +38,8 @@ public sealed class DurableTranscriptionJobProcessor : IConversationJobProcessor
         }
         var sourcePath = _repository.GetSourceFilePath(job.SourceId);
         if (string.IsNullOrWhiteSpace(sourcePath)) throw new FileNotFoundException("The queued Source has no local file path.", job.SourceId);
+        if (Path.IsPathFullyQualified(sourcePath))
+            SourcePathGuard.EnsureMatches(source, sourcePath, ArchivePathSafety.GetArchiveRoot(_repository.Archive));
         var result = await _provider.TranscribeAsync(sourcePath, _languageHint, cancellationToken).ConfigureAwait(false);
         var currentSource = _repository.GetSource(job.SourceId) ?? throw new InvalidDataException("The queued Source was removed while transcription was running.");
         if (string.Equals(currentSource.RecoveryStatus, "withdrawn", StringComparison.OrdinalIgnoreCase))

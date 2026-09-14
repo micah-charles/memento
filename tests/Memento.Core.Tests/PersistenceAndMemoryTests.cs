@@ -197,6 +197,33 @@ public sealed class PersistenceAndMemoryTests
     }
 
     [Fact]
+    public async Task Durable_transcription_rejects_source_audio_outside_archive_root_before_provider_call()
+    {
+        using var fixture = new PersistenceFixture();
+        using var archive = fixture.CreateArchive();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        repository.AddConsent(session.SessionId, ConsentScope.CloudTranscription, PrivacyMode.Normal, true, "privacy-1");
+        var external = Path.Combine(Path.GetTempPath(), "memento-external-queue-" + Guid.NewGuid().ToString("N") + ".wav");
+        File.WriteAllBytes(external, [1, 2, 3]);
+        try
+        {
+            var source = repository.AddSource(new SourceMetadata("source-external-queue", "audio", session.SessionId, null, external, "PCM WAV", 48000, 1, 16, 3, 0, Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(external))).ToLowerInvariant(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "finalized", DateTimeOffset.UtcNow));
+            var job = new ConversationSessionWriter(repository).QueueTranscription(session, null, source);
+            var provider = new FakeTranscriptionProvider();
+
+            await Assert.ThrowsAsync<InvalidDataException>(() => new DurableTranscriptionJobProcessor(repository, provider).ProcessAsync(job));
+
+            Assert.Equal(0, provider.Calls);
+            Assert.True(File.Exists(external));
+        }
+        finally
+        {
+            if (File.Exists(external)) File.Delete(external);
+        }
+    }
+
+    [Fact]
     public async Task Durable_transcription_processor_rechecks_cloud_consent_before_upload()
     {
         using var fixture = new PersistenceFixture();
