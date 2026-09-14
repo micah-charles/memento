@@ -486,6 +486,36 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void Restore_rejects_reparse_point_destination_without_following_it()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new OperationsFixture();
+        var exportDirectory = Path.Combine(fixture.ExportRoot, "reparse-export");
+        Directory.CreateDirectory(exportDirectory);
+        var archiveBytes = new byte[] { 1, 2, 3 };
+        File.WriteAllBytes(Path.Combine(exportDirectory, "archive.sqlite"), archiveBytes);
+        var archiveHash = Convert.ToHexString(SHA256.HashData(archiveBytes)).ToLowerInvariant();
+        File.WriteAllText(Path.Combine(exportDirectory, "manifest.json"), $"{{\"schema_version\":17,\"files\":[{{\"path\":\"archive.sqlite\",\"sha256\":\"{archiveHash}\"}}]}}");
+        var backup = Path.Combine(fixture.ExportRoot, "reparse-backup.memento");
+        ArchiveBackupProtector.EncryptDirectory(exportDirectory, backup, "test-password");
+
+        var actualTarget = Path.Combine(fixture.ExportRoot, "reparse-target");
+        Directory.CreateDirectory(actualTarget);
+        var link = Path.Combine(fixture.ExportRoot, "reparse-link");
+        try
+        {
+            Directory.CreateSymbolicLink(link, actualTarget);
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        Assert.Throws<IOException>(() => ArchiveBackupProtector.DecryptDirectory(backup, link, "test-password"));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(actualTarget));
+    }
+
+    [Fact]
     public void Health_check_reports_recoverable_audio_and_due_jobs()
     {
         using var fixture = new OperationsFixture();

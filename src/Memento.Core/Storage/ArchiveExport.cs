@@ -665,12 +665,14 @@ public static class ArchiveBackupProtector
     {
         if (string.IsNullOrWhiteSpace(destinationDirectory)) throw new ArgumentException("A restore directory is required.", nameof(destinationDirectory));
         var destination = Path.GetFullPath(destinationDirectory);
+        EnsureNoReparsePointInPath(destination, "The restore path");
         if (Directory.Exists(destination) && Directory.EnumerateFileSystemEntries(destination).Any())
             throw new IOException("The restore directory must be empty.");
         var parent = Path.GetDirectoryName(destination);
         if (parent is not null) Directory.CreateDirectory(parent);
         var staging = destination + ".staging-" + Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(staging);
+        EnsureNoReparsePointInPath(staging, "The restore staging path");
         var temporaryZip = Path.Combine(Path.GetTempPath(), "memento-restore-" + Guid.NewGuid().ToString("N") + ".zip");
         try
         {
@@ -735,6 +737,25 @@ public static class ArchiveBackupProtector
             using var input = entry.Open();
             using var output = File.Create(target);
             input.CopyTo(output);
+        }
+    }
+
+    private static void EnsureNoReparsePointInPath(string path, string description)
+    {
+        var current = Path.GetFullPath(path);
+        while (!string.IsNullOrEmpty(current))
+        {
+            if (Directory.Exists(current) || File.Exists(current))
+            {
+                var attributes = File.GetAttributes(current);
+                if ((attributes & FileAttributes.ReparsePoint) != 0)
+                    throw new IOException($"{description} cannot contain a reparse point.");
+            }
+
+            var parent = Path.GetDirectoryName(current);
+            if (string.IsNullOrEmpty(parent) || string.Equals(parent, current, StringComparison.OrdinalIgnoreCase))
+                break;
+            current = parent;
         }
     }
 
