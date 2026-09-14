@@ -136,7 +136,35 @@ public sealed class SqliteArchive : IDisposable
             throw new ObjectDisposedException(nameof(SqliteArchive));
     }
 
-    public void Dispose() => _disposed = true;
+    public void Dispose()
+    {
+        if (_disposed) return;
+
+        try
+        {
+            // Close out the WAL during a normal shutdown so the durable
+            // archive has a compact main database before the process exits.
+            // Do not create a database merely because an uninitialized object
+            // is being disposed, and never hide the caller's shutdown path
+            // behind a best-effort checkpoint failure.
+            if (File.Exists(DatabasePath))
+            {
+                using var connection = OpenConnection();
+                using var checkpoint = connection.CreateCommand();
+                checkpoint.CommandText = "PRAGMA wal_checkpoint(TRUNCATE)";
+                checkpoint.ExecuteScalar();
+            }
+        }
+        catch (SqliteException)
+        {
+            // A competing reader or an already damaged file must not prevent
+            // the application from completing its close path.
+        }
+        finally
+        {
+            _disposed = true;
+        }
+    }
 }
 
 internal static class Migrations

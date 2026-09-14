@@ -42,6 +42,18 @@ public sealed class ArchiveTests
     }
 
     [Fact]
+    public void Disposing_an_uninitialized_archive_does_not_create_a_database_and_is_idempotent()
+    {
+        using var fixture = new ArchiveFixture();
+        var archive = new SqliteArchive(fixture.DatabasePath);
+
+        archive.Dispose();
+        archive.Dispose();
+
+        Assert.False(File.Exists(fixture.DatabasePath));
+    }
+
+    [Fact]
     public void Session_turn_consent_and_source_survive_reopen()
     {
         using var fixture = new ArchiveFixture();

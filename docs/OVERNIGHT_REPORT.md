@@ -12,13 +12,13 @@ This report records what is implemented and verified in the local worktree. It d
 - `dotnet test tests\\Memento.Core.Tests\\Memento.Core.Tests.csproj --configuration Release --no-restore` — **166 passed, 0 failed**.
 - `dotnet build Memento.slnx --configuration Release --no-restore` — **0 warnings, 0 errors**.
 - M04 CLI — synthetic corpus `m04-synthetic-v1`, **14/14 PASS**, `correctionRequiredCount: 0`.
-- Published bundle — `artifacts/MEMENTO-win-x64.zip`, 106,512,677 bytes, SHA-256 `29cda6e5ad3305d8a17eb8241f310fa03df9541dd5bc8828d2776970e7b744a4`.
+- Published bundle — `artifacts/MEMENTO-win-x64.zip`, 106,513,285 bytes, SHA-256 `2205d5fe70cf593ef8a23cfebca6fbf1141e02914a684ca532b590937b27af07`.
 - Deployment preflight — **PASS** for bundle, sidecar, installed executable, Start Menu shortcut, archive paths, free disk, stopped-process state, one wave-in device, and one active WASAPI render device; no microphone was opened and no audio was played.
 - Deployment policy gates — `Setup-Memento.ps1 -SkipPublish -RequireAudioInput -RequireAudioOutput` passed; the same switches can promote missing enumerated devices to blocking failures without claiming physical capture/playback.
 - Credential setup plumbing — the installed hidden-input helper created a disposable `MEMENTO/OpenAI` Credential Manager target, then the target was removed; no live provider request was made.
 - Credential revocation plumbing — the installed fixed-target removal helper removed a disposable `MEMENTO/OpenAI` target after MEMENTO was closed, and `cmdkey.exe /list:MEMENTO/OpenAI` confirmed `* NONE *`; archive data was unchanged.
 - Deployment preflight — **PASS** for the current-user Installed apps registration and its stable per-user install path.
-- Repeatable automation gate — `scripts/Verify-MementoAutomation.ps1 -RequireAudioInput -RequireAudioOutput` passed PowerShell parsing for 12 scripts, Release test **166/166**, Release build with **0 warnings/0 errors**, synthetic M04 validation (**14 cases, 0 correction-required**), and read-only deployment preflight.
+- Repeatable automation gate — `scripts/Verify-MementoAutomation.ps1 -RequireAudioInput -RequireAudioOutput` passed PowerShell parsing for 12 scripts, Release test **167/167**, Release build with **0 warnings/0 errors**, synthetic M04 validation (**14 cases, 0 correction-required**), and read-only deployment preflight.
 - Dependency security check — `dotnet list Memento.slnx package --vulnerable --include-transitive` reported no vulnerable packages across all four solution projects.
 - Graceful close smoke — after a five-second launch, `CloseMainWindow()` returned true and the process exited within ten seconds with exit code 0; the handler now waits for retry/Realtime cleanup before disposing runtime services.
 - Credential setup check — default preflight emitted a **WARN** because `MEMENTO/OpenAI` is absent (local-only mode remains available); `-RequireCloudCredential` correctly returned one blocking failure without exposing a secret.
