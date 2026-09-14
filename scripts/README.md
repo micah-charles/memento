@@ -54,6 +54,12 @@ If the application-lock passcode is forgotten, close MEMENTO and use the explici
 
 `Build-MementoMsix.ps1` is the separate MSIX staging/signing path. It requires Windows SDK `makeappx.exe`, an owner-selected publisher identity, and (for an installable release) a matching certificate plus `signtool.exe`; when a certificate is supplied, its subject is checked against the manifest publisher before packaging. The tool resolver searches the full Windows SDK and the current user's `Microsoft.Windows.SDK.BuildTools` NuGet cache, or you can pass an explicit `-MakeAppxPath`/`-SignToolPath`. It is intentionally not part of the portable per-user flow. The staging step fails if more than one `Memento.App.exe` would enter the package. The optional `-TimestampUrl` parameter defaults to DigiCert's RFC 3161 service and can be set to an approved internal service or an empty string for an offline development signature. The Installed apps entry created by `Install-Memento.ps1` is a per-user registry registration and is intentionally not an MSIX package identity. Cloud features additionally require a Windows Credential Manager generic credential named `MEMENTO/OpenAI`.
 
+`Test-MementoMsix.ps1` unpacks an MSIX with the same tool resolver and verifies a parseable manifest, exactly one root `Memento.App.exe`, no nested publish directory, and the four expected package assets. Pass `-RequireSignature` (or `-SignToolPath`) to add `signtool verify /pa`; unsigned package inspection reports a warning rather than pretending to prove installability:
+
+```powershell
+.\scripts\Test-MementoMsix.ps1
+```
+
 The M04 validation CLI can regenerate the non-sensitive synthetic report without provider credentials:
 
 ```powershell
