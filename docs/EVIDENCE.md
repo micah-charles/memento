@@ -155,6 +155,7 @@ Research sources establish capabilities and constraints; they do not prove MEMEN
 - Added `FamilyAdminReviewService` with an `IAdminAuthorizer` boundary, candidate listing, attributed review annotations, and explicit candidate status transitions. The test authorizer is fixed and clearly a fixture; it is not production identity management.
 - Added `ArchiveExporter` JSONL/media/snapshot export with SHA-256 manifest entries and `ArchiveBackupProtector` AES-GCM password backup/restore.
 - `ArchiveBackupProtector.ReencryptFile` was verified with a rotated password: the new password restores the same snapshot, while the old password is rejected.
+- The Family Admin WinUI shell now exposes `更新備份密碼`, which verifies an existing bundle before creating a new encrypted copy, preserves the original backup, clears password fields after the operation, and records a minimal `encrypted_backup_rekey` audit event. Key recovery and target-machine restore policy remain open.
 - Export directories now use unique run IDs, and duplicate media basenames are preserved with collision-safe names instead of aborting an export.
 - Media-inclusive exports now require each snapshot-listed file to exist and, when valid recorded length/SHA-256 metadata is available, match that metadata; changed or missing media aborts the run and removes the incomplete export directory.
 - Added `ArchiveHealthCheck` for SQLite integrity, schema version, recoverable audio, due conversation jobs, media integrity, and semantic canonical/search-index parity.

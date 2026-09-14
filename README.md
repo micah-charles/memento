@@ -94,6 +94,8 @@ If the optional application-lock passcode is forgotten, close MEMENTO and run `.
 
 The optional in-app application lock can be configured from the participant shell. It stores only a salted verifier in the current Windows user's Credential Manager, blocks the shell and launch-time retry worker while locked, and is disabled by default. Choose a recovery policy before enabling it for a family deployment.
 
+Family Admin can use **更新備份密碼** in the shell to verify an existing `.memento` bundle and create a new encrypted copy with a new password. The original backup is left untouched; this rotates a known password and does not replace a family-owned recovery policy.
+
 To generate the reproducible non-sensitive M04 synthetic validation report:
 
 ```powershell

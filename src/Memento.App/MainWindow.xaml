@@ -70,6 +70,7 @@
             <Button x:Name="RebuildSearchButton" Content="修復本機搜尋索引" Click="RebuildSearchButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="ExportButton" Content="匯出本機資料" Click="ExportButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="BackupButton" Content="建立加密備份" Click="BackupButton_Click" HorizontalAlignment="Center" Padding="20,8" />
+            <Button x:Name="RotateBackupButton" Content="更新備份密碼" Click="RotateBackupButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <Button x:Name="RestoreButton" Content="驗證及還原加密備份" Click="RestoreButton_Click" HorizontalAlignment="Center" Padding="20,8" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
                 <Button x:Name="ConfigureApplicationLockButton" Content="設定應用程式鎖" Click="ConfigureApplicationLockButton_Click" Padding="18,8" />

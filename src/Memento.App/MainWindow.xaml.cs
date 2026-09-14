@@ -1183,6 +1183,85 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async void RotateBackupButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!EnsureAdminForOperation()) return;
+
+        var backupPath = new TextBox { PlaceholderText = "輸入現有 .memento 備份檔案路徑", MinWidth = 360 };
+        var oldPassword = new PasswordBox { PlaceholderText = "輸入現有備份密碼", MinWidth = 360 };
+        var newPassword = new PasswordBox { PlaceholderText = "輸入新備份密碼", MinWidth = 360 };
+        var confirmPassword = new PasswordBox { PlaceholderText = "再次輸入新備份密碼", MinWidth = 360 };
+        var panel = new StackPanel { Spacing = 12 };
+        panel.Children.Add(new TextBlock { Text = "現有備份檔案" });
+        panel.Children.Add(backupPath);
+        panel.Children.Add(new TextBlock { Text = "現有備份密碼" });
+        panel.Children.Add(oldPassword);
+        panel.Children.Add(new TextBlock { Text = "新備份密碼" });
+        panel.Children.Add(newPassword);
+        panel.Children.Add(confirmPassword);
+        var dialog = new ContentDialog
+        {
+            XamlRoot = RootGrid.XamlRoot,
+            Title = "更新備份密碼",
+            Content = panel,
+            PrimaryButtonText = "建立新備份",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            StatusText.Text = "已取消更新備份密碼。";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(backupPath.Text)
+            || string.IsNullOrWhiteSpace(oldPassword.Password)
+            || string.IsNullOrWhiteSpace(newPassword.Password))
+        {
+            StatusText.Text = "請輸入備份檔案路徑及所有密碼。";
+            return;
+        }
+
+        if (!string.Equals(newPassword.Password, confirmPassword.Password, StringComparison.Ordinal))
+        {
+            StatusText.Text = "兩次新備份密碼不一致。";
+            return;
+        }
+
+        var destination = Path.Combine(
+            _dataRoot,
+            "backups",
+            "memento-rekey-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N") + ".memento");
+        try
+        {
+            var report = ArchiveBackupProtector.ReencryptDirectory(
+                backupPath.Text.Trim(), destination, oldPassword.Password, newPassword.Password);
+            if (!report.IntegrityOk)
+            {
+                if (File.Exists(destination)) File.Delete(destination);
+                StatusText.Text = "現有備份完整性驗證失敗，未建立新備份。";
+                return;
+            }
+
+            _adminReview!.RecordAdminOperation(_adminActorId!, "encrypted_backup_rekey");
+            StatusText.Text = $"已建立更新密碼嘅加密備份：{destination}";
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "未能更新備份密碼；原有備份仍然保留。";
+            if (File.Exists(destination))
+            {
+                try { File.Delete(destination); } catch { }
+            }
+        }
+        finally
+        {
+            oldPassword.Password = string.Empty;
+            newPassword.Password = string.Empty;
+            confirmPassword.Password = string.Empty;
+        }
+    }
+
     private async Task ShowAdminMessageAsync(string title, string message, string closeText)
     {
         var dialog = new ContentDialog
@@ -1332,6 +1411,7 @@ public sealed partial class MainWindow : Window
         PlaySourceButton.IsEnabled = adminIdle && _sourceAudioPlayback is not null && _lastSource is not null;
         ExportButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
         BackupButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
+        RotateBackupButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
         RestoreButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
         RecoverAudioButton.IsEnabled = adminIdle && _adminReview is not null && _adminActorId is not null;
         LockNowButton.IsEnabled = _applicationLock?.IsConfigured == true && adminIdle;
