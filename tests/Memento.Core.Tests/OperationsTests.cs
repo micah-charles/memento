@@ -565,6 +565,55 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void File_backup_rejects_reparse_point_source_without_reading_through_it()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new OperationsFixture();
+        Directory.CreateDirectory(fixture.ExportRoot);
+        var actualSource = Path.Combine(fixture.ExportRoot, "actual-source.bin");
+        var sourceBytes = new byte[] { 4, 5, 6 };
+        File.WriteAllBytes(actualSource, sourceBytes);
+        var link = Path.Combine(fixture.ExportRoot, "source-link.bin");
+        try
+        {
+            File.CreateSymbolicLink(link, actualSource);
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        var destination = Path.Combine(fixture.ExportRoot, "source-link-backup.memento");
+        Assert.Throws<IOException>(() => ArchiveBackupProtector.EncryptFile(link, destination, "test-password"));
+        Assert.False(File.Exists(destination));
+        Assert.Equal(sourceBytes, File.ReadAllBytes(actualSource));
+    }
+
+    [Fact]
+    public void Directory_backup_rejects_reparse_point_source_without_reading_through_it()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new OperationsFixture();
+        var actualSource = Path.Combine(fixture.ExportRoot, "actual-source-directory");
+        Directory.CreateDirectory(actualSource);
+        File.WriteAllBytes(Path.Combine(actualSource, "source.bin"), [7, 8, 9]);
+        var link = Path.Combine(fixture.ExportRoot, "source-directory-link");
+        try
+        {
+            Directory.CreateSymbolicLink(link, actualSource);
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        var destination = Path.Combine(fixture.ExportRoot, "source-directory-link-backup.memento");
+        Assert.Throws<IOException>(() => ArchiveBackupProtector.EncryptDirectory(link, destination, "test-password"));
+        Assert.False(File.Exists(destination));
+        Assert.Equal(new byte[] { 7, 8, 9 }, File.ReadAllBytes(Path.Combine(actualSource, "source.bin")));
+    }
+
+    [Fact]
     public void Backup_rejects_same_source_and_destination_path()
     {
         using var fixture = new OperationsFixture();

@@ -498,6 +498,7 @@ public static class ArchiveBackupProtector
     {
         if (string.IsNullOrEmpty(password)) throw new ArgumentException("A backup password is required.", nameof(password));
         EnsureDistinctPaths(sourcePath, destinationPath, "The backup source and destination must differ.");
+        EnsureNoReparsePointInPath(sourcePath, "The backup input path");
         using var input = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.SequentialScan);
         var salt = RandomNumberGenerator.GetBytes(SaltLength);
         var key = Rfc2898DeriveBytes.Pbkdf2(password, salt, 150_000, HashAlgorithmName.SHA256, 32);
@@ -513,6 +514,7 @@ public static class ArchiveBackupProtector
     {
         if (string.IsNullOrEmpty(password)) throw new ArgumentException("A backup password is required.", nameof(password));
         EnsureDistinctPaths(sourcePath, destinationPath, "The backup source and destination must differ.");
+        EnsureNoReparsePointInPath(sourcePath, "The backup input path");
         var magic = new byte[StreamingMagic.Length];
         using (var header = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.SequentialScan))
         {
@@ -656,6 +658,7 @@ public static class ArchiveBackupProtector
     public static void EncryptDirectory(string sourceDirectory, string destinationPath, string password)
     {
         if (string.IsNullOrWhiteSpace(sourceDirectory) || !Directory.Exists(sourceDirectory)) throw new DirectoryNotFoundException(sourceDirectory);
+        EnsureNoReparsePointInPath(sourceDirectory, "The backup source directory");
         var temporaryZip = Path.Combine(Path.GetTempPath(), "memento-backup-" + Guid.NewGuid().ToString("N") + ".zip");
         try
         {
