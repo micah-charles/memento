@@ -342,6 +342,32 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void Streaming_backup_rejects_tampered_and_trailing_chunks_without_output()
+    {
+        using var fixture = new OperationsFixture();
+        Directory.CreateDirectory(fixture.ExportRoot);
+        var source = Path.Combine(fixture.ExportRoot, "tamper-source.bin");
+        var encrypted = Path.Combine(fixture.ExportRoot, "tamper-backup.memento");
+        var tampered = Path.Combine(fixture.ExportRoot, "tampered-backup.memento");
+        var restored = Path.Combine(fixture.ExportRoot, "tampered-restored.bin");
+        File.WriteAllBytes(source, Enumerable.Repeat((byte)0x5A, 1024 * 1024 + 11).ToArray());
+        ArchiveBackupProtector.EncryptFile(source, encrypted, "test-password");
+
+        var bytes = File.ReadAllBytes(encrypted);
+        bytes[8 + 16 + 4 + 12 + 16] ^= 0x7F;
+        File.WriteAllBytes(tampered, bytes);
+        Assert.Throws<InvalidDataException>(() => ArchiveBackupProtector.DecryptFile(tampered, restored, "test-password"));
+        Assert.False(File.Exists(restored));
+
+        var trailing = Path.Combine(fixture.ExportRoot, "trailing-backup.memento");
+        File.Copy(encrypted, trailing);
+        using (var append = new FileStream(trailing, FileMode.Append, FileAccess.Write, FileShare.None))
+            append.WriteByte(0x42);
+        Assert.Throws<InvalidDataException>(() => ArchiveBackupProtector.DecryptFile(trailing, restored, "test-password"));
+        Assert.False(File.Exists(restored));
+    }
+
+    [Fact]
     public void Restore_rejects_a_manifest_that_omits_the_archive_snapshot()
     {
         using var fixture = new OperationsFixture();
