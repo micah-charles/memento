@@ -56,8 +56,34 @@ try {
 
     $manifestPath = Join-Path $staging 'AppxManifest.xml'
     if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw 'MSIX is missing AppxManifest.xml.' }
-    try { [xml](Get-Content -LiteralPath $manifestPath -Raw) | Out-Null }
+    try {
+        $manifest = [xml](Get-Content -LiteralPath $manifestPath -Raw)
+    }
     catch { throw "MSIX manifest is not valid XML: $($_.Exception.Message)" }
+
+    $namespaceManager = [System.Xml.XmlNamespaceManager]::new($manifest.NameTable)
+    $namespaceManager.AddNamespace('appx', 'http://schemas.microsoft.com/appx/manifest/foundation/windows10')
+    $namespaceManager.AddNamespace('uap', 'http://schemas.microsoft.com/appx/manifest/uap/windows10')
+    $identity = $manifest.SelectSingleNode('/appx:Package/appx:Identity', $namespaceManager)
+    if ($null -eq $identity -or [string]::IsNullOrWhiteSpace($identity.Name) -or [string]::IsNullOrWhiteSpace($identity.Publisher) -or [string]::IsNullOrWhiteSpace($identity.Version)) {
+        throw 'MSIX manifest has an incomplete package identity.'
+    }
+    if ($identity.Version -notmatch '^\d+\.\d+\.\d+\.\d+$') {
+        throw "MSIX manifest has an invalid package version: $($identity.Version)"
+    }
+
+    $application = $manifest.SelectSingleNode('/appx:Package/appx:Applications/appx:Application', $namespaceManager)
+    if ($null -eq $application -or $application.Id -ne 'Memento' -or $application.Executable -ne 'Memento.App.exe' -or $application.EntryPoint -ne 'Windows.FullTrustApplication') {
+        throw 'MSIX manifest does not describe the expected MEMENTO application entry.'
+    }
+    $visualElements = $application.SelectSingleNode('uap:VisualElements', $namespaceManager)
+    $splashScreen = $null
+    if ($null -ne $visualElements) {
+        $splashScreen = $visualElements.SelectSingleNode('uap:SplashScreen', $namespaceManager)
+    }
+    if ($null -eq $visualElements -or $visualElements.DisplayName -ne 'MEMENTO' -or $visualElements.Square150x150Logo -ne 'Assets\Square150x150Logo.png' -or $visualElements.Square44x44Logo -ne 'Assets\Square44x44Logo.png' -or $null -eq $splashScreen -or $splashScreen.Image -ne 'Assets\SplashScreen.png') {
+        throw 'MSIX manifest does not describe the expected MEMENTO visual assets.'
+    }
 
     $executables = @(Get-ChildItem -LiteralPath $staging -Recurse -File -Filter 'Memento.App.exe')
     if ($executables.Count -ne 1 -or $executables[0].FullName -ne (Join-Path $staging 'Memento.App.exe')) {
@@ -66,7 +92,13 @@ try {
     if (Test-Path -LiteralPath (Join-Path $staging 'publish')) { throw 'MSIX contains an unexpected nested publish directory.' }
     $assetsDirectory = Join-Path $staging 'Assets'
     $assets = @(Get-ChildItem -LiteralPath $assetsDirectory -File -ErrorAction SilentlyContinue)
-    if ($assets.Count -ne 4) { throw "MSIX must contain exactly four package assets; found $($assets.Count)." }
+    $expectedAssetNames = @('StoreLogo.png', 'Square150x150Logo.png', 'Square44x44Logo.png', 'SplashScreen.png')
+    $actualAssetNames = @($assets | ForEach-Object { $_.Name })
+    $missingAssets = @($expectedAssetNames | Where-Object { $_ -notin $actualAssetNames })
+    $unexpectedAssets = @($actualAssetNames | Where-Object { $_ -notin $expectedAssetNames })
+    if ($missingAssets.Count -gt 0 -or $unexpectedAssets.Count -gt 0) {
+        throw "MSIX package assets do not match the expected set. Missing: $($missingAssets -join ', '); unexpected: $($unexpectedAssets -join ', ')"
+    }
 
     if ($null -ne $signtool) {
         & $signtool verify /pa $PackagePath | Out-Null
@@ -74,9 +106,9 @@ try {
     }
 
     Write-Output "PASS  package: $PackagePath"
-    Write-Output "PASS  manifest: parseable AppxManifest.xml"
+    Write-Output "PASS  manifest: identity $($identity.Name), version $($identity.Version), expected MEMENTO application entry"
     Write-Output 'PASS  payload: one root Memento.App.exe; no nested publish directory'
-    Write-Output 'PASS  assets: four package assets'
+    Write-Output 'PASS  assets: expected StoreLogo, Square150x150Logo, Square44x44Logo, and SplashScreen files'
     if ($null -ne $signtool) { Write-Output 'PASS  signature: signtool /pa verification' }
     else { Write-Output 'WARN  signature: package was not signature-verified' }
     Write-Output "MSIX verification passed: $PackagePath"
