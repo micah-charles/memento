@@ -762,6 +762,7 @@ public static class ArchiveBackupProtector
     private static void WriteAtomically(string destinationPath, Action<FileStream> write)
     {
         var destination = Path.GetFullPath(destinationPath);
+        EnsureNoReparsePointInPath(destination, "The backup output path");
         var directory = Path.GetDirectoryName(destination);
         if (directory is not null) Directory.CreateDirectory(directory);
         var temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";

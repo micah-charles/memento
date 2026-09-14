@@ -516,6 +516,30 @@ public sealed class OperationsTests
     }
 
     [Fact]
+    public void File_backup_rejects_reparse_point_parent_without_writing_through_it()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new OperationsFixture();
+        Directory.CreateDirectory(fixture.ExportRoot);
+        var source = Path.Combine(fixture.ExportRoot, "reparse-source.bin");
+        File.WriteAllBytes(source, [1, 2, 3]);
+        var actualTarget = Path.Combine(fixture.ExportRoot, "file-reparse-target");
+        Directory.CreateDirectory(actualTarget);
+        var link = Path.Combine(fixture.ExportRoot, "file-reparse-link");
+        try
+        {
+            Directory.CreateSymbolicLink(link, actualTarget);
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        Assert.Throws<IOException>(() => ArchiveBackupProtector.EncryptFile(source, Path.Combine(link, "backup.memento"), "test-password"));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(actualTarget));
+    }
+
+    [Fact]
     public void Health_check_reports_recoverable_audio_and_due_jobs()
     {
         using var fixture = new OperationsFixture();
