@@ -41,6 +41,7 @@ $shortcutDirectory = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Prog
 $shortcutPath = Join-Path $shortcutDirectory 'MEMENTO.lnk'
 $uninstallScriptSource = Join-Path $repoRoot 'scripts\Uninstall-Memento.ps1'
 $recoveryScriptSource = Join-Path $repoRoot 'scripts\Reset-MementoApplicationLock.ps1'
+$credentialScriptSource = Join-Path $repoRoot 'scripts\Set-MementoOpenAiCredential.ps1'
 $uninstallRegistryPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\MEMENTO'
 
 function Move-DirectoryWithRetry {
@@ -87,6 +88,10 @@ try {
         throw "Application-lock recovery script not found: $recoveryScriptSource"
     }
     Copy-Item -LiteralPath $recoveryScriptSource -Destination (Join-Path $stagingRoot 'Reset-MementoApplicationLock.ps1') -Force
+    if (-not (Test-Path -LiteralPath $credentialScriptSource -PathType Leaf)) {
+        throw "OpenAI credential setup script not found: $credentialScriptSource"
+    }
+    Copy-Item -LiteralPath $credentialScriptSource -Destination (Join-Path $stagingRoot 'Set-MementoOpenAiCredential.ps1') -Force
     if (Test-Path -LiteralPath $InstallRoot) {
         Move-DirectoryWithRetry -Source $InstallRoot -Destination $previousRoot
     }

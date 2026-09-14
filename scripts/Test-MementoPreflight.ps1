@@ -54,6 +54,10 @@ $installedRecoveryHelper = Join-Path $InstallRoot 'Reset-MementoApplicationLock.
 $recoveryHelperExists = Test-Path -LiteralPath $installedRecoveryHelper -PathType Leaf
 Write-Check 'app-lock recovery helper' $recoveryHelperExists ($(if ($recoveryHelperExists) { $installedRecoveryHelper } else { "not found at $installedRecoveryHelper" }))
 
+$installedCredentialHelper = Join-Path $InstallRoot 'Set-MementoOpenAiCredential.ps1'
+$credentialHelperExists = Test-Path -LiteralPath $installedCredentialHelper -PathType Leaf
+Write-Check 'OpenAI credential setup helper' $credentialHelperExists ($(if ($credentialHelperExists) { $installedCredentialHelper } else { "not found at $installedCredentialHelper" }))
+
 $audioAssemblyRoot = Split-Path -Parent $installedExecutable
 $naudioCore = Join-Path $audioAssemblyRoot 'NAudio.Core.dll'
 $naudioWinMm = Join-Path $audioAssemblyRoot 'NAudio.WinMM.dll'

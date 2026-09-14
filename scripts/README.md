@@ -10,7 +10,7 @@ Scripts must not read or upload personal data by default.
 .\scripts\Setup-Memento.ps1 -RequireCloudCredential -Launch
 ```
 
-`Install-Memento.ps1` installs that bundle under `%LOCALAPPDATA%\MEMENTO\App`, creates a per-user Start Menu shortcut, and registers MEMENTO in the current user's Windows Installed apps list without administrator access. The app-local `Uninstall-Memento.ps1` and `Reset-MementoApplicationLock.ps1` helpers are copied into the install tree so registration and forgotten-passcode recovery remain usable after the repository is moved. Updates are staged as a clean tree and swapped into place, so files removed from a newer bundle cannot remain from an older install; any failure after the swap also moves the failed tree aside and restores the previous app. The archive data directory is outside the app tree and is preserved. When a matching `.zip.sha256` sidecar is present, it verifies the bundle before copying files:
+`Install-Memento.ps1` installs that bundle under `%LOCALAPPDATA%\MEMENTO\App`, creates a per-user Start Menu shortcut, and registers MEMENTO in the current user's Windows Installed apps list without administrator access. The app-local `Uninstall-Memento.ps1`, `Reset-MementoApplicationLock.ps1`, and `Set-MementoOpenAiCredential.ps1` helpers are copied into the install tree so registration, forgotten-passcode recovery, and credential setup remain usable after the repository is moved. Updates are staged as a clean tree and swapped into place, so files removed from a newer bundle cannot remain from an older install; any failure after the swap also moves the failed tree aside and restores the previous app. The archive data directory is outside the app tree and is preserved. When a matching `.zip.sha256` sidecar is present, it verifies the bundle before copying files:
 
 ```powershell
 .\scripts\Install-Memento.ps1
@@ -33,6 +33,14 @@ For a cloud-enabled pilot, require the credential target explicitly:
 ```powershell
 .\scripts\Test-MementoPreflight.ps1 -RequireCloudCredential
 ```
+
+To configure the optional cloud credential without putting the API key in a command line, log, or source file, run the interactive helper. It prompts with hidden `SecureString` input and writes the credential directly to the current Windows user's Credential Manager:
+
+```powershell
+.\scripts\Set-MementoOpenAiCredential.ps1
+```
+
+Use `cmdkey.exe /delete:MEMENTO/OpenAI` after closing MEMENTO when the credential should be removed.
 
 For a family deployment that requires the optional application lock, add `-RequireApplicationLock`; otherwise its Credential Manager target is reported as an optional warning:
 
