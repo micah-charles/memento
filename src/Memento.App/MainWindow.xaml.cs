@@ -134,7 +134,10 @@ public sealed partial class MainWindow : Window
         if (_session is not null && !CloudNotPermittedException.IsBlocked(_session.PrivacyMode))
             _repository.AddConsent(_session.SessionId, ConsentScope.CloudTranscription, _session.PrivacyMode, CloudConsentCheckBox.IsChecked == true, "privacy-1");
         if (CloudConsentCheckBox.IsChecked != true)
+        {
             _currentInfoCancellation?.Cancel();
+            CurrentInfoResultsText.Text = "雲端同意已撤回；目前資訊結果已清除。";
+        }
         UpdateRecordControl();
     }
 
@@ -273,6 +276,7 @@ public sealed partial class MainWindow : Window
             }
             finally { _initializing = false; }
             _currentInfoCancellation?.Cancel();
+            CurrentInfoResultsText.Text = "本次對話只保留本機；目前資訊結果已清除。";
             CloudConsentCheckBox.IsEnabled = false;
             RealtimeConsentCheckBox.IsEnabled = false;
             StatusText.Text = privacyMode == PrivacyMode.PrivateConversation

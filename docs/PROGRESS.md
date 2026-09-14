@@ -133,6 +133,7 @@
 - External source filtering also rejects user-info URLs and non-default HTTPS ports, keeping displayed citations within the intended allowlisted web surface.
 - The WinUI shell now exposes a Cantonese-friendly current-information query for allowlisted weather, public-service, transport, and news domains. It requires the explicit cloud-consent control, blocks `LOCAL_CAPTURE_ONLY` sessions, displays returned sources as untrusted, and never writes the result into archive memory.
 - Current-information results now show local retrieval time, provider, source links, and an explicit untrusted/external-data notice in the shell so a time-bound answer is not mistaken for personal memory.
+- Revoking cloud consent or switching to a local-only/private mode now cancels an in-flight current-information request and clears the previously displayed external result.
 - M11 added an authenticated-admin boundary, candidate claim review listing, attributed annotations, and explicit family assessment/admin rejection transitions. The repository does not treat family support as speaker confirmation.
 - Family Admin review now displays linked Evidence relationships, participant certainty, and speaker-confirmation state, and an authorized administrator can play the latest finalized PCM WAV Source only after length, SHA-256, and WAV validation.
 - Export, encrypted backup, and restore-verification controls now use the same Family Admin authorization and record minimal archive-operation audit metadata without paths or personal content.
