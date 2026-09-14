@@ -10,6 +10,8 @@
 - CX01 simplified the default participant shell. The landing surface now shows a greeting, one obvious `開始對話` control, conversational state/response text, a privacy indicator, a separate stop action, and collapsed setup/admin surfaces. Existing diagnostic and Family Admin operations remain available without being part of the normal conversation flow.
 - CX02 added the WinUI-independent `ParticipantConversationStateMachine` with deterministic tests for normal listening → thinking → speaking → listening flow, clarification, recoverable failure, conversation end, and invalid transitions.
 - CX03 initial slice automatically plays a verified derived speech asset after a successful bounded or Realtime response. If playback fails, the response remains available as text and the state is marked recoverable; local Source and provenance rules are unchanged. A continuous next-turn microphone loop is still pending.
+- CX06 adds a bounded, same-session context window using the latest transcript revision per prior Source; it excludes the current Source, other sessions, and withdrawn Sources before provider transmission.
+- CX07 adds conservative spoken current-information intent detection for explicit weather, transport, news, recipe, and present-time questions. The detector is provider-independent and does not route personal or historical statements; participant-facing answer composition and live search remain pending.
 - Automated validation after these changes: `dotnet test Memento.slnx --configuration Release --no-restore` passed **199/199**; `dotnet build Memento.slnx --configuration Release --no-restore` passed with **0 warnings, 0 errors**.
 
 ## Completed in M00

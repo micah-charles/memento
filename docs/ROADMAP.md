@@ -37,8 +37,8 @@ This is a product-facing track layered over the existing M01–M14 archive and s
 | CX03 | Live voice loop with automatic derived-speech playback and safe return state | PARTIAL — auto-play wired; continuous microphone loop pending |
 | CX04 | Verified turn detection / conservative VAD and interruption handling | BLOCKED pending official provider/device validation |
 | CX05 | Conversational clarification | PARTIAL — durable protocol exists; spoken UX pending |
-| CX06 | Bounded conversational memory continuity | PARTIAL — archive extraction exists; context layer pending |
-| CX07 | Spoken current-information routing | PARTIAL — service exists; voice intent routing pending |
+| CX06 | Bounded conversational memory continuity | PARTIAL — same-session context window implemented; claim-aware retrieval pending |
+| CX07 | Spoken current-information routing | PARTIAL — conservative intent detector implemented; voice answer composition/live search pending |
 | CX08 | Offline and provider-failure participant recovery | PARTIAL — local preservation and retry exist; visual supervised gate pending |
 | CX09 | Windows UX validation | PENDING — native visual observation and physical I/O remain supervised gates |
 
