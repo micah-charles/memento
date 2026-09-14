@@ -628,7 +628,8 @@ public sealed partial class MainWindow : Window
         CurrentInfoResultsText.Text = "查詢中…";
         try
         {
-            var result = await _currentInformation.SearchAsync(query, cancellation.Token);
+            var privacyMode = _session?.PrivacyMode ?? GetSelectedPrivacyMode();
+            var result = await _currentInformation.SearchAsync(query, privacyMode, HasGrantedCloudConsent(), cancellation.Token);
             if (!HasGrantedCloudConsent())
             {
                 CurrentInfoResultsText.Text = "雲端同意已撤回，未顯示目前資訊結果。";

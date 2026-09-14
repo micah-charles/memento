@@ -1,4 +1,5 @@
 using Memento.Core.Domain;
+using Memento.Core.Conversation;
 
 namespace Memento.Core.External;
 
@@ -26,6 +27,16 @@ public sealed class CurrentInformationService
 
     public CurrentInformationService(ISearchProvider provider) => _provider = provider;
 
-    public Task<ExternalInformationResult> SearchAsync(string query, CancellationToken cancellationToken = default)
-        => _provider.SearchAsync(query, cancellationToken);
+    public Task<ExternalInformationResult> SearchAsync(
+        string query,
+        PrivacyMode privacyMode,
+        bool cloudConsent,
+        CancellationToken cancellationToken = default)
+    {
+        if (CloudNotPermittedException.IsBlocked(privacyMode))
+            throw new CloudNotPermittedException();
+        if (!cloudConsent)
+            throw new CloudNotPermittedException("Cloud consent is required for current-information queries.");
+        return _provider.SearchAsync(query, cancellationToken);
+    }
 }

@@ -15,11 +15,35 @@ public sealed class OperationsTests
     [Fact]
     public async Task Current_information_is_explicitly_untrusted_external_data()
     {
-        var result = await new CurrentInformationService(new DeterministicSearchProvider()).SearchAsync("Hong Kong weather");
+        var result = await new CurrentInformationService(new DeterministicSearchProvider()).SearchAsync("Hong Kong weather", PrivacyMode.Normal, true);
 
         Assert.True(result.IsUntrustedExternalInformation);
         Assert.Equal("deterministic-test", result.Provider);
         Assert.StartsWith("https://", result.Sources[0].Url, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(PrivacyMode.PrivateConversation)]
+    [InlineData(PrivacyMode.LocalCaptureOnly)]
+    public async Task Current_information_rejects_cloud_blocked_privacy_modes(PrivacyMode privacyMode)
+    {
+        var provider = new CountingSearchProvider();
+        var service = new CurrentInformationService(provider);
+
+        await Assert.ThrowsAsync<CloudNotPermittedException>(() => service.SearchAsync("Hong Kong weather", privacyMode, true));
+
+        Assert.Equal(0, provider.CallCount);
+    }
+
+    [Fact]
+    public async Task Current_information_requires_explicit_cloud_consent()
+    {
+        var provider = new CountingSearchProvider();
+        var service = new CurrentInformationService(provider);
+
+        await Assert.ThrowsAsync<CloudNotPermittedException>(() => service.SearchAsync("Hong Kong weather", PrivacyMode.Normal, false));
+
+        Assert.Equal(0, provider.CallCount);
     }
 
     [Fact]
@@ -308,6 +332,18 @@ public sealed class OperationsTests
 
         Assert.Equal(0, fresh.PendingConversationJobs);
         Assert.Equal(1, stale.PendingConversationJobs);
+    }
+
+    private sealed class CountingSearchProvider : ISearchProvider
+    {
+        public string Provider => "counting-test";
+        public int CallCount { get; private set; }
+
+        public Task<ExternalInformationResult> SearchAsync(string query, CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return Task.FromResult(new ExternalInformationResult(query, Provider, DateTimeOffset.UtcNow, [], true));
+        }
     }
 
     private sealed class OperationsFixture : IDisposable
