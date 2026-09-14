@@ -52,6 +52,36 @@ public sealed class ArchiveSearchTests
     }
 
     [Fact]
+    public void Health_check_detects_search_row_with_lost_session_provenance()
+    {
+        using var fixture = new SearchFixture();
+        using var archive = new SqliteArchive(fixture.DatabasePath);
+        archive.Initialize();
+        var repository = new ArchiveRepository(archive);
+        var session = repository.AddSession(DateTimeOffset.UtcNow, PrivacyMode.Normal);
+        var source = repository.AddSource(new SourceMetadata(
+            "source-health-search", "audio", session.SessionId, null, null,
+            "PCM WAV", 16000, 1, 16, 4, 0, "abc", DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow, "not_applicable", DateTimeOffset.UtcNow));
+        repository.AddTranscriptRevision(new TranscriptRevision(
+            "revision-health-search", source.SourceId, null, 1, "initial",
+            "索引完整性", null, null, DateTimeOffset.UtcNow));
+
+        using (var connection = archive.OpenConnection())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "UPDATE memory_search SET session_id = NULL WHERE record_type = 'transcript_revision' AND record_id = $id";
+            command.Parameters.AddWithValue("$id", "revision-health-search");
+            command.ExecuteNonQuery();
+        }
+
+        var report = ArchiveHealthCheck.Run(archive, fixture.DirectoryPath);
+
+        Assert.Equal(1, report.InvalidSearchIndexCount);
+        Assert.Contains(report.Findings, finding => finding.Contains("Search index", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Lexical_search_finds_cantonese_and_english_archive_records()
     {
         var directory = Path.Combine(Path.GetTempPath(), "memento-search-tests", Guid.NewGuid().ToString("N"));

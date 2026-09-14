@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Microsoft.Data.Sqlite;
 
 namespace Memento.Core.Storage;
 
@@ -29,15 +30,46 @@ public static class ArchiveHealthCheck
         using (var connection = archive.OpenConnection())
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT (SELECT COUNT(*) FROM memory_search), (SELECT COUNT(*) FROM transcript_revisions) + (SELECT COUNT(*) FROM evidence_records) + (SELECT COUNT(*) FROM memory_claims)";
-            using var reader = command.ExecuteReader();
-            if (reader.Read())
-            {
-                var actual = reader.GetInt64(0);
-                var expected = reader.GetInt64(1);
-                if (actual != expected)
-                    invalidSearchIndex = checked((int)Math.Abs(actual - expected));
-            }
+            // Count semantic mismatches rather than only comparing row totals:
+            // a corrupted index can retain the same number of rows while
+            // losing content or Source-to-Session provenance.
+            command.CommandText = """
+                SELECT
+                    (SELECT COUNT(*) FROM (
+                        SELECT record_type, record_id FROM memory_search
+                        GROUP BY record_type, record_id HAVING COUNT(*) <> 1))
+                  + (SELECT COUNT(*) FROM transcript_revisions r
+                     LEFT JOIN sources s ON s.source_id = r.source_id
+                     WHERE NOT EXISTS (
+                         SELECT 1 FROM memory_search d
+                         WHERE d.record_type = 'transcript_revision'
+                           AND d.record_id = r.transcript_revision_id
+                           AND d.content = r.text
+                           AND COALESCE(d.source_id, '') = COALESCE(r.source_id, '')
+                           AND COALESCE(d.session_id, '') = COALESCE(s.session_id, '')))
+                  + (SELECT COUNT(*) FROM evidence_records e
+                     WHERE NOT EXISTS (
+                         SELECT 1 FROM memory_search d
+                         WHERE d.record_type = 'evidence'
+                           AND d.record_id = e.evidence_id
+                           AND d.content = e.statement || ' ' || e.original_expression
+                           AND COALESCE(d.source_id, '') = COALESCE(e.source_id, '')
+                           AND COALESCE(d.session_id, '') = COALESCE(e.session_id, '')))
+                  + (SELECT COUNT(*) FROM memory_claims c
+                     WHERE NOT EXISTS (
+                         SELECT 1 FROM memory_search d
+                         WHERE d.record_type = 'memory_claim'
+                           AND d.record_id = c.memory_claim_id
+                           AND d.content = c.statement || ' ' || c.predicate || ' ' || c.object
+                           AND COALESCE(d.source_id, '') = ''
+                           AND COALESCE(d.session_id, '') = ''))
+                  + (SELECT COUNT(*) FROM memory_search d
+                     WHERE (d.record_type = 'transcript_revision' AND NOT EXISTS (SELECT 1 FROM transcript_revisions r WHERE r.transcript_revision_id = d.record_id))
+                        OR (d.record_type = 'evidence' AND NOT EXISTS (SELECT 1 FROM evidence_records e WHERE e.evidence_id = d.record_id))
+                        OR (d.record_type = 'memory_claim' AND NOT EXISTS (SELECT 1 FROM memory_claims c WHERE c.memory_claim_id = d.record_id))
+                        OR d.record_type NOT IN ('transcript_revision', 'evidence', 'memory_claim'))
+                """;
+            invalidSearchIndex = Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
         }
         if (invalidSearchIndex > 0) findings.Add($"Search index is missing or has {invalidSearchIndex} unexpected row(s); run ArchiveSearchService.Rebuild().");
         var invalidSources = 0;
