@@ -16,7 +16,20 @@ public partial class App : Application
     internal static ArchiveRepository? Repository { get; private set; }
     internal static string? DataDirectory { get; private set; }
 
-    public App() => InitializeComponent();
+    public App()
+    {
+        UnhandledException += (_, eventArgs) =>
+        {
+            try
+            {
+                var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MEMENTO", "logs");
+                Directory.CreateDirectory(directory);
+                File.AppendAllText(Path.Combine(directory, "app-errors.log"), $"{DateTimeOffset.UtcNow:O}\n{eventArgs.Exception}\n\n");
+            }
+            catch { }
+        };
+        InitializeComponent();
+    }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
