@@ -27,7 +27,7 @@ Read [the companion architecture](MEMENTO_COMPANION_ARCHITECTURE.md) first. It s
 - Pinned model: `ggml-large-v3-turbo-q5_0.bin`, SHA-256 `394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2` (574041195 bytes). Actual recognition accuracy/latency has not yet been measured.
 - After the stopping-race correction, Core tests passed **226/226** in Debug and **226/226** in Release. Release solution build passed with **0 warnings, 0 errors**; `dotnet format --verify-no-changes --no-restore`, `git diff --check` and the new PowerShell script parser check all passed.
 - No real microphone, spoken three-turn loop, playback interruption on hardware, or native WinUI visual acceptance was performed in this checkpoint. Prior Computer Use exposed `apps: []`; do not replace visual acceptance with process/window-handle inspection.
-- A fresh portable publish/install was completed after the resource fix. The installed payload manifest verifies current source commit `1c05d4a`, all **609/609** file hashes and lengths, and schema 19 after a launch/close migration smoke.
+- A fresh portable publish/install was completed after the resource fix. The installed payload manifest verifies source commit `38e3d1e`, all **609/609** file hashes and lengths, and schema 19 after a launch/close migration smoke.
 - A local TTS diagnostic synthesized a Mandarin WAV with Microsoft Hanhan (`zh-TW`) successfully. A synthetic TTS→Whisper run returned one segment (`你好,那个系Memento本机辨试测试。`); this demonstrates adapter execution only and contains recognition errors. Playback and microphone/STT loop still need supervised testing.
 
 ## Next work, in priority order
