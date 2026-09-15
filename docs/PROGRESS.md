@@ -1,8 +1,19 @@
 # MEMENTO progress
 
-**Current milestone:** M14 / CX — Portable deployment and Conversation Experience Reset
-**Status:** CX00–CX02 implemented and automated-tested; live provider, automatic turn detection, hardware, authenticated admin UX, target restore, and pilot gates remain pending
+**Current milestone:** Account-backed companion implementation — handoff checkpoint
+**Status:** Partial implementation, approximately 60% engineering estimate. Real Codex three-turn text bridge verified; local speech/coordinator/archive code added. Isolation enforcement, complete lifecycle/storage coverage, fresh deployment and spoken acceptance remain pending. Owner approved temporary Mandarin TTS and requested a checkpoint for Luna.
 **Last updated:** 2026-09-15
+
+## Companion checkpoint — 2026-09-15
+
+Read [LUNA_HANDOFF.md](LUNA_HANDOFF.md) before continuing. It records implemented files, real versus automated evidence, unresolved correctness/security checks and the next implementation order. The [approved companion architecture](MEMENTO_COMPANION_ARCHITECTURE.md) now takes priority over the earlier API-first interaction flow.
+
+- Implemented account-backed Codex text bridge, local Whisper/Windows TTS adapters, continuous segmented capture, conversation coordinator, independent cloud consent, multi-source revision timeline and initial participant/family UI wiring.
+- Real three-turn Codex conversation retained synthetic context using the existing ChatGPT account, without an API key. Local Whisper assets downloaded and checksum-verified; no real speech accuracy or latency claim is made.
+- Core regression after the stop/late-result fix: **226/226 passed** in Debug and Release. Release solution build: **0 warnings, 0 errors**; format verification, diff whitespace and the local-speech script parser checks passed. This does not establish native UI or microphone/voice acceptance.
+- Temporary Mandarin is explicitly approved; lack of zh-HK voice is no longer an implementation blocker. No fresh deployment or complete voice MVP is claimed at this handoff.
+
+Earlier milestone entries below are historical evidence, not claims that the new companion acceptance has passed.
 
 ## Conversation Experience Reset — 2026-09-14
 

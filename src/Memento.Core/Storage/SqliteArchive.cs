@@ -454,6 +454,74 @@ internal static class Migrations
             INSERT INTO memory_search(content, source_id, record_type, record_id, session_id)
                 SELECT statement || ' ' || predicate || ' ' || object, NULL, 'memory_claim', memory_claim_id, NULL FROM memory_claims;
             """))
+        ,new(18, (connection, transaction) => SqliteArchive.Execute(connection, transaction, """
+            ALTER TABLE consent_events RENAME TO consent_events_previous;
+            CREATE TABLE consent_events (
+                consent_event_id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL REFERENCES sessions(session_id) ON DELETE RESTRICT,
+                person_id TEXT NULL,
+                scope TEXT NOT NULL CHECK(scope IN ('LocalCapture','CloudTranscription','LiveCloudConversation','FamilyAdminSharing','CloudConversation')),
+                privacy_mode TEXT NOT NULL CHECK(privacy_mode IN ('Normal','PrivateConversation','LocalCaptureOnly')),
+                granted INTEGER NOT NULL CHECK(granted IN (0,1)),
+                notice_version TEXT NOT NULL, occurred_at TEXT NOT NULL, created_at TEXT NOT NULL
+            );
+            INSERT INTO consent_events SELECT * FROM consent_events_previous;
+            DROP TABLE consent_events_previous;
+            CREATE TABLE companion_sessions (
+                session_id TEXT PRIMARY KEY REFERENCES sessions(session_id),
+                backend_thread_id TEXT NULL, model TEXT NOT NULL,
+                blocked INTEGER NOT NULL DEFAULT 0 CHECK(blocked IN (0,1))
+            );
+            CREATE TABLE companion_chunks (
+                source_id TEXT PRIMARY KEY REFERENCES sources(source_id) ON DELETE CASCADE,
+                session_id TEXT NOT NULL REFERENCES sessions(session_id),
+                start_sample INTEGER NOT NULL CHECK(start_sample >= 0),
+                sample_count INTEGER NOT NULL CHECK(sample_count > 0)
+            );
+            CREATE TABLE companion_messages (
+                message_id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL REFERENCES sessions(session_id),
+                turn_id TEXT NOT NULL REFERENCES turns(turn_id),
+                role TEXT NOT NULL CHECK(role IN ('participant','assistant','system')),
+                status TEXT NOT NULL,
+                backend_turn_id TEXT NULL, request_id TEXT NULL,
+                input_revision_id TEXT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE companion_text_versions (
+                revision_id TEXT PRIMARY KEY,
+                message_id TEXT NOT NULL REFERENCES companion_messages(message_id) ON DELETE CASCADE,
+                parent_revision_id TEXT NULL REFERENCES companion_text_versions(revision_id) ON DELETE CASCADE,
+                text TEXT NOT NULL, kind TEXT NOT NULL, author TEXT NOT NULL, reason TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE companion_spans (
+                message_id TEXT NOT NULL REFERENCES companion_messages(message_id) ON DELETE CASCADE,
+                source_id TEXT NOT NULL REFERENCES sources(source_id) ON DELETE CASCADE,
+                start_sample INTEGER NOT NULL CHECK(start_sample >= 0),
+                end_sample INTEGER NOT NULL CHECK(end_sample > start_sample),
+                PRIMARY KEY(message_id,source_id,start_sample)
+            );
+            CREATE TABLE companion_playback (
+                playback_id TEXT PRIMARY KEY,
+                message_id TEXT NOT NULL REFERENCES companion_messages(message_id) ON DELETE CASCADE,
+                asset_id TEXT NULL REFERENCES derived_speech_assets(derived_speech_asset_id) ON DELETE SET NULL,
+                text_revision_id TEXT NOT NULL REFERENCES companion_text_versions(revision_id) ON DELETE CASCADE,
+                start_sample INTEGER NOT NULL, end_sample INTEGER NULL,
+                status TEXT NOT NULL
+            );
+            CREATE TRIGGER companion_withdraw AFTER UPDATE OF recovery_status ON sources
+            WHEN NEW.recovery_status = 'withdrawn'
+            BEGIN
+                UPDATE companion_sessions SET blocked=1 WHERE session_id=NEW.session_id;
+            END;
+            CREATE TRIGGER companion_delete BEFORE DELETE ON sources
+            WHEN EXISTS(SELECT 1 FROM companion_chunks WHERE source_id=OLD.source_id)
+            BEGIN
+                UPDATE companion_sessions SET blocked=1 WHERE session_id=OLD.session_id;
+                DELETE FROM companion_messages WHERE session_id=OLD.session_id;
+            END;
+            """))
     ];
 
     internal sealed record Migration(int Version, Action<SqliteConnection, SqliteTransaction> Apply);

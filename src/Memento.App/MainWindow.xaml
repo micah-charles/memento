@@ -31,6 +31,11 @@
 
                 <Button x:Name="RecordButton" Content="開始對話" IsEnabled="False" Click="RecordButton_Click" HorizontalAlignment="Center" Padding="36,14" FontSize="22" />
                 <Button x:Name="EndConversationButton" Content="停止對話" Visibility="Collapsed" Click="EndConversationButton_Click" HorizontalAlignment="Center" Padding="28,10" />
+                <Button x:Name="InterruptCompanionButton" Content="我想講" Visibility="Collapsed" Click="InterruptCompanion_Click" HorizontalAlignment="Center" Padding="28,10" />
+                <StackPanel x:Name="CompanionTextPanel" Visibility="Collapsed" MaxWidth="700" Spacing="8">
+                    <TextBox x:Name="CompanionTextInput" PlaceholderText="文字測試：輸入一句說話" TextWrapping="Wrap" />
+                    <Button x:Name="SendCompanionTextButton" Content="送出文字" Click="SendCompanionText_Click" />
+                </StackPanel>
 
                 <Button x:Name="ParticipantSettingsButton" Content="首次設定／私隱" Click="ParticipantSettingsButton_Click" HorizontalAlignment="Center" Padding="18,8" />
                 <StackPanel x:Name="ParticipantSettingsPanel" Visibility="Collapsed" Spacing="10" MaxWidth="680" HorizontalAlignment="Center">
@@ -42,6 +47,13 @@
                         <ComboBoxItem Content="只本機保存：稍後可由管理員處理" Tag="LocalCaptureOnly" />
                     </ComboBox>
                     <CheckBox x:Name="ConsentCheckBox" Content="我同意本機錄音" HorizontalAlignment="Center" Checked="ConsentChanged" Unchecked="ConsentChanged" />
+                    <CheckBox x:Name="CompanionConsentCheckBox" Content="我同意透過已登入 Codex 將對話文字送到雲端 AI" />
+                    <Button Content="檢查對話及語音設定" Click="ProbeCompanion_Click" />
+                    <TextBlock x:Name="CompanionSetupStatus" Text="先檢查設定；不需要額外 API key。" TextWrapping="Wrap" />
+                    <ComboBox x:Name="CompanionModelBox" Header="對話模型" HorizontalAlignment="Stretch" />
+                    <ComboBox x:Name="CompanionVoiceBox" Header="本機說話聲音" HorizontalAlignment="Stretch" />
+                    <NumberBox x:Name="CompanionSilenceBox" Header="等候停頓（秒）" Value="1.8" Minimum="0.8" Maximum="5" SmallChange="0.2" />
+                    <CheckBox x:Name="CompanionTextMode" Content="先用文字測試（不開咪高峰）" />
                     <CheckBox x:Name="CloudConsentCheckBox" Content="我同意完成對話後送到雲端轉錄及回覆" HorizontalAlignment="Center" Checked="CloudConsentChanged" Unchecked="CloudConsentChanged" />
                     <CheckBox x:Name="RealtimeConsentCheckBox" Content="我另外同意使用 Realtime 語音回覆" HorizontalAlignment="Center" Checked="RealtimeConsentChanged" Unchecked="RealtimeConsentChanged" />
                 </StackPanel>
@@ -49,6 +61,17 @@
                 <Button x:Name="FamilyAdminButton" Content="家庭管理／診斷" Click="FamilyAdminButton_Click" HorizontalAlignment="Center" Padding="18,8" />
                 <StackPanel x:Name="FamilyAdminPanel" Visibility="Collapsed" Spacing="10" MaxWidth="700" HorizontalAlignment="Center">
                     <TextBlock Text="家庭管理及診斷" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                    <Button Content="重新載入對話記錄" Click="RefreshCompanionTimeline_Click" />
+                    <ComboBox x:Name="CompanionSessionBox" Header="對話日期" HorizontalAlignment="Stretch" SelectionChanged="CompanionSession_Changed" />
+                    <ListView x:Name="CompanionTimelineList" Height="240" SelectionChanged="CompanionTimeline_Changed">
+                        <ListView.ItemTemplate><DataTemplate><StackPanel Spacing="3"><TextBlock Text="{Binding Role}" FontWeight="SemiBold"/><TextBlock Text="{Binding Text}" TextWrapping="Wrap"/><TextBlock Text="{Binding Kind}"/></StackPanel></DataTemplate></ListView.ItemTemplate>
+                    </ListView>
+                    <TextBlock x:Name="CompanionRevisionInfo" TextWrapping="Wrap" />
+                    <TextBox x:Name="CompanionCorrectionText" Header="修訂文字（保留原文）" AcceptsReturn="True" TextWrapping="Wrap" />
+                    <TextBox x:Name="CompanionCorrectionReason" Header="修訂原因" />
+                    <Button Content="保存新修訂" Click="SaveCompanionRevision_Click" />
+                    <Button Content="播放所選對話原聲" Click="PlayCompanionOriginal_Click" />
+                    <Button Content="本機錄音診斷（舊流程）" Click="LegacyRecordButton_Click" />
                     <TextBlock Text="以下工具不會出現在日常對話流程。所有 archive、provenance、consent 同 admin 權限仍然有效。" TextWrapping="Wrap" HorizontalAlignment="Center" />
                     <Button x:Name="ProcessButton" Content="轉錄及回覆最近錄音（診斷）" IsEnabled="False" Click="ProcessButton_Click" HorizontalAlignment="Center" Padding="20,8" />
                     <Button x:Name="RealtimeProcessButton" Content="用 Realtime 語音回覆最近錄音（診斷）" IsEnabled="False" Click="RealtimeProcessButton_Click" HorizontalAlignment="Center" Padding="20,8" />

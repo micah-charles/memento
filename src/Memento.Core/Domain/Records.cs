@@ -12,7 +12,8 @@ public enum ConsentScope
     LocalCapture,
     CloudTranscription,
     LiveCloudConversation,
-    FamilyAdminSharing
+    FamilyAdminSharing,
+    CloudConversation
 }
 
 public sealed record Session(

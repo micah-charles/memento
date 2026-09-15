@@ -17,7 +17,7 @@ public sealed record ScopedArchiveExportResult(
 
 public static class ArchiveExporter
 {
-    private static readonly string[] Tables = ["sessions", "turns", "consent_events", "sources", "provider_interactions", "transcript_revisions", "clarification_events", "vocabulary_entries", "conversation_jobs", "evidence_records", "memory_claims", "evidence_claim_links", "person_entities", "entity_aliases", "evidence_entity_links", "review_annotations", "response_episodes", "derived_speech_assets", "deletion_tombstones"];
+    private static readonly string[] Tables = ["sessions", "turns", "consent_events", "sources", "provider_interactions", "transcript_revisions", "clarification_events", "vocabulary_entries", "conversation_jobs", "evidence_records", "memory_claims", "evidence_claim_links", "person_entities", "entity_aliases", "evidence_entity_links", "review_annotations", "response_episodes", "derived_speech_assets", "deletion_tombstones", "companion_sessions", "companion_chunks", "companion_messages", "companion_text_versions", "companion_spans", "companion_playback"];
 
     public static ArchiveExportResult Export(SqliteArchive archive, string destinationDirectory, bool includeMedia = false, bool includeWithdrawn = false)
     {
@@ -458,6 +458,8 @@ public static class ArchiveExporter
         foreignKeys.CommandText = "PRAGMA foreign_keys = ON";
         foreignKeys.ExecuteNonQuery();
         using var transaction = connection.BeginTransaction();
+        ExecuteSanitize(connection, transaction, "DELETE FROM companion_messages WHERE session_id IN (SELECT session_id FROM companion_sessions WHERE blocked=1)");
+        ExecuteSanitize(connection, transaction, "DELETE FROM derived_speech_assets WHERE session_id IN (SELECT session_id FROM companion_sessions WHERE blocked=1)");
         ExecuteSanitize(connection, transaction, "CREATE TEMP TABLE withdrawn_memory_claims(memory_claim_id TEXT PRIMARY KEY)");
         ExecuteSanitize(connection, transaction, "INSERT INTO withdrawn_memory_claims(memory_claim_id) SELECT DISTINCT l.memory_claim_id FROM evidence_claim_links l JOIN evidence_records e ON e.evidence_id = l.evidence_id JOIN sources s ON s.source_id = e.source_id WHERE s.recovery_status = 'withdrawn'");
         ExecuteSanitize(connection, transaction, "DELETE FROM review_annotations WHERE (target_type = 'source' AND target_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn') AND annotation_type <> 'withdrawal') OR (target_type = 'transcript_revision' AND target_id IN (SELECT transcript_revision_id FROM transcript_revisions WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn'))) OR (target_type = 'evidence' AND target_id IN (SELECT evidence_id FROM evidence_records WHERE source_id IN (SELECT source_id FROM sources WHERE recovery_status = 'withdrawn'))) OR (target_type = 'memory_claim' AND target_id IN (SELECT memory_claim_id FROM withdrawn_memory_claims))");

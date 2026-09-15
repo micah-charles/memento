@@ -2,9 +2,9 @@
 
 MEMENTO is a proposed Windows-first, Cantonese-friendly AI companion whose most important output is a trustworthy, family-owned archive of a living person’s memories and conversational behaviour.
 
-## Current status: M14 portable deployment implemented (live and supervised gates pending)
+## Current status: companion implementation checkpoint for Luna
 
-M00.1 architecture is approved for implementation. The repository now contains a self-contained WinUI 3 shell, local SQLite archive, crash-safe PCM capture, provider boundaries, clarification and provenance layers, export/backup, and health checks. Live provider credentials, physical microphone/native-window observation, OS-backed admin authentication, and real-user pilot review remain explicit gates; see [PROGRESS](docs/PROGRESS.md).
+The current direction reuses the existing ChatGPT account through a local Codex bridge, with local speech and a family-owned original-audio archive. The three-turn text bridge has live evidence. Local speech/coordinator/timeline code is implemented in part; tool isolation enforcement, complete lifecycle/storage coverage, fresh installation and real spoken acceptance are still pending. Temporary Mandarin speech is owner-approved. **This checkpoint is not a completed voice MVP.** Continue from [Luna handoff](docs/LUNA_HANDOFF.md), [companion architecture](docs/MEMENTO_COMPANION_ARCHITECTURE.md) and [PROGRESS](docs/PROGRESS.md).
 
 The governing principle is:
 
@@ -25,7 +25,7 @@ The governing principle is:
 
 Project state is kept in [PROGRESS](docs/PROGRESS.md), [DECISIONS](docs/DECISIONS.md), [KNOWN_ISSUES](docs/KNOWN_ISSUES.md), [EVIDENCE](docs/EVIDENCE.md), and the latest [implementation report](docs/OVERNIGHT_REPORT.md).
 
-For the shortest verified installation and first-use path, see the [setup checklist](docs/SETUP_CHECKLIST.md).
+The earlier [setup checklist](docs/SETUP_CHECKLIST.md) describes the previous deployment. Follow the handoff's deployment verification work before assuming the installed application contains this checkpoint.
 
 The repository also has a Windows GitHub Actions quality workflow at `.github/workflows/windows-quality.yml`. It runs the PowerShell parser gate, Release tests/build, and deterministic M04 validation on a clean checkout; the local deployment preflight remains separate because it requires this machine's installed app, archive, and audio-device policy.
 

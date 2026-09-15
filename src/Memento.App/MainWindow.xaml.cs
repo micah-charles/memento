@@ -116,6 +116,7 @@ public sealed partial class MainWindow : Window
             _initializing = false;
         }
         StartRetryWorkerIfAvailable();
+        InitializeCompanion();
     }
 
     private void ParticipantSettingsButton_Click(object sender, RoutedEventArgs e)
@@ -133,8 +134,11 @@ public sealed partial class MainWindow : Window
         UpdateRecordControl();
     }
 
-    private void EndConversationButton_Click(object sender, RoutedEventArgs e)
-        => RecordButton_Click(sender, e);
+    private async void EndConversationButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_companion is not null) await StopCompanionAsync();
+        else LegacyRecordButton_Click(sender, e);
+    }
 
     private void ConsentChanged(object sender, RoutedEventArgs e)
     {
@@ -333,7 +337,7 @@ public sealed partial class MainWindow : Window
         UpdateRecordControl();
     }
 
-    private async void RecordButton_Click(object sender, RoutedEventArgs e)
+    private async void LegacyRecordButton_Click(object sender, RoutedEventArgs e)
     {
         if (_capture?.State != AudioCaptureState.Capturing && !_recordingEnabled)
         {
@@ -1651,6 +1655,7 @@ public sealed partial class MainWindow : Window
 
     private async Task ShutdownRuntimeAsync()
     {
+        try { await StopCompanionAsync().ConfigureAwait(false); } catch { }
         try { await StopRetryWorkerAsync().ConfigureAwait(false); } catch { }
         try { await DisposeActiveRealtimeStreamingAsync().ConfigureAwait(false); } catch { }
         try { await WaitForArchiveOperationsAsync().ConfigureAwait(false); } catch { }
@@ -1823,6 +1828,7 @@ public sealed partial class MainWindow : Window
         RestoreButton.IsEnabled = adminIdle && _adminReview is not null && _deletion is not null;
         RecoverAudioButton.IsEnabled = adminIdle && _adminReview is not null && _adminActorId is not null;
         LockNowButton.IsEnabled = _applicationLock?.IsConfigured == true && adminIdle;
+        UpdateCompanionControls();
     }
 
     private void SetConversationState(ParticipantConversationState next, string message, bool allowReset = false)

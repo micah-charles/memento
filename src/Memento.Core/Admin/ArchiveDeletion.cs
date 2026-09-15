@@ -114,6 +114,14 @@ public sealed class ArchiveDeletionService
                 + ArchiveSearchIndex.Remove(connection, transaction, "evidence", evidenceIds)
                 + ArchiveSearchIndex.Remove(connection, transaction, "memory_claim", orphanClaimIds);
             counts["transcript_revisions"] = DeleteRevisions(connection, transaction, revisionIds);
+            if (sourceSessionId is not null && CountRows(connection, transaction, "SELECT COUNT(*) FROM companion_chunks WHERE source_id=$source", ("$source", sourceId)) > 0)
+            {
+                // A shared microphone chunk can influence multiple AI turns. Conservatively remove
+                // all derived conversation text/audio for this session, keeping other original chunks.
+                foreach (var path in ReadPaths(connection, transaction, "SELECT file_path FROM derived_speech_assets WHERE session_id=$session", ("$session", sourceSessionId))) AddPath(mediaPaths, path);
+                counts["companion_messages"] = DeleteByIds(connection, transaction, "companion_messages", "session_id", [sourceSessionId]);
+                counts["derived_speech_assets"] += DeleteByIds(connection, transaction, "derived_speech_assets", "session_id", [sourceSessionId]);
+            }
             counts["sources"] = DeleteByIds(connection, transaction, "sources", "source_id", [sourceId]);
 
             using var tombstone = connection.CreateCommand();

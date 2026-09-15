@@ -31,35 +31,44 @@ public partial class App : Application
         var audioDirectory = Path.Combine(dataDirectory, "raw", "audio");
         var recoverableAudioCount = AudioRecoveryScanner.Scan(audioDirectory).Count;
         var derivedAudioStore = new DerivedAudioStore(Repository, Path.Combine(dataDirectory, "derived", "audio"));
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
         var credentials = new WindowsCredentialProvider();
         var applicationLock = new WindowsApplicationLock();
-        var transcriptionProvider = new OpenAiTranscriptionProvider(_httpClient, credentials);
-        var conversationProvider = new OpenAiResponsesProvider(_httpClient, credentials, "gpt-5.6-terra");
-        var speechOutputProvider = new OpenAiSpeechOutputProvider(_httpClient, credentials);
-        var realtimeProvider = new OpenAiRealtimeWebSocketProvider(credentials);
-        var realtimeConversation = new RealtimeConversationOrchestrator(Repository, realtimeProvider, derivedAudioStore);
-        var realtimeStreamingProvider = new OpenAiRealtimeStreamingProvider(credentials);
-        var realtimeStreaming = new RealtimeStreamingOrchestrator(Repository, realtimeStreamingProvider, derivedAudioStore);
-        var extractionProvider = new OpenAiMemoryExtractionProvider(_httpClient, credentials, "gpt-5.6-terra");
-        var currentInformation = new CurrentInformationService(new OpenAiWebSearchProvider(
-            _httpClient,
-            credentials,
-            "gpt-5.6-terra",
-            ["hko.gov.hk", "gov.hk", "td.gov.hk", "news.gov.hk"]));
-        var voiceConversation = new BoundedVoiceConversationService(
-            Repository,
-            transcriptionProvider,
-            conversationProvider,
-            speechOutputProvider,
-            derivedAudioStore,
-            new WaveFileSpeechOutputPlayback(derivedAudioStore),
-            queueExtractionJobs: true);
-        var retryProcessor = new CompositeConversationJobProcessor(
-            new DurableTranscriptionJobProcessor(Repository, transcriptionProvider, queueExtractionJobs: true),
-            new DurableResponseJobProcessor(Repository, conversationProvider, speechOutputProvider, derivedAudioStore),
-            new DurableMemoryExtractionJobProcessor(Repository, extractionProvider));
-        var retryWorker = new ConversationJobWorker(Repository, retryProcessor);
+        BoundedVoiceConversationService? voiceConversation = null;
+        RealtimeConversationOrchestrator? realtimeConversation = null;
+        RealtimeStreamingOrchestrator? realtimeStreaming = null;
+        CurrentInformationService? currentInformation = null;
+        ConversationJobWorker? retryWorker = null;
+        // Explicit opt-in only: the default companion uses the existing Codex account and local speech.
+        if (Repository.GetSetting("optional_paid_api_enabled") == "1")
+        {
+            _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
+            var transcriptionProvider = new OpenAiTranscriptionProvider(_httpClient, credentials);
+            var conversationProvider = new OpenAiResponsesProvider(_httpClient, credentials, "gpt-5.6-terra");
+            var speechOutputProvider = new OpenAiSpeechOutputProvider(_httpClient, credentials);
+            var realtimeProvider = new OpenAiRealtimeWebSocketProvider(credentials);
+            realtimeConversation = new RealtimeConversationOrchestrator(Repository, realtimeProvider, derivedAudioStore);
+            var realtimeStreamingProvider = new OpenAiRealtimeStreamingProvider(credentials);
+            realtimeStreaming = new RealtimeStreamingOrchestrator(Repository, realtimeStreamingProvider, derivedAudioStore);
+            var extractionProvider = new OpenAiMemoryExtractionProvider(_httpClient, credentials, "gpt-5.6-terra");
+            currentInformation = new CurrentInformationService(new OpenAiWebSearchProvider(
+                _httpClient,
+                credentials,
+                "gpt-5.6-terra",
+                ["hko.gov.hk", "gov.hk", "td.gov.hk", "news.gov.hk"]));
+            voiceConversation = new BoundedVoiceConversationService(
+                Repository,
+                transcriptionProvider,
+                conversationProvider,
+                speechOutputProvider,
+                derivedAudioStore,
+                new WaveFileSpeechOutputPlayback(derivedAudioStore),
+                queueExtractionJobs: false);
+            var retryProcessor = new CompositeConversationJobProcessor(
+                new DurableTranscriptionJobProcessor(Repository, transcriptionProvider, queueExtractionJobs: false),
+                new DurableResponseJobProcessor(Repository, conversationProvider, speechOutputProvider, derivedAudioStore),
+                new DurableMemoryExtractionJobProcessor(Repository, extractionProvider));
+            retryWorker = new ConversationJobWorker(Repository, retryProcessor);
+        }
         var adminAuthorizer = new WindowsAdministratorAuthorizer();
         var adminReview = new Memento.Core.Admin.FamilyAdminReviewService(Repository, adminAuthorizer);
         var adminActorId = adminAuthorizer.GetCurrentActorId();

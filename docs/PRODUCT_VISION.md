@@ -1,5 +1,7 @@
 # MEMENTO product vision
 
+**Owner clarification (2026-09-15):** Wrap real ChatGPT-account conversation through the local Codex bridge in a simple elderly-friendly Windows interface; preserve original voice, original text and every revision locally. No extra paid API is enabled by default. Mandarin output is accepted temporarily while Cantonese is measured. See [current architecture](MEMENTO_COMPANION_ARCHITECTURE.md) and [implementation handoff](LUNA_HANDOFF.md); the full spoken experience is not yet verified.
+
 **Milestone:** M00 — Research and Architecture Foundation  
 **Status:** Proposed for architecture review  
 **Research baseline:** 2026-09-12
