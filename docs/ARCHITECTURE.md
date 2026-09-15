@@ -1,6 +1,6 @@
 # MEMENTO architecture
 
-**Current implementation direction (2026-09-15):** [Companion architecture](MEMENTO_COMPANION_ARCHITECTURE.md) and [Luna handoff](LUNA_HANDOFF.md) supersede the historical API-first interaction assumptions below. The account-backed text bridge has live evidence; voice lifecycle, isolation enforcement and fresh deployment remain partly unverified. Temporary Mandarin TTS is owner-approved.
+**Current implementation direction (2026-09-15):** [Companion architecture](MEMENTO_COMPANION_ARCHITECTURE.md) and [Luna handoff](LUNA_HANDOFF.md) supersede the historical API-first interaction assumptions below. The account-backed text bridge and fresh process launch have evidence; voice lifecycle, isolation enforcement, native visual interaction and spoken acceptance remain partly unverified. Temporary Mandarin TTS is owner-approved.
 
 **Milestone:** M00.1 — Architecture and schema refinement
 **Status:** Ready for architecture review
