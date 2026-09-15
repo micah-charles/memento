@@ -1,6 +1,6 @@
 # Companion implementation evidence
 
-**Checkpoint:** follow-on to `4f7bd13`; code checkpoint `8542157` plus the XAML resource fix in the next commit. **Date:** 2026-09-15.
+**Checkpoint:** follow-on to `4f7bd13`; current code checkpoint `1c05d4a`. **Date:** 2026-09-15.
 
 ## Verified in this environment
 
@@ -11,7 +11,7 @@
 - `Setup-MementoLocalSpeech.ps1` downloaded and SHA-256 verified whisper.cpp v1.9.2 and `ggml-large-v3-turbo-q5_0.bin` outside Git.
 - Windows local speech synthesis produced a Mandarin WAV using Microsoft Hanhan (`zh-TW`). Mandarin is owner-approved temporarily; no zh-HK voice is installed. Actual microphone recognition, playback and Cantonese quality remain unmeasured.
 - The first fresh launch exposed a real XAML resource failure (`TabViewButtonBackground`) and exited with `0xC000027B`. The managed exception was captured in the local-only error log, the missing `XamlControlsResources` was added to App.xaml, and a fresh publish/install then passed process launch: title `MEMENTO`, responding `True`, graceful close exit code `0`.
-- Fresh portable publish/install after the fix created a payload manifest and installed it under `%LOCALAPPDATA%\MEMENTO\App`. Preflight verified the manifest source commit, **609/609** file hashes/lengths, Start Menu shortcut and per-user registration. SQLite integrity passed at schema version **19**.
+- Fresh portable publish/install from `1c05d4a` created a payload manifest and installed it under `%LOCALAPPDATA%\MEMENTO\App`. Preflight verified the manifest source commit, **609/609** file hashes/lengths, Start Menu shortcut and per-user registration. SQLite integrity passed at schema version **19**.
 
 ## Explicitly not verified
 
