@@ -66,6 +66,57 @@ function Get-ZipEntrySha256([string]$ArchivePath, [string]$EntryName) {
     }
 }
 
+function Get-ZipEntryText([string]$ArchivePath, [string]$EntryName) {
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($ArchivePath)
+    try {
+        $entries = @($archive.Entries | Where-Object { $_.FullName.Replace('\', '/') -eq $EntryName })
+        if ($entries.Count -ne 1) { throw "Expected exactly one ZIP entry named '$EntryName'; found $($entries.Count)." }
+        $stream = $entries[0].Open()
+        try {
+            $reader = [System.IO.StreamReader]::new($stream, [Text.Encoding]::UTF8, $true)
+            try { return $reader.ReadToEnd() }
+            finally { $reader.Dispose() }
+        }
+        finally { $stream.Dispose() }
+    }
+    finally { $archive.Dispose() }
+}
+
+function Get-ZipEntryHashes([string]$ArchivePath) {
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $hashes = @{}
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($ArchivePath)
+    try {
+        foreach ($entry in $archive.Entries | Where-Object { -not $_.FullName.EndsWith('/') }) {
+            $name = $entry.FullName.Replace('\', '/')
+            if ($hashes.ContainsKey($name)) { throw "Duplicate ZIP payload entry: $name" }
+            $stream = $entry.Open()
+            try {
+                $sha = [System.Security.Cryptography.SHA256]::Create()
+                try { $hashes[$name] = Convert-BytesToLowerHex -Bytes $sha.ComputeHash($stream) }
+                finally { $sha.Dispose() }
+            }
+            finally { $stream.Dispose() }
+        }
+    }
+    finally { $archive.Dispose() }
+    return $hashes
+}
+
+function Get-PathUnderRoot([string]$Root, [string]$RelativePath) {
+    if ([string]::IsNullOrWhiteSpace($RelativePath) -or [IO.Path]::IsPathRooted($RelativePath) -or $RelativePath.Replace('\', '/') -match '(^|/)\.\.(?:/|$)') {
+        throw "Payload manifest contains an unsafe relative path: $RelativePath"
+    }
+    $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    $candidate = [IO.Path]::GetFullPath((Join-Path $rootFull ($RelativePath.Replace('/', [IO.Path]::DirectorySeparatorChar))))
+    $prefix = $rootFull + [IO.Path]::DirectorySeparatorChar
+    if (-not $candidate.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { throw "Payload path escaped install root: $RelativePath" }
+    return $candidate
+}
+
 $bundleExists = Test-Path -LiteralPath $BundlePath -PathType Leaf
 Write-Check 'bundle' $bundleExists ($(if ($bundleExists) { $BundlePath } else { "not found at $BundlePath" }))
 if ($bundleExists) {
@@ -92,6 +143,38 @@ if ($bundleExists -and $installedExists) {
     catch {
         $payloadSeverity = if ($RequireInstalledPayloadMatch) { 'FAIL' } else { 'WARN' }
         Write-Check 'installed payload match' $false ('unable to compare installed executable with bundle: ' + $_.Exception.GetType().Name) $payloadSeverity
+    }
+}
+
+if ($bundleExists -and $installedExists) {
+    $manifestSeverity = if ($RequireInstalledPayloadMatch) { 'FAIL' } else { 'WARN' }
+    try {
+        $manifest = Get-ZipEntryText -ArchivePath $BundlePath -EntryName 'MEMENTO.payload-manifest.json' | ConvertFrom-Json
+        $manifestFiles = @($manifest.files)
+        $manifestValid = $manifest.schema_version -eq 1 -and $manifestFiles.Count -gt 0
+        foreach ($requiredFile in @($manifest.required)) {
+            if (-not ($manifestFiles.path -contains $requiredFile)) { $manifestValid = $false }
+        }
+        $mismatches = [System.Collections.Generic.List[string]]::new()
+        $zipHashes = Get-ZipEntryHashes -ArchivePath $BundlePath
+        foreach ($entry in $manifestFiles) {
+            $relative = [string]$entry.path
+            try {
+                if (-not $zipHashes.ContainsKey($relative)) { throw "ZIP payload entry is missing: $relative" }
+                $zipHash = $zipHashes[$relative]
+                $installedPath = Get-PathUnderRoot -Root $InstallRoot -RelativePath $relative
+                if (-not (Test-Path -LiteralPath $installedPath -PathType Leaf)) { $mismatches.Add("missing installed $relative"); continue }
+                $installedHash = (Get-FileHash -LiteralPath $installedPath -Algorithm SHA256).Hash.ToLowerInvariant()
+                if ($zipHash -ne ([string]$entry.sha256).ToLowerInvariant() -or $installedHash -ne $zipHash -or (Get-Item -LiteralPath $installedPath).Length -ne [long]$entry.bytes) {
+                    $mismatches.Add("hash/length mismatch $relative")
+                }
+            }
+            catch { $mismatches.Add("$relative ($($_.Exception.GetType().Name))") }
+        }
+        Write-Check 'installed payload manifest' ($manifestValid -and $mismatches.Count -eq 0) ($(if ($mismatches.Count -eq 0) { "source commit $($manifest.source_commit); $($manifestFiles.Count) files verified" } else { $mismatches -join '; ' })) $manifestSeverity
+    }
+    catch {
+        Write-Check 'installed payload manifest' $false ('unable to verify complete payload manifest: ' + $_.Exception.Message) $manifestSeverity
     }
 }
 

@@ -120,6 +120,7 @@ public sealed class ConversationCoordinator : IAsyncDisposable
     {
         string? inputMessage = null; string? answerMessage = null; string? inputRevision = null;
         string? answerRevision = null; string? playbackId = null; string partial = "";
+        IReadOnlyList<SpeechSegment>? transcriptSegments = null;
         try
         {
             EnsureAllowed(token);
@@ -128,12 +129,14 @@ public sealed class ConversationCoordinator : IAsyncDisposable
                 SetState(CompanionState.Transcribing, "聽緊你講嘅意思…");
                 _capture!.FlushSegment();
                 var transcript = await (_transcription ?? throw new InvalidOperationException("本機語音辨識未設定。")).TranscribeAsync(pcm, token);
+                transcriptSegments = transcript.Segments;
                 text = transcript.Text;
                 if (string.IsNullOrWhiteSpace(text)) { SetState(CompanionState.Listening, "未聽清楚，可以再講一次。"); return; }
             }
             EnsureAllowed(token);
             var input = _archive.AddMessage(_session!.SessionId, role, text!, kind, "sending");
             inputMessage = input.MessageId; inputRevision = input.RevisionId;
+            if (transcriptSegments is not null) _archive.AddTranscriptSegments(inputMessage, transcriptSegments);
             if (range is not null)
                 foreach (var span in _capture!.Spans(range.Value.Start, range.Value.End)) _archive.AddSpan(inputMessage, span);
             SetState(CompanionState.Thinking, "諗緊點樣回覆…");
@@ -172,6 +175,11 @@ public sealed class ConversationCoordinator : IAsyncDisposable
         {
             if (inputMessage is not null) _archive.MarkMessage(inputMessage, "failed-or-uncertain", inputRevision: inputRevision);
             if (answerMessage is not null) _archive.MarkMessage(answerMessage, "playback-failed", inputRevision: inputRevision);
+            else if (!string.IsNullOrWhiteSpace(partial) && _session is not null)
+            {
+                try { _archive.EnsureCloudAllowed(_session.SessionId); _archive.AddMessage(_session.SessionId, "assistant", partial, "ai-partial", "failed"); }
+                catch (InvalidOperationException) { }
+            }
             SetState(CompanionState.RecoverableError, error is InvalidOperationException ? error.Message : "暫時未能完成回覆；原聲已保存。請結束後再試。");
         }
         finally

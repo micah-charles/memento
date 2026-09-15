@@ -522,6 +522,19 @@ internal static class Migrations
                 DELETE FROM companion_messages WHERE session_id=OLD.session_id;
             END;
             """))
+        ,new(19, (connection, transaction) => SqliteArchive.Execute(connection, transaction, """
+            CREATE TABLE companion_transcript_segments (
+                segment_id TEXT PRIMARY KEY,
+                message_id TEXT NOT NULL REFERENCES companion_messages(message_id) ON DELETE CASCADE,
+                sequence_number INTEGER NOT NULL CHECK(sequence_number >= 0),
+                start_ms INTEGER NOT NULL CHECK(start_ms >= 0),
+                end_ms INTEGER NOT NULL CHECK(end_ms > start_ms),
+                text TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX ix_companion_transcript_segments_message
+                ON companion_transcript_segments(message_id, sequence_number);
+            """))
     ];
 
     internal sealed record Migration(int Version, Action<SqliteConnection, SqliteTransaction> Apply);

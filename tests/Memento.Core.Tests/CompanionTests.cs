@@ -27,6 +27,15 @@ public sealed class CompanionTests
         await coordinator.EndAsync(); Assert.Equal(CompanionState.Ended, coordinator.State);
     }
 
+    [Fact]
+    public void Transcript_segment_timestamps_are_preserved_separately_from_the_initial_text()
+    {
+        using var f = new Fixture(); var session = f.Session();
+        var message = f.Store.AddMessage(session.SessionId, "participant", "你好呀", "stt-initial");
+        f.Store.AddTranscriptSegments(message.MessageId, [new SpeechSegment(0, 640, "你好"), new SpeechSegment(640, 1420, "呀")]);
+        Assert.Equal([new SpeechSegment(0, 640, "你好"), new SpeechSegment(640, 1420, "呀")], f.Store.TranscriptSegments(message.MessageId));
+    }
+
     [Theory]
     [InlineData(PrivacyMode.LocalCaptureOnly, true)]
     [InlineData(PrivacyMode.PrivateConversation, true)]
@@ -103,6 +112,77 @@ public sealed class CompanionTests
         Assert.Contains(f.Store.Timeline(session.SessionId), item => item.Text == "private test");
     }
 
+    [Fact]
+    public async Task Codex_backend_probes_chatgpt_models_and_applies_companion_config()
+    {
+        var rpc = new FakeRpc();
+        rpc.Responses["initialize"] = Json("{}");
+        rpc.Responses["config/read"] = Json("{\"config\":{\"mcp_servers\":{\"family-helper\":{\"enabled\":true}},\"plugins\":{\"my.plugin\":{\"enabled\":true}}}}");
+        rpc.Responses["account/read"] = Json("{\"account\":{\"type\":\"chatgpt\"}}");
+        rpc.Responses["model/list"] = Json("{\"data\":[{\"id\":\"gpt-5.6-luna\",\"supportedReasoningEfforts\":[{\"reasoningEffort\":\"low\"}]}],\"nextCursor\":null}");
+        rpc.Responses["thread/start"] = Json("{\"thread\":{\"id\":\"thread-1\"},\"sandbox\":{\"type\":\"readOnly\"},\"model\":\"gpt-5.6-luna\"}");
+        await using var backend = new CodexCompanionBackend(rpc, Path.Combine(Path.GetTempPath(), "memento-companion-test"));
+
+        var capabilities = await backend.ProbeAsync();
+        var thread = await backend.BeginAsync("gpt-5.6-luna");
+
+        Assert.True(capabilities.LoggedIn);
+        Assert.Contains(capabilities.Models, model => model.Id == "gpt-5.6-luna" && model.Efforts.Contains("low"));
+        Assert.Equal("thread-1", thread.Id);
+        var start = rpc.Calls.Single(call => call.Method == "thread/start").Parameters;
+        var config = start.GetProperty("config");
+        Assert.False(config.GetProperty("mcp_servers.\"family-helper\".enabled").GetBoolean());
+        Assert.False(config.GetProperty("plugins.\"my.plugin\".enabled").GetBoolean());
+        Assert.False(config.GetProperty("features.shell_tool").GetBoolean());
+        Assert.Equal("read-only", start.GetProperty("sandbox").GetString());
+    }
+
+    [Fact]
+    public async Task Codex_backend_refuses_missing_login_or_unhonoured_sandbox()
+    {
+        var rpc = new FakeRpc();
+        rpc.Responses["initialize"] = Json("{}");
+        rpc.Responses["config/read"] = Json("{\"config\":{}}");
+        rpc.Responses["account/read"] = Json("{\"account\":{\"type\":\"apiKey\"}}");
+        rpc.Responses["model/list"] = Json("{\"data\":[],\"nextCursor\":null}");
+        await using var backend = new CodexCompanionBackend(rpc, Path.GetTempPath());
+
+        var capabilities = await backend.ProbeAsync();
+        Assert.False(capabilities.LoggedIn);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => backend.BeginAsync("gpt-5.6-luna"));
+
+        var sandboxRpc = new FakeRpc();
+        sandboxRpc.Responses["initialize"] = Json("{}");
+        sandboxRpc.Responses["config/read"] = Json("{\"config\":{}}");
+        sandboxRpc.Responses["account/read"] = Json("{\"account\":{\"type\":\"chatgpt\"}}");
+        sandboxRpc.Responses["model/list"] = Json("{\"data\":[{\"id\":\"gpt-5.6-luna\",\"supportedReasoningEfforts\":[{\"reasoningEffort\":\"low\"}]}],\"nextCursor\":null}");
+        sandboxRpc.Responses["thread/start"] = Json("{\"thread\":{\"id\":\"thread-1\"},\"sandbox\":{\"type\":\"workspaceWrite\"},\"model\":\"gpt-5.6-luna\"}");
+        await using var sandboxBackend = new CodexCompanionBackend(sandboxRpc, Path.GetTempPath());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sandboxBackend.BeginAsync("gpt-5.6-luna"));
+    }
+
+    [Fact]
+    public async Task Codex_backend_collects_streamed_answer_and_cancellation_interrupt()
+    {
+        var rpc = new FakeRpc();
+        rpc.Responses["initialize"] = Json("{}");
+        rpc.Responses["config/read"] = Json("{\"config\":{}}");
+        rpc.Responses["account/read"] = Json("{\"account\":{\"type\":\"chatgpt\"}}");
+        rpc.Responses["model/list"] = Json("{\"data\":[{\"id\":\"gpt-5.6-luna\",\"supportedReasoningEfforts\":[{\"reasoningEffort\":\"low\"}]}],\"nextCursor\":null}");
+        rpc.Responses["thread/start"] = Json("{\"thread\":{\"id\":\"thread-1\"},\"sandbox\":{\"type\":\"readOnly\"},\"model\":\"gpt-5.6-luna\"}");
+        rpc.Responses["turn/start"] = Json("{\"turn\":{\"id\":\"turn-1\"}}");
+        await using var backend = new CodexCompanionBackend(rpc, Path.GetTempPath());
+        var thread = await backend.BeginAsync("gpt-5.6-luna");
+        var deltas = new List<string>();
+        var reply = await backend.SendAsync(thread, "你好", deltas.Add);
+
+        Assert.Equal("答覆", reply.Text);
+        Assert.Equal(new[] { "答", "答覆" }, deltas);
+        Assert.Contains(rpc.Calls, call => call.Method == "turn/start");
+        await backend.CancelAsync();
+        Assert.DoesNotContain(rpc.Calls, call => call.Method == "turn/interrupt");
+    }
+
     private sealed class FakeBackend : ICompanionBackend
     {
         public List<string> Inputs { get; } = []; public List<string> Threads { get; } = []; public int Begins;
@@ -114,6 +194,30 @@ public sealed class CompanionTests
         public Task CancelAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
+
+    private sealed class FakeRpc : ICodexRpc
+    {
+        public Dictionary<string, JsonElement> Responses { get; } = [];
+        public List<(string Method, JsonElement Parameters)> Calls { get; } = [];
+        public event Action<string, JsonElement>? Notification;
+
+        public Task<JsonElement> CallAsync(string method, object parameters, CancellationToken cancellationToken = default)
+        {
+            Calls.Add((method, JsonSerializer.SerializeToElement(parameters)));
+            if (method == "turn/start")
+            {
+                Notification?.Invoke("turn/started", Json("{\"threadId\":\"thread-1\",\"turn\":{\"id\":\"turn-1\"}}"));
+                Notification?.Invoke("item/agentMessage/delta", Json("{\"threadId\":\"thread-1\",\"delta\":\"答\"}"));
+                Notification?.Invoke("item/agentMessage/delta", Json("{\"threadId\":\"thread-1\",\"delta\":\"覆\"}"));
+                Notification?.Invoke("turn/completed", Json("{\"threadId\":\"thread-1\",\"turn\":{\"id\":\"turn-1\",\"status\":\"completed\"}}"));
+            }
+            return Task.FromResult(Responses.TryGetValue(method, out var response) ? response.Clone() : Json("{}"));
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private static JsonElement Json(string value) => JsonDocument.Parse(value).RootElement.Clone();
     private sealed class Fixture : IDisposable
     {
         public string Root { get; } = Path.Combine(Path.GetTempPath(), "memento-companion-" + Guid.NewGuid().ToString("N"));

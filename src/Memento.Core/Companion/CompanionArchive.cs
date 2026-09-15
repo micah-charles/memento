@@ -24,13 +24,72 @@ public sealed class CompanionArchive(ArchiveRepository repository)
 
     public (string MessageId, string RevisionId, Turn Turn) AddMessage(string sessionId, string role, string text, string kind, string status = "saved")
     {
-        var turn = repository.AddTurn(sessionId, repository.GetNextTurnSequence(sessionId), role, DateTimeOffset.UtcNow);
+        if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(role) || string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(kind))
+            throw new ArgumentException("Session, role, text and kind are required.");
+        if (role is not ("participant" or "assistant" or "system")) throw new ArgumentException("Unsupported companion message role.", nameof(role));
+        var now = DateTimeOffset.UtcNow;
+        var turnId = Guid.NewGuid().ToString("N");
         var id = Guid.NewGuid().ToString("N");
-        Execute("INSERT INTO companion_messages(message_id,session_id,turn_id,role,status,created_at) VALUES($id,$session,$turn,$role,$status,$time)", ("$id", id), ("$session", sessionId), ("$turn", turn.TurnId), ("$role", role), ("$status", status), ("$time", DateTimeOffset.UtcNow.ToString("O")));
+        var revisionId = Guid.NewGuid().ToString("N");
+        var turn = default(Turn)!;
+        using var connection = repository.Archive.OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        using (var sessionCheck = connection.CreateCommand())
+        {
+            sessionCheck.Transaction = transaction;
+            sessionCheck.CommandText = "SELECT COUNT(*) FROM sessions WHERE session_id=$id";
+            sessionCheck.Parameters.AddWithValue("$id", sessionId);
+            if (Convert.ToInt32(sessionCheck.ExecuteScalar()) != 1) throw new InvalidOperationException("Session was not found.");
+        }
+        int sequence;
+        using (var next = connection.CreateCommand())
+        {
+            next.Transaction = transaction;
+            next.CommandText = "SELECT COALESCE(MAX(sequence_number) + 1, 0) FROM turns WHERE session_id=$session";
+            next.Parameters.AddWithValue("$session", sessionId);
+            sequence = Convert.ToInt32(next.ExecuteScalar());
+        }
+        turn = new Turn(turnId, sessionId, sequence, role, now, now, now);
+        using (var turnInsert = connection.CreateCommand())
+        {
+            turnInsert.Transaction = transaction;
+            turnInsert.CommandText = "INSERT INTO turns(turn_id,session_id,sequence_number,speaker_type,started_at,ended_at,created_at) VALUES($id,$session,$sequence,$speaker,$started,$ended,$created)";
+            turnInsert.Parameters.AddWithValue("$id", turn.TurnId);
+            turnInsert.Parameters.AddWithValue("$session", turn.SessionId);
+            turnInsert.Parameters.AddWithValue("$sequence", turn.SequenceNumber);
+            turnInsert.Parameters.AddWithValue("$speaker", turn.SpeakerType);
+            turnInsert.Parameters.AddWithValue("$started", now.ToString("O"));
+            turnInsert.Parameters.AddWithValue("$ended", now.ToString("O"));
+            turnInsert.Parameters.AddWithValue("$created", now.ToString("O"));
+            turnInsert.ExecuteNonQuery();
+        }
+        using (var messageInsert = connection.CreateCommand())
+        {
+            messageInsert.Transaction = transaction;
+            messageInsert.CommandText = "INSERT INTO companion_messages(message_id,session_id,turn_id,role,status,created_at) VALUES($id,$session,$turn,$role,$status,$time)";
+            messageInsert.Parameters.AddWithValue("$id", id);
+            messageInsert.Parameters.AddWithValue("$session", sessionId);
+            messageInsert.Parameters.AddWithValue("$turn", turnId);
+            messageInsert.Parameters.AddWithValue("$role", role);
+            messageInsert.Parameters.AddWithValue("$status", status);
+            messageInsert.Parameters.AddWithValue("$time", now.ToString("O"));
+            messageInsert.ExecuteNonQuery();
+        }
         var author = role == "assistant" ? "model" : role == "system" ? "app" : kind == "typed" ? "participant" : "recognizer";
-        var revision = AddRevision(id, text, kind, author, "original", null);
-        repository.EndTurn(turn);
-        return (id, revision, turn);
+        using (var revisionInsert = connection.CreateCommand())
+        {
+            revisionInsert.Transaction = transaction;
+            revisionInsert.CommandText = "INSERT INTO companion_text_versions(revision_id,message_id,parent_revision_id,text,kind,author,reason,created_at) VALUES($id,$message,NULL,$text,$kind,$author,'original',$time)";
+            revisionInsert.Parameters.AddWithValue("$id", revisionId);
+            revisionInsert.Parameters.AddWithValue("$message", id);
+            revisionInsert.Parameters.AddWithValue("$text", text);
+            revisionInsert.Parameters.AddWithValue("$kind", kind);
+            revisionInsert.Parameters.AddWithValue("$author", author);
+            revisionInsert.Parameters.AddWithValue("$time", now.ToString("O"));
+            revisionInsert.ExecuteNonQuery();
+        }
+        transaction.Commit();
+        return (id, revisionId, turn);
     }
 
     public string AddRevision(string messageId, string text, string kind, string author, string reason, string? parent)
@@ -46,6 +105,43 @@ public sealed class CompanionArchive(ArchiveRepository repository)
         var id = Guid.NewGuid().ToString("N");
         Execute("INSERT INTO companion_text_versions VALUES($id,$message,$parent,$text,$kind,$author,$reason,$time)", ("$id", id), ("$message", messageId), ("$parent", parent), ("$text", text), ("$kind", kind), ("$author", author), ("$reason", reason), ("$time", DateTimeOffset.UtcNow.ToString("O")));
         return id;
+    }
+
+    public void AddTranscriptSegments(string messageId, IReadOnlyList<SpeechSegment> segments)
+    {
+        ArgumentNullException.ThrowIfNull(segments);
+        using var connection = repository.Archive.OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        for (var i = 0; i < segments.Count; i++)
+        {
+            var segment = segments[i];
+            if (segment.StartMs < 0 || segment.EndMs <= segment.StartMs || string.IsNullOrWhiteSpace(segment.Text))
+                throw new InvalidDataException("Speech segment timestamps and text must be valid.");
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = "INSERT INTO companion_transcript_segments(segment_id,message_id,sequence_number,start_ms,end_ms,text,created_at) VALUES($id,$message,$sequence,$start,$end,$text,$created)";
+            command.Parameters.AddWithValue("$id", Guid.NewGuid().ToString("N"));
+            command.Parameters.AddWithValue("$message", messageId);
+            command.Parameters.AddWithValue("$sequence", i);
+            command.Parameters.AddWithValue("$start", segment.StartMs);
+            command.Parameters.AddWithValue("$end", segment.EndMs);
+            command.Parameters.AddWithValue("$text", segment.Text);
+            command.Parameters.AddWithValue("$created", DateTimeOffset.UtcNow.ToString("O"));
+            command.ExecuteNonQuery();
+        }
+        transaction.Commit();
+    }
+
+    public IReadOnlyList<SpeechSegment> TranscriptSegments(string messageId)
+    {
+        using var connection = repository.Archive.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT start_ms,end_ms,text FROM companion_transcript_segments WHERE message_id=$message ORDER BY sequence_number";
+        command.Parameters.AddWithValue("$message", messageId);
+        using var reader = command.ExecuteReader();
+        var result = new List<SpeechSegment>();
+        while (reader.Read()) result.Add(new(reader.GetInt64(0), reader.GetInt64(1), reader.GetString(2)));
+        return result;
     }
 
     public void MarkMessage(string id, string status, CompanionReply? reply = null, string? inputRevision = null)
